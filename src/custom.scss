@@ -1,0 +1,15 @@
+@import "node_modules/bootstrap/scss/functions";
+@import "node_modules/bootstrap/scss/variables";
+
+// Add your new colors
+$theme-colors: map-merge(
+  $theme-colors,
+  (
+    "new-primary": #07F468, 
+    "new-secondary": #252525, 
+    "grad-secondary": #333333 
+  )
+);
+
+
+@import "node_modules/bootstrap/scss/bootstrap";
