@@ -1,0 +1,83 @@
+database = terranv0;
+ tables = {
+    compte      (idCompte,nom, prenom,age,email,img,password,tel,type,admin);
+
+    terran      (idTerran,idTypeterran);
+
+    typeterran  (idTypeterran,type);
+
+    reservation (idReservation,idCompte,idTimes,datereservation,
+                amound_paid,remainnig_balance,status);
+
+    *[view_reservations]
+
+    times       (idTimes,idTerran,time,date,disponible,prix);
+
+    payments    (idPayment,idReservation,payment_date,payment_type,amount,
+                method,status);
+
+    *[view_payments]
+
+    activiter    (idActiviter,nom,description,date_Debut,date_Fin);
+
+    inactiviter (idInActiviter , idActiviter, idCompte);
+
+    *[view_academies]
+
+    academie    (idAcademie,idCompte,adresse);
+
+    academie_members (idAcademieMembers,idCompte,idAcademie,role,date_joined,
+    active);
+
+    *[view_academy_members]
+
+    acdemie_activiter (idAcademieActiviter , idAcademie, nom,description,
+                        date_Debut,date_Fin,status);
+
+    tournament  (idTournament, idAcademie, name, description, 
+                date_Start, date_End, status);
+
+    *[view_tournaments]
+
+     tournament_announcement (idAnnouncement, idTournament, message, 
+                            created_at);
+
+    tournament_participant (idParticipant, idTournament, idAcademie, 
+                            joined_at, status);
+
+    *[view_tournament_participants]
+
+   review  (idReview , idCompte, message);
+
+ }
+
+
+
+ logo  |            About        | Reservation       |       Social
+       |                         |                   |     
+       |            Academie     |  Times            |       Facbook
+       |                         |                   |   
+       |            Tournament   |  BOOK Now         |       Instagram
+       |                         |                   |
+       |            Activiter    |  Your Resevation  |       Youtube
+       |                         |                   |
+
+       S'Inscrice
+       Copyright @ 2025 All Rights Reseved by Amine,Mahdi
+
+
+
+       lightgreen lv1 = #98FF30
+       *lightgreen lv2 = #7CFF00
+       lightgreen lv3 =#4EB200
+       lightgreen lv4 =#64D800
+       black lv1 = #48593F
+       black lv2 = #35452D
+       *black lv3 = #273621
+       black lv4 = #1E2C19
+
+
+       color2 = #70F468
+       color = #9EEB47
+
+       color = #07F468
