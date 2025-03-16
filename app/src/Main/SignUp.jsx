@@ -3,6 +3,7 @@ import background from "../img/background1.png";
 import { motion } from "framer-motion";
 import { Icon } from '@iconify/react'
 import { Navigate, useNavigate } from "react-router-dom";
+import { authService } from "../lib/services/authoServices";
 
 const SignUpForm = () => {
   const navigate = useNavigate()
@@ -10,12 +11,12 @@ const SignUpForm = () => {
   const [currentStep, setcurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     email: "",
-    nom: "",
+    name: "",
     prenom: "",
     age: "",
-    tel: "",
+    telephone: "",
     password: "",
-    confirmPassword: "",
+    password_confirmation: "",
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -49,8 +50,8 @@ const SignUpForm = () => {
     }
 
     if (step === 2) {
-      if (!formData.nom) stepErrors.nom = "Nom est obligatoire.";
-      if (!formData.prenom) stepErrors.prenom = "Prénom est obligatoire.";
+      if (!formData.name) stepErrors.name = "name est obligatoire.";
+      if (!formData.prenom) stepErrors.prenom = "Préname est obligatoire.";
 
       if (!formData.age || isNaN(formData.age)) {
         stepErrors.age = "Âge est invalide.";
@@ -60,10 +61,10 @@ const SignUpForm = () => {
 
 
       const phoneRegex = /^\d{10}$/;
-      if (!formData.tel) {
-        stepErrors.tel = "Le numéro de téléphone est obligatoire.";
-      } else if (!phoneRegex.test(formData.tel)) {
-        stepErrors.tel = "Le numéro de téléphone doit comporter 10 chiffres.";
+      if (!formData.telephone) {
+        stepErrors.telephone = "Le numéro de téléphone est obligatoire.";
+      } else if (!phoneRegex.test(formData.telephone)) {
+        stepErrors.telephone = "Le numéro de téléphone doit comporter 10 chiffres.";
       }
     }
 
@@ -76,8 +77,8 @@ const SignUpForm = () => {
       }
 
 
-      if (formData.password !== formData.confirmPassword) {
-        stepErrors.confirmPassword = "Les mots de passe ne correspondent pas.";
+      if (formData.password !== formData.password_confirmation) {
+        stepErrors.password_confirmation = "Les mots de passe ne correspondent pas.";
       }
     }
 
@@ -87,36 +88,32 @@ const SignUpForm = () => {
 
   const handleSubmit = async () => {
     const currentErrors = validateStep();
-    setErrors(currentErrors); // Set initial form validation errors
+    setErrors(currentErrors);
 
     if (Object.keys(currentErrors).length === 0) {
         try {
-            const response = await fetch('http://localhost/PFR/3AFAK-PFE/backend/Controleur/Signup.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
-            });
+            const data = await authService.register(formData);
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                const apiErrors = {
-                    email: data.error?.includes('Email') ? data.error : null,
-                    password: data.error?.includes('password') ? data.error : null,
-                    tel: data.error?.includes('Phone') ? data.error : null,
-                    api: data.error ? data.error : "An error occurred during signup.",
-                };
+            if (data.status) {
+                // Registration successful
+                console.log("Registration successful:", data);
+                navigate("/sign-in");
+            } else {
+                // Handle validation errors from the backend
+                const apiErrors = {};
+                if (data.errors) {
+                    Object.keys(data.errors).forEach(key => {
+                        apiErrors[key] = data.errors[key][0];
+                    });
+                }
                 setErrors(apiErrors);
-                throw new Error(data.error || 'Failed to signup');
             }
-
-            console.log("API Response:", data);
-            navigate("/sign-in");
         } catch (error) {
             console.error("Error:", error);            
-            setErrors(prevErrors => ({ ...prevErrors, api: error.message || "An error occurred during signup." }));
+            setErrors(prevErrors => ({ 
+                ...prevErrors, 
+                api: "An error occurred during signup." 
+            }));
         }
     }
 };
@@ -251,29 +248,29 @@ const SignUpForm = () => {
               </div>
               <h1 className="text-2xl font-bold mb-6">Informations personnelles</h1>
               <label className="block text-left text-sm font-medium mb-1">
-                Nom
+                name
               </label>
               <input
 
                 type="text"
-                name="nom"
-                placeholder="Nom"
-                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.nom ? "border-red-500" : "border-gray-300"
+                name="name"
+                placeholder="name"
+                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.name ? "border-red-500" : "border-gray-300"
                   }`}
-                value={formData.nom}
+                value={formData.name}
                 onChange={handleChange}
               />
-              {errors.nom && (
-                <div className="lg:mb-2 text-red-500 text-sm">{errors.nom}</div>
+              {errors.name && (
+                <div className="lg:mb-2 text-red-500 text-sm">{errors.name}</div>
               )}
 
               <label className="block text-left text-sm font-medium mb-1">
-                Prénom
+                Préname
               </label>
               <input
                 type="text"
                 name="prenom"
-                placeholder="Prénom"
+                placeholder="Préname"
                 className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.prenom ? "border-red-500" : "border-gray-300"
                   }`}
                 value={formData.prenom}
@@ -304,14 +301,14 @@ const SignUpForm = () => {
               </label>
               <input
                 type="text"
-                name="tel"
+                name="telephone"
                 placeholder="Téléphone "
                 className="w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border-gray-300"
-                value={formData.tel}
+                value={formData.telephone}
                 onChange={handleChange}
               />
-              {errors.tel && (
-                <div className="lg:mb-2 text-red-500 text-sm">{errors.tel}</div>
+              {errors.telephone && (
+                <div className="lg:mb-2 text-red-500 text-sm">{errors.telephone}</div>
               )}
               <button
                 type="button"
@@ -373,16 +370,16 @@ const SignUpForm = () => {
               </label>
               <input
                 type="password"
-                name="confirmPassword"
+                name="password_confirmation"
                 placeholder="Confirmez le mot de passe"
-                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.confirmPassword ? "border-red-500" : "border-gray-300"
+                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.password_confirmation ? "border-red-500" : "border-gray-300"
                   }`}
-                value={formData.confirmPassword}
+                value={formData.password_confirmation}
                 onChange={handleChange}
               />
-              {errors.confirmPassword && (
+              {errors.password_confirmation && (
                 <div className="lg:mb-2 text-red-500 text-sm">
-                  {errors.confirmPassword}
+                  {errors.password_confirmation}
                 </div>
               )}
 

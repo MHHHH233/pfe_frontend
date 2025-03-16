@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import background from "../img/background1.png";
 import { Icon } from '@iconify/react';
-
+import { authService } from "../lib/services/authoServices";
 
 const LoginForm = () => {
   const [formData, setFormData] = useState({
@@ -32,41 +32,33 @@ const LoginForm = () => {
   
     if (Object.keys(fieldErrors).length === 0) {
       try {
-        const response = await fetch('http://localhost/PFR/3AFAK-PFE/backend/Controleur/Login.php', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Important for session management
-          body: JSON.stringify(formData),
-        });
-  
-        const data = await response.json();
+        const response = await authService.login(formData);
+        console.log('Login response:', response);
         
-        if (!response.ok) {
-          const apiErrors = {
-            email: data.error.includes('Email') ? data.error : null,
-            password: data.error.includes('password') ? data.error : null,
-          };
-          setErrors(apiErrors);
-          throw new Error('Failed to login');
+        if (response.status && response.data) {
+          // Store token
+          sessionStorage.setItem("token", response.data.user_token);
+          
+          // Store user info
+          const userData = response.data.user;
+          sessionStorage.setItem("userId", userData.id_compte);
+          sessionStorage.setItem("email", userData.email);
+          sessionStorage.setItem("type", userData.role);
+          alert(sessionStorage.getItem("type"));
+          // Navigate based on role
+          if (sessionStorage.getItem("type") == "admin") {
+            navigate("/Admin");
+          } else {
+            navigate("/Client");
+          }
+        } else {
+          throw new Error(response.message || 'Login failed');
         }
-  
-        // Store user info in sessionStorage
-        sessionStorage.setItem("userId", data.id_compte);
-        sessionStorage.setItem("email", data.email);
-        sessionStorage.setItem("nom", data.nom);
-        sessionStorage.setItem("prenom", data.prenom);
-        sessionStorage.setItem("type", data.type);
-        navigate("/Client");
-        if (data.type === "admin") {
-          navigate("/Admin")
-        }        
       } catch (error) {
-        console.error("Error:", error);
+        console.error("Error details:", error);
         setErrors((prevErrors) => ({
           ...prevErrors,
-          api: "An error occurred during login.",
+          api: error.message || "An error occurred during login.",
         }));
       }
     }
@@ -84,11 +76,11 @@ const validateFormData = ({ email, password }) => {
       errors.email = "Veuillez entrer une adresse email valide.";
   }
 
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
   if (!password) {
       errors.password = "Le mot de passe est obligatoire.";
   } else if (!passwordRegex.test(password)) {
-      errors.password = "Au moins 8 caractères, une lettre majuscule, une lettre minuscule, un chiffre.";
+      errors.password = "Au moins 6 caractères, une lettre majuscule, une lettre minuscule, un chiffre.";
   }
 
   return errors;

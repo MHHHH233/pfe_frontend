@@ -50,7 +50,7 @@ import AcademieManagement from './components/Academie';
 import PlayersTeams from './components/Players-teams';
 import Terrains from './components/Terrains';
 import SettingsManagement from './components/Settings';
-
+import { authService } from '../lib/services/authoServices';
 const FootballAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -100,15 +100,12 @@ const FootballAdminDashboard = () => {
 const Header = ({ toggleSidebar }) => {
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://localhost/PFR/3AFAK-PFE/backend/controleur/Logout.php', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      const response = await authService.logout();
 
-      if (response.ok) {
+      if (response.status) {
         sessionStorage.clear()
         window.location.reload()
-        Navigate('/sign-in')
+        Navigate('/')
       }
     } catch (error) {
       console.error('Logout error:', error)

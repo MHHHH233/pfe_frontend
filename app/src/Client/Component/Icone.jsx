@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { User, Info, LogOut, X, Key, Mail, ChevronRight, User2, UserCog } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import UserInfoCard from './Userinfos'
-
+import { authService } from '../../lib/services/authoServices'
 const UserIcon = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [userName, setUserName] = useState('')
@@ -40,14 +40,11 @@ const UserIcon = () => {
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('http://localhost/PFR/3AFAK-PFE/backend/controleur/Logout.php', {
-        method: 'POST',
-        credentials: 'include',
-      })
+      const response = await authService.logout();
 
-      if (response.ok) {
+      if (response.status === 200) {
         sessionStorage.clear()
-        window.location.reload()
+        // window.location.reload()
         navigate('/sign-in')
       }
     } catch (error) {

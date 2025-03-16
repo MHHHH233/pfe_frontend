@@ -12,7 +12,7 @@ export const NavBar = () => {
     const menuref = useRef(null);
     const burgeref = useRef(null);
 
-    const isLoggedIn = sessionStorage.getItem("isLoggedIn")
+    const isLoggedIn = sessionStorage.getItem("token")
     // console.log(isLoggedIn)
 
     const BurgerClicked = () => {
