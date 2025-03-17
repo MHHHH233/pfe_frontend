@@ -40,15 +40,15 @@ const UserIcon = () => {
 
   const handleLogout = async () => {
     try {
-      const response = await authService.logout();
-
-      if (response.status === 200) {
-        sessionStorage.clear()
-        // window.location.reload()
-        navigate('/sign-in')
-      }
+      await authService.logout();
+      // Clear session storage and redirect regardless of response
+      sessionStorage.clear();
+      window.location.href = '/'; // Redirect to signin page
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error('Logout error:', error);
+      // Still clear and redirect even if there's an error
+      sessionStorage.clear();
+      window.location.href = '/sign-in';
     }
   }
 

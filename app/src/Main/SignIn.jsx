@@ -44,7 +44,8 @@ const LoginForm = () => {
           sessionStorage.setItem("userId", userData.id_compte);
           sessionStorage.setItem("email", userData.email);
           sessionStorage.setItem("type", userData.role);
-          alert(sessionStorage.getItem("type"));
+          sessionStorage.setItem("name", userData.name);
+         
           // Navigate based on role
           if (sessionStorage.getItem("type") == "admin") {
             navigate("/Admin");

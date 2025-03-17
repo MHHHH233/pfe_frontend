@@ -39,9 +39,9 @@ export const Main = () => {
                     <Route 
                         path="/reservation" 
                         element={
-                            <ProtectedRoute>
+                            
                                 <Reservations />
-                            </ProtectedRoute>
+                           
                         } 
                     />
                     <Route 

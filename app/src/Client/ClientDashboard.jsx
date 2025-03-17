@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { motion, useScroll, useTransform } from "framer-motion"
-import { Bell, Menu, User, Calendar, Trophy, Search, ChevronDown, ArrowRight, ChevronRight, Users, Star } from 'lucide-react'
+import { Bell, Menu, User, Calendar, Trophy, Search, ChevronDown, ArrowRight, ChevronRight, Users, Star, Clock } from 'lucide-react'
 import LogoLight from "../img/logoLight.png"
-import Reservations from "../Main/Reservation"
 import { Navigate, Route, useNavigate } from "react-router-dom"
 import tournament1 from "../img/tournament1.webp"
 import tournament2 from "../img/tournament2.webp"
 import tournament7 from "../img/tournament7.webp"
-import { Myreservations } from "../Component/Reservations/UserReservation"
+import reservationService from "../lib/services/admin/reservationServices"
+
 
 export default function EnhancedClientDashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -39,7 +39,6 @@ export default function EnhancedClientDashboard() {
         <OverviewSection />
         {/* <ReservationSection /> */}
         <div id="reservation-section" className="text-black">
-        <Reservations/>
         </div>
         <TournamentsSection />
         <FindPlayersSection />
@@ -464,6 +463,94 @@ function FindPlayersSection() {
          </section>
   )
 }
+
+const Myreservations = () => {
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchReservations = async () => {
+      try {
+        const userId = sessionStorage.getItem("userId");
+        if (!userId) {
+          setError("User ID not found in session storage");
+          setLoading(false);
+          return;
+        }
+        
+        const response = await reservationService.getReservation(userId);
+        setReservations(Array.isArray(response) ? response : [response]);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching reservations:", err);
+        setError("Failed to load reservations");
+        setLoading(false);
+      }
+    };
+
+    fetchReservations();
+  }, []);
+
+  return (
+    <motion.div 
+      className="bg-[#333] rounded-xl p-6 flex flex-col cursor-pointer hover:bg-[#444] transition-colors"
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+      viewport={{ once: true }}
+    >
+      <h3 className="text-xl text-center font-semibold mb-4">My Reservations</h3>
+      
+      {loading ? (
+        <div className="flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#07f468]"></div>
+        </div>
+      ) : error ? (
+        <div className="text-red-400 text-center py-4">{error}</div>
+      ) : reservations.length === 0 ? (
+        <div className="text-gray-300 text-center py-4">No reservations found</div>
+      ) : (
+        <div className="space-y-4">
+          {reservations.slice(0, 3).map((reservation, index) => (
+            <div key={index} className="bg-[#444] rounded-lg p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-medium">{reservation.terrain?.nom || 'Unknown Field'}</span>
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                  reservation.status === "confirmed" 
+                    ? "bg-[#07f468] bg-opacity-10 text-[#07f468]" 
+                    : reservation.status === "pending"
+                    ? "bg-yellow-500 bg-opacity-10 text-yellow-500"
+                    : "bg-red-500 bg-opacity-10 text-red-500"
+                }`}>
+                  {reservation.status || 'Pending'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-300">
+                <div className="flex items-center mb-1">
+                  <Calendar className="h-4 w-4 text-[#07f468] mr-2" />
+                  <p>{new Date(reservation.date).toLocaleDateString()}</p>
+                </div>
+                <div className="flex items-center">
+                  <Clock className="h-4 w-4 text-[#07f468] mr-2" />
+                  <p>{reservation.heure_debut} - {reservation.heure_fin}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {reservations.length > 3 && (
+            <div className="text-center mt-2">
+              <button className="text-[#07f468] hover:underline text-sm">
+                View all ({reservations.length})
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+};
 
 function Footer() {
   return (

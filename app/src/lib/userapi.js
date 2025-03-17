@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const apiClient = axios.create({
     baseURL: API_URL,
@@ -28,7 +28,7 @@ apiClient.interceptors.response.use(
             console.error('Unauthorized access. Redirecting to login...');
             sessionStorage.removeItem('token');
             // Instead of using navigate, we'll redirect using window.location
-            window.location.href = '/signin';
+            window.location.href = '/sign-in';
         }
         return Promise.reject(error);
     }
