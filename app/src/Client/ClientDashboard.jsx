@@ -50,6 +50,20 @@ export default function EnhancedClientDashboard() {
 
 
 function Header({ opacity, translateY, isMenuOpen, setIsMenuOpen }) {
+  const isLoggedIn = !!sessionStorage.getItem("userId");
+  const userName = sessionStorage.getItem("nom") || '';
+  const [notificationCount, setNotificationCount] = useState(0);
+  
+  // Fetch notifications count (mock for now)
+  useEffect(() => {
+    if (isLoggedIn) {
+      // This would be a real API call in production
+      setNotificationCount(3); // Mock notification count
+    }
+  }, [isLoggedIn]);
+  
+  const navigate = useNavigate();
+  
   return (
     <motion.header 
       className="fixed top-0 left-0 right-0 z-50 bg-[#1a1a1a] border-b border-[#333] transition-colors duration-300"
@@ -59,9 +73,10 @@ function Header({ opacity, translateY, isMenuOpen, setIsMenuOpen }) {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
             <img
-              className="w-28 h-auto transition-transform duration-300 hover:scale-105"
+              className="w-28 h-auto transition-transform duration-300 hover:scale-105 cursor-pointer"
               src={LogoLight}
               alt="Logo"
+              onClick={() => navigate('/')}
             />
           </div>
           <div className="hidden md:flex items-center space-x-4">
@@ -70,20 +85,59 @@ function Header({ opacity, translateY, isMenuOpen, setIsMenuOpen }) {
             <NavLink href="#tournaments">Tournaments</NavLink>
             <NavLink href="#find-players">Find Players</NavLink>
           </div>
-          <div className="flex items-center">
-            <button className="p-2 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] focus:ring-[#1DB954] transition-colors duration-200">
-              <Bell className="h-6 w-6" />
-            </button>
-            <div className="ml-3 relative">
-              <button
-               className="bg-[#282828] flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] focus:ring-[#1DB954]">
-                <img
-                  className="h-8 w-8 rounded-full"
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                  alt=""
-                />
-              </button>
-            </div>
+          <div className="flex items-center space-x-2">
+            {isLoggedIn ? (
+              <>
+                <div className="relative">
+                  <button className="p-2 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] focus:ring-[#1DB954] transition-colors duration-200">
+                    <Bell className="h-6 w-6" />
+                    {notificationCount > 0 && (
+                      <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full">
+                        {notificationCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+                <button 
+                  onClick={() => navigate('/reservation')}
+                  className="p-2 rounded-full text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] focus:ring-[#1DB954] transition-colors duration-200"
+                >
+                  <Calendar className="h-6 w-6" />
+                </button>
+                <div className="ml-3 relative">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-gray-300 hidden sm:inline">
+                      {userName}
+                    </span>
+                    <button
+                     className="bg-[#282828] flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#1a1a1a] focus:ring-[#1DB954]"
+                     onClick={() => navigate('/profile')}
+                    >
+                      <img
+                        className="h-8 w-8 rounded-full"
+                        src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                        alt=""
+                      />
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => navigate('/login')}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-white bg-[#282828] hover:bg-[#333] transition-colors duration-200"
+                >
+                  Log in
+                </button>
+                <button 
+                  onClick={() => navigate('/signup')}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-[#1a1a1a] bg-[#1DB954] hover:bg-[#1ed760] transition-colors duration-200"
+                >
+                  Sign up
+                </button>
+              </div>
+            )}
             <div className="ml-3 md:hidden">
               <button 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -102,6 +156,26 @@ function Header({ opacity, translateY, isMenuOpen, setIsMenuOpen }) {
             <MobileNavLink href="#reservation">Reservation</MobileNavLink>
             <MobileNavLink href="#tournaments">Tournaments</MobileNavLink>
             <MobileNavLink href="#find-players">Find Players</MobileNavLink>
+            {isLoggedIn ? (
+              <>
+                <MobileNavLink href="/profile">Profile</MobileNavLink>
+                <MobileNavLink href="/reservation">My Reservations</MobileNavLink>
+                <button 
+                  onClick={() => {
+                    sessionStorage.clear();
+                    window.location.href = '/';
+                  }}
+                  className="block w-full text-left px-3 py-2 text-base font-medium text-red-400 hover:bg-[#282828] hover:text-red-300 rounded-md"
+                >
+                  Log out
+                </button>
+              </>
+            ) : (
+              <>
+                <MobileNavLink href="/login">Log in</MobileNavLink>
+                <MobileNavLink href="/signup">Sign up</MobileNavLink>
+              </>
+            )}
           </div>
         </div>
       )}

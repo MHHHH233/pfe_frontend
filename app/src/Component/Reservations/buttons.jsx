@@ -1,36 +1,71 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import adminTerrainService from "../../lib/services/admin/terrainServices";
+import userTerrainService from "../../lib/services/user/terrainServices";
 
 export default function Buttons({ onChange }) {
   const [selectedTerrain, setSelectedTerrain] = useState(null);
+  const [terrains, setTerrains] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const terrains = [
-    {"name":"terrain1","id":"1"},
-    {"name":"terrain2","id":"2"},
-    {"name":"terrain3","id":"3"},
-    {"name":"terrain4","id":"4"},
-    {"name":"terrain5","id":"5"},
-  ];
+  useEffect(() => {
+    const fetchTerrains = async () => {
+      try {
+        setLoading(true);
+        const service = sessionStorage.getItem("type") === "admin" 
+          ? adminTerrainService 
+          : userTerrainService;
+        
+        const response = await service.getAllTerrains();
+        if (response.data) {
+          const formattedTerrains = response.data.map(terrain => ({
+            id: terrain.id_terrain,
+            name: terrain.nom_terrain
+          }));
+          setTerrains(formattedTerrains);
+        }
+      } catch (error) {
+        console.error("Error fetching terrains:", error);
+        setError("Failed to load terrains");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTerrains();
+  }, []);
 
   const handleButtonClick = (terrain) => {
     setSelectedTerrain(terrain);
     if (onChange) onChange(terrain);
   };
 
+  if (loading) {
+    return <div className="text-center text-gray-400">Loading terrains...</div>;
+  }
+
+  if (error) {
+    return <div className="text-center text-red-400">{error}</div>;
+  }
+
   return (
     <div className="mt-5 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
-        {terrains.map((terrain, index) => (
-          <button
-            key={index}
+        {terrains.map((terrain) => (
+          <motion.button
+            key={terrain.id}
             onClick={() => handleButtonClick(terrain.id)}
-            className={`px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base rounded-lg text-white font-semibold transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-lg ${
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base rounded-lg text-white font-semibold transition-all duration-300 ease-in-out ${
               selectedTerrain === terrain.id
                 ? "bg-green-500 shadow-md hover:bg-green-600"
                 : "bg-gray-700 hover:bg-gray-600"
             }`}
           >
             {terrain.name}
-          </button>
+          </motion.button>
         ))}
       </div>     
     </div>

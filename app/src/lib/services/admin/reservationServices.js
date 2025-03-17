@@ -23,7 +23,19 @@ const reservationService = {
 
   async createReservation(data) {
     try {
-      const response = await apiClient.post(reservationEndpoints.createReservation, data);
+      console.log('Creating reservation with data:', data);
+      
+      const response = await apiClient.post(reservationEndpoints.createReservation, {
+        id_terrain: data.id_terrain,
+        date: data.date,
+        heure: data.heure,
+        type: data.type,
+        id_client: data.id_client,
+        Name: data.Name,
+        email: data.email,
+        telephone: data.telephone
+      });
+      
       return response;
     } catch (error) {
       console.error('Error creating reservation:', error);

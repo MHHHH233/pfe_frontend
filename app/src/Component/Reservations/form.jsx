@@ -5,27 +5,40 @@ import AnimatedCheck from "./Status/Confirmed";
 import AnimatedReserved from "./Status/Failed";
 import { motion } from 'framer-motion';
 import { Calendar, Clock, MapPin, User, X } from 'lucide-react';
-import reservationService from '../../lib/services/admin/reservationServices';
+import userReservationService from '../../lib/services/user/reservationServices';
+import adminReservationService from '../../lib/services/admin/reservationServices';
 
 export default function FormResev({ Terrain, selectedHour, selectedTime, onSuccess }) {
   const location = useLocation();
   const isAdmin = sessionStorage.getItem("type") === "admin";
   const userType = isAdmin ? "admin" : "client";
+  const userId = sessionStorage.getItem("userId");
+  const isLoggedIn = !!userId;
   
   const [formData, setFormData] = useState({
     id_terrain: Terrain || '',
     date: '',
     heure: selectedTime || '',
+    type: userType,
+    id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) : null,
     Name: '',
-    id_client: sessionStorage.getItem("userId") || '',
-    // Set default etat based on user role
-    etat: isAdmin ? "reserver" : "en attente",
-    type: userType // Add valid type value
+    email: '',
+    telephone: '',
   });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  
+  // Remove login prompt - allow guest reservations
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+  // Add a new state to control the confirmation popup
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [reservationData, setReservationData] = useState(null);
+
+  // Add state to store client ID when admin selects a name
+  const [selectedClientId, setSelectedClientId] = useState('');
 
   useEffect(() => {
     // Update form when props change
@@ -34,7 +47,10 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       id_terrain: Terrain || prev.id_terrain,
       heure: selectedHour || prev.heure,
       date: selectedTime || prev.date,
-      id_client: sessionStorage.getItem("userId") || prev.id_client
+      id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) || null : null,
+      Name: '',
+      email: '',
+      telephone: ''
     }));
     
     // Set today's date as default only if no date is provided
@@ -52,7 +68,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       hour: selectedHour,
       date: selectedTime
     });
-  }, [Terrain, selectedHour, selectedTime]);
+  }, [Terrain, selectedHour, selectedTime, userId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -83,63 +99,72 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     return timeString;
   };
 
+  // Modify the handleSubmit function
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
     
-    try {
-      // Format the time to match the API's expected format H:i:s
-      const dataToSubmit = {
-        ...formData,
-        id_client: sessionStorage.getItem("userId") || formData.id_client,
-        heure: formatTimeToHis(formData.heure)
-      };
-      
-      console.log("Submitting reservation with data:", dataToSubmit);
-      
-      const response = await reservationService.createReservation(dataToSubmit);
-      
-      if (response && response.status === 201) {
-        setSuccess(true);
-        // Clear form or reset to defaults
-        setFormData({
-          id_terrain: Terrain || '',
-          date: selectedTime || '',
-          heure: selectedHour || '',
-          Name: '',
-          id_client: sessionStorage.getItem("userId") || '',
-          etat: isAdmin ? "reserver" : "en attente",
-          type: userType // Add valid type value
-        });
-        
-        // Call the onSuccess callback to refresh reservations
-        if (onSuccess) onSuccess();
-        
-        // Clear session storage if needed
-        sessionStorage.removeItem("selectedHour");
-        sessionStorage.removeItem("selectedTime");
-        sessionStorage.removeItem("selectedTerrain");
-        sessionStorage.removeItem("showReservationPopup");
-        
-        // If we're in the Admin component, close the popup after success
-        if (location.pathname === "/Admin") {
-          // Dispatch event to close popup
-          setTimeout(() => {
-            const closePopupEvent = new CustomEvent('closeReservationPopup');
-            document.dispatchEvent(closePopupEvent);
-          }, 2000); // Wait 2 seconds to show success message
-        }
-      } else {
-        setError(response?.data?.message || 'Failed to create reservation');
-      }
-    } catch (error) {
-      console.error('Error creating reservation:', error);
-      setError(error?.response?.data?.error?.heure?.[0] || 
-               error?.response?.data?.message || 
-               'An error occurred while creating the reservation');
-    } finally {
-      setLoading(false);
+    if (!formData.id_terrain || !formData.date || !formData.heure) {
+      setError("Please fill in all required fields");
+      return;
+    }
+    
+    // Create reservation data
+    const reservationDetails = {
+      id_terrain: parseInt(formData.id_terrain),
+      date: formData.date,
+      heure: formatTimeToHis(formData.heure),
+      type: formData.type,
+      id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) : null,
+      Name: formData.Name,
+      ...(formData.email && { email: formData.email }),
+      ...(formData.telephone && { telephone: formData.telephone })
+    };
+
+    console.log('Submitting reservation:', reservationDetails); // Debug log
+    
+    setReservationData(reservationDetails);
+    setShowConfirmation(true);
+  };
+
+  // Add a function to handle closing the confirmation
+  const handleCloseConfirmation = () => {
+    setShowConfirmation(false);
+    setReservationData(null);
+  };
+
+  // Add a function to handle successful reservation
+  const handleReservationSuccess = () => {
+    setSuccess(true);
+    setShowConfirmation(false);
+    
+    // Clear form with the correct structure
+    setFormData({
+      id_terrain: Terrain || '',
+      date: selectedTime || '',
+      heure: selectedHour || '',
+      type: userType,
+      id_client: null,
+      Name: '',
+      email: '',
+      telephone: ''
+    });
+    
+    // Call the onSuccess callback to refresh reservations
+    if (onSuccess) onSuccess();
+    
+    // Clear session storage if needed
+    sessionStorage.removeItem("selectedHour");
+    sessionStorage.removeItem("selectedTime");
+    sessionStorage.removeItem("selectedTerrain");
+    sessionStorage.removeItem("showReservationPopup");
+    
+    // If we're in the Admin component, close the popup after success
+    if (location.pathname === "/Admin") {
+      // Dispatch event to close popup
+      setTimeout(() => {
+        const closePopupEvent = new CustomEvent('closeReservationPopup');
+        document.dispatchEvent(closePopupEvent);
+      }, 2000); // Wait 2 seconds to show success message
     }
   };
 
@@ -162,8 +187,11 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       )}
       
       {success && (
-        <div className="bg-green-900/30 border border-green-500 text-green-300 p-3 rounded-lg mb-4">
-          Reservation created successfully!
+        <div className="bg-green-900/30 border border-green-500 text-green-300 p-3 rounded-lg mb-4 flex items-center">
+          <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          <p>Reservation created successfully!</p>
         </div>
       )}
       
@@ -262,6 +290,66 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
           </div>
         )}
         
+        {/* Always show name input for non-logged in users */}
+        {!isAdmin && !isLoggedIn && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Your Name</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <User size={16} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  name="Name"
+                  value={formData.Name}
+                  onChange={handleChange}
+                  placeholder="Enter your name"
+                  className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Email Address</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="Enter your email"
+                  className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                <input
+                  type="tel"
+                  name="telephone"
+                  value={formData.telephone}
+                  onChange={handleChange}
+                  placeholder="Enter your phone number"
+                  className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
+                />
+              </div>
+            </div>
+          </>
+        )}
+        
         <div className="flex justify-end space-x-3 pt-4">
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -303,6 +391,16 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
           </motion.button>
         </div>
       </form>
+      
+      {/* Add the Confirmation component */}
+      {showConfirmation && (
+        <PopupCard 
+          isVisible={showConfirmation}
+          onClose={handleCloseConfirmation}
+          data={reservationData}
+          resetStatus={handleReservationSuccess}
+        />
+      )}
     </motion.div>
   );
 }

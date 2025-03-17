@@ -1520,11 +1520,22 @@ const Reservations = () => {
   // Filter reservations based on search query and selected terrain
   const filteredReservations = reservations.filter((reservation) => {
     const searchLower = searchQuery.toLowerCase();
+    
+    // Handle client as an object instead of a string
+    const clientName = reservation.client?.nom 
+      ? `${reservation.client.nom} ${reservation.client.prenom || ''}`.trim()
+      : '';
+    
     const matchesSearch = 
-      reservation.client?.toLowerCase().includes(searchLower) ||
+      clientName.toLowerCase().includes(searchLower) ||
       reservation.date?.includes(searchQuery);
     
-    return matchesSearch;
+    // Filter by terrain if a specific one is selected
+    const matchesTerrain = selectedTerrain === "all" || 
+      (reservation.terrain?.id_terrain?.toString() === selectedTerrain || 
+       reservation.id_terrain?.toString() === selectedTerrain);
+    
+    return matchesSearch && matchesTerrain;
   });
 
   // Add this function to handle row click for mobile view
@@ -1751,8 +1762,14 @@ const Reservations = () => {
                     >
                       <td className="px-4 py-3.5 text-sm text-white">{reservation.date}</td>
                       <td className="px-4 py-3.5 text-sm text-white">{reservation.heure}</td>
-                      <td className="hidden md:table-cell px-4 py-3.5 text-sm text-white">{"Terrain " + reservation.id_terrain}</td>
-                      <td className="hidden sm:table-cell px-4 py-3.5 text-sm text-white">{reservation.client}</td>
+                      <td className="hidden md:table-cell px-4 py-3.5 text-sm text-white">
+                        {reservation.terrain?.nom || `Terrain ${reservation.id_terrain || ''}`}
+                      </td>
+                      <td className="hidden sm:table-cell px-4 py-3.5 text-sm text-white">
+                        {reservation.client?.nom 
+                          ? `${reservation.client.nom} ${reservation.client.prenom || ''}`.trim()
+                          : 'Unknown Client'}
+                      </td>
                       <td className="px-4 py-3.5 text-sm">
                         <span
                           className={`px-2.5 py-1 text-xs font-medium rounded-full ${
@@ -1926,7 +1943,9 @@ const Reservations = () => {
                   <MapPin size={18} className="text-gray-400" />
                   <div>
                     <p className="text-xs text-gray-400">Terrain</p>
-                    <p className="text-white">{"Terrain " + selectedReservation.id_terrain}</p>
+                    <p className="text-white">
+                      {selectedReservation.terrain?.nom || `Terrain ${selectedReservation.id_terrain || ''}`}
+                    </p>
                   </div>
                 </div>
                 
@@ -1934,7 +1953,11 @@ const Reservations = () => {
                   <User size={18} className="text-gray-400" />
                   <div>
                     <p className="text-xs text-gray-400">Client</p>
-                    <p className="text-white">{selectedReservation.client}</p>
+                    <p className="text-white">
+                      {selectedReservation.client?.nom 
+                        ? `${selectedReservation.client.nom} ${selectedReservation.client.prenom || ''}`.trim()
+                        : 'Unknown Client'}
+                    </p>
                   </div>
                 </div>
                 

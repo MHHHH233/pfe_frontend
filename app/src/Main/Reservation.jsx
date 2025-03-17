@@ -4,26 +4,27 @@ import Buttons from "../Component/Reservations/buttons";
 import Tableau from "../Component/Reservations/table";
 import background from "../img/background1.png";
 import { motion } from "framer-motion";
-import { Calendar, Clock, MapPin } from "lucide-react";
+import { Calendar, Clock, MapPin, LogIn } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function Reservations() {
   const [idTerrain, setIdTerrain] = useState(null);
   const [userReservations, setUserReservations] = useState([]);
   const [loading, setLoading] = useState(false);
   const userId = sessionStorage.getItem("userId");
-  const userName = sessionStorage.getItem("name");
+  const userName = sessionStorage.getItem("nom") || sessionStorage.getItem("name");
+  const isLoggedIn = !!userId;
+  const navigate = useNavigate();
 
   const handleChange = (terrain) => {
     setIdTerrain(terrain);
   };
 
-  // Fetch user's reservations
-  useEffect(() => {
-    if (userId) {
-      // This would be implemented to fetch the user's reservations
-      // For now, we'll just show the component
-    }
-  }, [userId]);
+  // Redirect to login
+  const handleLoginRedirect = () => {
+    sessionStorage.setItem("redirectAfterLogin", "/reservation");
+    navigate("/login");
+  };
 
   return (
     <motion.section
@@ -39,13 +40,13 @@ export default function Reservations() {
           <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-20 h-1 bg-green-400"></span>
         </h1>
         
-        {/* Welcome message for logged in users */}
-        {userName && (
-          <div className="bg-gray-800/80 backdrop-blur-sm p-4 rounded-lg mb-8 text-white">
-            <h2 className="text-xl font-semibold mb-2">Welcome, {userName}!</h2>
-            <p className="text-gray-300">Select a terrain and time slot to make your reservation.</p>
-          </div>
-        )}
+        {/* Welcome message for all users */}
+        <div className="bg-gray-800/80 backdrop-blur-sm p-4 rounded-lg mb-8 text-white">
+          <h2 className="text-xl font-semibold mb-2">
+            {isLoggedIn ? `Welcome, ${userName}!` : "Welcome to our Reservation System"}
+          </h2>
+          <p className="text-gray-300">Select a terrain and time slot to make your reservation.</p>
+        </div>
         
         {/* Terrain selection buttons */}
         <div className="mb-8">

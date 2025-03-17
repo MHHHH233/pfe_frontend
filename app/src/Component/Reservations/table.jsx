@@ -1,38 +1,40 @@
 import React, { useEffect, useState, useCallback, memo } from "react";
 import { motion } from "framer-motion";
 import FormResev from "./form";
-import { useLocation } from "react-router-dom";
-import reservationService from "../../lib/services/admin/reservationServices";
+import { useLocation, useNavigate } from "react-router-dom";
+import adminReservationService from "../../lib/services/admin/reservationServices";
+import userReservationService from "../../lib/services/user/reservationServices";
 
 // Memoize the table cell to prevent unnecessary re-renders
-const TableCell = memo(({ reservationState, heure, colIndex, handleClick, isPast }) => {
-  // Determine cell background color based on reservation state and whether it's in the past
+const TableCell = memo(({ reservation, heure, colIndex, handleClick, isPast }) => {
+  // Find if there's a reservation for this time slot by comparing only the hour part
+  const isReserved = reservation?.heure.startsWith(heure);
+  
   let bgColor = "bg-green-500"; // Default: available
   let textColor = "text-white";
   let buttonClass = "bg-green-600 hover:bg-green-700 text-white";
   let statusText = "Dispo";
   
-  // If the time slot is in the past, override with gray
   if (isPast) {
     bgColor = "bg-gray-600";
     textColor = "text-gray-400";
     statusText = "Passé";
-  } else if (reservationState === "reserver") {
-    bgColor = "bg-red-500";
-    textColor = "text-white";
-    statusText = "Réservé";
-  } else if (reservationState === "en attente") {
-    bgColor = "bg-yellow-500";
-    textColor = "text-black";
-    buttonClass = "bg-yellow-500 hover:bg-yellow-600 text-black";
-    statusText = "En attente";
+  } else if (isReserved) {
+    if (reservation.etat === "en attente") {
+      bgColor = "bg-yellow-500";
+      textColor = "text-black";
+      buttonClass = "bg-yellow-500 hover:bg-yellow-600 text-black";
+      statusText = "En attente";
+    } else {
+      bgColor = "bg-red-500";
+      textColor = "text-white";
+      statusText = "Réservé";
+    }
   }
-  
+
   return (
-    <td
-      className={`border border-gray-700 p-1 sm:p-2 text-center ${bgColor} ${textColor}`}
-    >
-      {!isPast && reservationState !== "reserver" ? (
+    <td className={`border border-gray-700 p-1 sm:p-2 text-center ${bgColor} ${textColor}`}>
+      {!isPast && !isReserved ? (
         <motion.button
           className={`text-2xs sm:text-xs font-semibold px-1 py-0.5 rounded ${buttonClass}`}
           onClick={() => handleClick(heure, colIndex)}
@@ -42,11 +44,7 @@ const TableCell = memo(({ reservationState, heure, colIndex, handleClick, isPast
           {statusText}
         </motion.button>
       ) : (
-        <motion.span
-          className="text-2xs sm:text-xs font-semibold"
-          whileHover={!isPast ? { scale: 1.1 } : {}}
-          whileTap={!isPast ? { scale: 0.95 } : {}}
-        >
+        <motion.span className="text-2xs sm:text-xs font-semibold">
           {statusText}
         </motion.span>
       )}
@@ -93,6 +91,7 @@ const isTimeSlotInPast = (heure, dayIndex) => {
 
 export default function Tableau({ Terrain }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const Heures = [
     "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00",
     "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
@@ -118,62 +117,77 @@ export default function Tableau({ Terrain }) {
   
   // Use useCallback to prevent recreation of this function on every render
   const fetchReservations = useCallback(async () => {
-    // Don't fetch if no terrain is selected
-    if (!Terrain) {
-      setLoading(false);
-      return;
-    }
+    if (!Terrain) return;
     
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Prepare params for filtering by terrain
-      const params = { id_terrain: Terrain };
-      
-      const response = await reservationService.getAllReservations(params);
-      console.log("Raw API Response:", response); // Debug log
-      
-      if (response && response.status === "success" && Array.isArray(response.data)) {
-        // Process the API data
-        const processedData = response.data
-          .filter(res => {
-            // Make sure we only include reservations for the selected terrain
-            const terrainMatch = parseInt(res.id_terrain) === parseInt(Terrain);
-            console.log(`Reservation ${res.id_reservation} terrain match: ${terrainMatch} (${res.id_terrain} vs ${Terrain})`);
-            return terrainMatch;
-          })
-          .map(res => {
-            const id_terrain = parseInt(res.id_terrain);
-            let [hours, minutes, seconds] = (res.heure || "00:00:00").split(':').map(Number);
-            
-            if (hours > 23) {
-              hours = hours % 24;
-            }
-            
-            const normalizedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            // Log each processed reservation
-            console.log(`Processed reservation: ID=${res.id_reservation}, Terrain=${id_terrain}, Date=${res.date}, Time=${normalizedTime}, Status=${res.etat}`);
-            
-            return {
-              ...res,
-              id_terrain,
-              heure: normalizedTime
-            };
-          });
+      const reservationService = sessionStorage.getItem("type") === "admin" 
+        ? adminReservationService 
+        : userReservationService;
         
-        console.log("Final processed reservations:", processedData);
-        setReservations(processedData);
+      const response = await reservationService.getAllReservations();
+      if (response.status === "success") {
+        const reservationData = response.data.map(res => {
+          if (sessionStorage.getItem("type") === "admin") {
+            return {
+              id_reservation: res.id_reservation,
+              num_res: res.num_res,
+              client: {
+                id_client: res.client?.id_client || null,
+                nom: res.client?.nom || '',
+                prenom: res.client?.prenom || '',
+                telephone: res.client?.telephone || '',
+                email: res.client?.email || ''
+              },
+              terrain: {
+                id_terrain: res.terrain?.id_terrain,
+                nom: res.terrain?.nom || '',
+                type: res.terrain?.type || '',
+                prix: res.terrain?.prix || 0
+              },
+              date: res.date,
+              heure: res.heure,
+              etat: res.etat,
+              created_at: res.created_at
+            };
+          } else {
+            // Handle user service format
+            return {
+              id_reservation: res.id_reservation,
+              num_res: res.num_res,
+              id_client: res.id_client,
+              id_terrain: res.id_terrain,
+              client: {
+                id_client: res.id_client,
+                nom: res.name || '',
+                prenom: '',
+                telephone: '',
+                email: ''
+              },
+              terrain: {
+                id_terrain: res.id_terrain,
+                nom: `Terrain ${res.id_terrain}`,
+                type: '',
+                prix: 0
+              },
+              date: res.date,
+              heure: res.heure,
+              etat: res.etat,
+              created_at: res.created_at
+            };
+          }
+        });
+        
+        setReservations(reservationData);
+        console.log("Mapped reservations:", reservationData);
       } else {
-        // Handle empty data case
-        console.warn("No reservation data from API");
-        setReservations([]);
+        setError("Failed to fetch reservations");
+        setUseMockData(true);
       }
     } catch (error) {
       console.error("Error fetching reservations:", error);
-      setError("Failed to load reservation data. Please try again.");
-      setReservations([]);
+      setError("Error fetching reservations");
+      setUseMockData(true);
     } finally {
       setLoading(false);
     }
@@ -189,36 +203,25 @@ export default function Tableau({ Terrain }) {
   }, [fetchReservations, Terrain]);
 
   // Memoize this function to prevent recreation on every render
-  const getReservationState = useCallback((heure, dayIndex) => {
-    if (!reservations || !reservations.length) return null;
+  const getReservationsForDay = useCallback((dayIndex) => {
+    if (!Terrain) return []; // Return empty array if no terrain selected
     
-    // Get the date for the specified day index
-    const today = new Date();
-    today.setDate(today.getDate() + dayIndex); 
-    const dateString = formatDateForAPI(today);
+    const date = new Date();
+    date.setDate(date.getDate() + dayIndex);
+    const dateString = formatDateForAPI(date);
+    
+    // Filter reservations for this day and terrain
+    return reservations.filter(res => {
+      // First check if we have a valid date match
+      if (res.date !== dateString) return false;
 
-    // Find matching reservation
-    const reservation = reservations.find((res) => {
-      try {
-        // Only compare hours and minutes, ignore seconds
-        const reservationTime = (res.heure || "").slice(0, 5);
-        const hourToCheck = heure.slice(0, 5); // Make sure we're comparing the same format
-        
-        // Check if terrain, date and hour match
-        const terrainMatch = parseInt(res.id_terrain) === parseInt(Terrain);
-        const dateMatch = res.date === dateString;
-        const timeMatch = reservationTime === hourToCheck;
-        
-        const match = terrainMatch && dateMatch && timeMatch;
-        
-        return match;
-      } catch (error) {
-        return false;
+      // Then handle terrain comparison based on user type
+      if (sessionStorage.getItem("type") === "admin") {
+        return res.terrain?.id_terrain?.toString() === Terrain.toString();
+      } else {
+        return res.id_terrain?.toString() === Terrain.toString();
       }
     });
-
-    // Return the reservation state if found, otherwise null
-    return reservation ? reservation.etat : null;
   }, [reservations, Terrain]);
 
   // Format date in YYYY-MM-DD format for API
@@ -343,27 +346,36 @@ export default function Tableau({ Terrain }) {
                 </tr>
               </thead>
               <tbody>
-                {Heures.map((heure, rowIndex) => (
-                  <tr key={rowIndex} className="hover:bg-gray-700/30 transition-colors duration-150">
-                    <td className="border border-gray-700 p-1 sm:p-2 text-center font-medium text-gray-200">
-                      {heure}
-                    </td>
-                    {Jours.map((_, colIndex) => {
-                      // Check if this time slot is in the past
-                      const isPast = isTimeSlotInPast(heure, colIndex);
-                      return (
-                        <TableCell 
-                          key={colIndex}
-                          reservationState={getReservationState(heure, colIndex)}
-                          heure={heure}
-                          colIndex={colIndex}
-                          handleClick={handleClick}
-                          isPast={isPast}
-                        />
-                      );
-                    })}
-                  </tr>
-                ))}
+                {Heures.map((heure, rowIndex) => {
+                  // Add this debug log
+                  console.log(`Rendering row for ${heure}:`, Jours.map((_, colIndex) => 
+                    getReservationsForDay(colIndex).find(res => res.heure.startsWith(heure))
+                  ));
+                  
+                  return (
+                    <tr key={rowIndex} className="hover:bg-gray-700/30 transition-colors duration-150">
+                      <td className="border border-gray-700 p-1 sm:p-2 text-center font-medium text-gray-200">
+                        {heure}
+                      </td>
+                      {Jours.map((_, colIndex) => {
+                        const dayReservations = getReservationsForDay(colIndex);
+                        const reservation = dayReservations.find(res => res.heure.startsWith(heure));
+                        const isPast = isTimeSlotInPast(heure, colIndex);
+
+                        return (
+                          <TableCell
+                            key={colIndex}
+                            reservation={reservation}
+                            heure={heure}
+                            colIndex={colIndex}
+                            handleClick={handleClick}
+                            isPast={isPast}
+                          />
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

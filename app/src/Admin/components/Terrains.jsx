@@ -1,55 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { CSVLink } from 'react-csv';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import terrainService from '../../lib/services/admin/terrainServices';
 
 const COLORS = ['#07f468', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
-
-const FAKE_TERRAINS = [
-  {
-    id: 1,
-    name: "Stadium Alpha",
-    capacity: "5v5",
-    type: "indoor",
-    image: "https://via.placeholder.com/300",
-    usage: 75
-  },
-  {
-    id: 2,
-    name: "Field Bravo",
-    capacity: "6v6",
-    type: "outdoor",
-    image: "https://via.placeholder.com/300",
-    usage: 60
-  },
-  {
-    id: 3,
-    name: "Arena Charlie",
-    capacity: "7v7",
-    type: "indoor",
-    image: "https://via.placeholder.com/300",
-    usage: 85
-  },
-  {
-    id: 4,
-    name: "Pitch Delta",
-    capacity: "5v5",
-    type: "outdoor",
-    image: "https://via.placeholder.com/300",
-    usage: 45
-  },
-  {
-    id: 5,
-    name: "Ground Echo",
-    capacity: "6v6",
-    type: "indoor",
-    image: "https://via.placeholder.com/300",
-    usage: 90
-  }
-];
 
 const cardVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -100,7 +58,9 @@ const shimmer = {
 };
 
 const Terrains = () => {
-  const [terrains, setTerrains] = useState(FAKE_TERRAINS);
+  const [terrains, setTerrains] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState('grid');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -111,8 +71,9 @@ const Terrains = () => {
     name: '',
     capacity: '',
     type: 'indoor',
-    image: 'https://via.placeholder.com/300',
-    usage: 0
+    prix: '',
+    image: null,
+    imagePreview: null
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [terrainToDelete, setTerrainToDelete] = useState(null);
@@ -125,10 +86,30 @@ const Terrains = () => {
     { name: 'Outdoor', value: terrains.filter(t => t.type === 'outdoor').length }
   ];
 
-  const usageData = terrains.map(terrain => ({
+  const priceData = terrains.map(terrain => ({
     name: terrain.name,
-    usage: terrain.usage
+    prix: terrain.prix
   }));
+
+  // Fetch terrains
+  useEffect(() => {
+    fetchTerrains();
+  }, []);
+
+  const fetchTerrains = async () => {
+    try {
+      setLoading(true);
+      const response = await terrainService.getAllTerrains();
+      setTerrains(response.data);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to fetch terrains:', error);
+      setError('Failed to load terrains');
+      toast.error('Failed to load terrains');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFileImport = (event) => {
     const file = event.target.files[0];
@@ -147,63 +128,73 @@ const Terrains = () => {
     }
   };
 
-  const handleImageUpload = (e, setFormData, formData) => {
+  const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, image: reader.result });
-      };
-      reader.readAsDataURL(file);
+      setFormData({ ...formData, image: file, imagePreview: URL.createObjectURL(file) });
     }
   };
 
-  const handleAddTerrain = (e) => {
+  const handleImageRemove = () => {
+    setFormData({ ...formData, image: null, imagePreview: null });
+  };
+
+  // Handle Add Terrain
+  const handleAddTerrain = async (e) => {
     e.preventDefault();
     try {
-      if (!formData.name || !formData.capacity) {
+      if (!formData.name || !formData.capacity || !formData.prix) {
         toast.error('Please fill in all required fields');
         return;
       }
       
-      const newTerrain = {
-        id: terrains.length + 1,
-        ...formData,
-        usage: formData.usage || 0
-      };
+      const formDataToSend = new FormData();
+      formDataToSend.append('nom_terrain', 'sdfsedfgv');
+      formDataToSend.append('capacite', '5v5');
+      formDataToSend.append('type', 'indoor');
+      formDataToSend.append('prix', '150');
+      if (formData.image) {
+        formDataToSend.append('image', formData.image);
+      }
       
-      setTerrains([...terrains, newTerrain]);
+      const response = await terrainService.createTerrain(formDataToSend);
+      await fetchTerrains(); // Refresh the list
       toast.success('Terrain added successfully');
       setShowAddModal(false);
       setFormData({
         name: '',
         capacity: '',
         type: 'indoor',
-        image: 'https://via.placeholder.com/300',
-        usage: 0
+        prix: '',
+        image: null,
+        imagePreview: null
       });
     } catch (error) {
-      toast.error('Failed to add terrain');
+      console.error('Failed to add terrain:', error);
+      toast.error(error.response?.data?.message || 'Failed to add terrain');
     }
   };
 
-  const handleUpdateTerrain = (e) => {
+  // Handle Update Terrain
+  const handleUpdateTerrain = async (e) => {
     e.preventDefault();
     try {
-      if (!formData.name || !formData.capacity) {
+      if (!formData.name || !formData.capacity || !formData.prix) {
         toast.error('Please fill in all required fields');
         return;
       }
 
-      setTerrains(
-        terrains.map((t) =>
-          t.id === selectedTerrain.id ? { 
-        ...t,
-            ...formData,
-            usage: formData.usage || t.usage || 0
-          } : t
-        )
-      );
+      const formDataToSend = new FormData();
+      formDataToSend.append('nom_terrain', 'sdfsedfgv');
+      formDataToSend.append('capacite', '5v5');
+      formDataToSend.append('type', 'indoor');
+      formDataToSend.append('prix', '150');
+      if (formData.image) {
+        formDataToSend.append('image', formData.image);
+      }
+
+      await terrainService.updateTerrain(selectedTerrain.id, formDataToSend);
+      await fetchTerrains(); // Refresh the list
       toast.success('Terrain updated successfully');
       setShowEditModal(false);
       setSelectedTerrain(null);
@@ -211,24 +202,144 @@ const Terrains = () => {
         name: '',
         capacity: '',
         type: 'indoor',
-        image: 'https://via.placeholder.com/300',
-        usage: 0
+        prix: '',
+        image: null,
+        imagePreview: null
       });
     } catch (error) {
-      toast.error('Failed to update terrain');
+      console.error('Failed to update terrain:', error);
+      toast.error(error.response?.data?.message || 'Failed to update terrain');
     }
   };
 
-  const handleDeleteTerrain = (id) => {
+  const handleEdit = (terrain) => {
+    setSelectedTerrain(terrain);
+    setFormData({
+      name: terrain.name,
+      capacity: terrain.capacity,
+      type: terrain.type,
+      prix: terrain.prix,
+      image: terrain.image,
+      imagePreview: null
+    });
+    setShowEditModal(true);
+  };
+
+  // Handle Delete Terrain
+  const handleDeleteTerrain = async (id) => {
     try {
-      setTerrains(terrains.filter((t) => t.id !== id));
+      await terrainService.deleteTerrain(id);
+      await fetchTerrains(); // Refresh the list
       toast.success('Terrain deleted successfully');
       setShowDeleteModal(false);
       setTerrainToDelete(null);
     } catch (error) {
+      console.error('Failed to delete terrain:', error);
       toast.error('Failed to delete terrain');
     }
   };
+
+  const resetFormData = () => {
+    if (formData.imagePreview) {
+      URL.revokeObjectURL(formData.imagePreview);
+    }
+    setFormData({
+      name: '',
+      capacity: '',
+      type: 'indoor',
+      prix: '',
+      image: null,
+      imagePreview: null
+    });
+  };
+
+  // Clean up preview URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (formData.imagePreview) {
+        URL.revokeObjectURL(formData.imagePreview);
+      }
+    };
+  }, []);
+
+  // Clean up preview URL when modal closes
+  useEffect(() => {
+    if (!showAddModal && !showEditModal) {
+      resetFormData();
+    }
+  }, [showAddModal, showEditModal]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#07f468]"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-red-500 mb-4">{error}</p>
+        <button 
+          onClick={fetchTerrains}
+          className="px-4 py-2 bg-[#07f468] text-black rounded-lg hover:bg-[#06d35a]"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const renderAnalytics = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
+      <div className="bg-gray-800/50 backdrop-blur-md p-6 rounded-lg shadow-lg">
+        <h4 className="text-white mb-4 font-semibold">Terrain Types Distribution</h4>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={pieData}
+              cx="50%"
+              cy="50%"
+              outerRadius={80}
+              fill="#8884d8"
+              dataKey="value"
+              label
+            >
+              {pieData.map((entry, index) => (
+                <Cell key={index} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="bg-gray-800/50 backdrop-blur-md p-6 rounded-lg shadow-lg">
+        <h4 className="text-white mb-4 font-semibold">Price Distribution</h4>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={priceData}>
+            <XAxis dataKey="name" stroke="#fff" />
+            <YAxis stroke="#fff" />
+            <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
+            <Bar dataKey="prix" name="Price (DH)" fill="#07f468">
+              {priceData.map((entry, index) => (
+                <Cell key={index} fill={`url(#colorGradient${index})`} />
+              ))}
+            </Bar>
+            <defs>
+              {priceData.map((entry, index) => (
+                <linearGradient key={index} id={`colorGradient${index}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#07f468" stopOpacity={0.8}/>
+                  <stop offset="100%" stopColor="#00c4ff" stopOpacity={0.8}/>
+                </linearGradient>
+              ))}
+            </defs>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
 
   return (
     <motion.div 
@@ -273,10 +384,10 @@ const Terrains = () => {
             whileHover="hover"
             whileTap="tap"
             onClick={() => setShowAnalytics(!showAnalytics)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
           >
-            <Icon icon="mdi:chart-bar" />
-            Analytics
+            <Icon icon={showAnalytics ? "mdi:chart-off" : "mdi:chart-bar"} />
+            {showAnalytics ? "Hide Analytics" : "Show Analytics"}
           </motion.button>
           <CSVLink 
             data={terrains} 
@@ -343,55 +454,7 @@ const Terrains = () => {
 
       {/* Enhanced Analytics Section with 3D cards */}
       <AnimatePresence>
-        {showAnalytics && (
-          <motion.div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-            <div className="bg-gray-800/50 backdrop-blur-md p-6 rounded-lg shadow-lg">
-              <h4 className="text-white mb-4 font-semibold">Terrain Types Distribution</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="bg-gray-800/50 backdrop-blur-md p-6 rounded-lg shadow-lg">
-              <h4 className="text-white mb-4 font-semibold">Terrain Usage</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={usageData}>
-                  <XAxis dataKey="name" stroke="#fff" />
-                  <YAxis stroke="#fff" />
-                  <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
-                  <Bar dataKey="usage" fill="#07f468">
-                    {usageData.map((entry, index) => (
-                      <Cell key={index} fill={`url(#colorGradient${index})`} />
-                    ))}
-                  </Bar>
-                  <defs>
-                    {usageData.map((entry, index) => (
-                      <linearGradient key={index} id={`colorGradient${index}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#07f468" stopOpacity={0.8}/>
-                        <stop offset="100%" stopColor="#00c4ff" stopOpacity={0.8}/>
-                      </linearGradient>
-                    ))}
-                  </defs>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-        )}
+        {showAnalytics && renderAnalytics()}
       </AnimatePresence>
 
       {/* Enhanced Terrains Grid/List with better cards */}
@@ -428,7 +491,7 @@ const Terrains = () => {
               }}
             >
               <img
-                src={terrain.image}
+                src={terrain.image ? `http://127.0.0.1:8000/${terrain.image}` : 'https://via.placeholder.com/300'}
                 alt={terrain.name}
                 className={`${
                   viewMode === 'list' ? 'w-48 h-48' : 'w-full h-56'
@@ -461,16 +524,8 @@ const Terrains = () => {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-gray-300">
-                    <span>Usage</span>
-                    <span className="font-semibold text-[#07f468]">{terrain.usage}%</span>
-                  </div>
-                  <div className="bg-gray-700/30 h-2 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${terrain.usage}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                      className="h-full bg-gradient-to-r from-[#07f468] to-[#00c4ff]"
-                    />
+                    <span>Price</span>
+                    <span className="font-semibold text-[#07f468]">{terrain.prix} DH</span>
                   </div>
                 </div>
               </div>
@@ -479,11 +534,7 @@ const Terrains = () => {
                   variants={buttonVariants}
                   whileHover="hover"
                   whileTap="tap"
-                  onClick={() => {
-                    setSelectedTerrain(terrain);
-                    setFormData(terrain);
-                    setShowEditModal(true);
-                  }}
+                  onClick={() => handleEdit(terrain)}
                   className="flex-1 bg-[#07f468] text-gray-900 px-4 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
                 >
                   <Icon icon="mdi:pencil" />
@@ -512,7 +563,7 @@ const Terrains = () => {
       <AnimatePresence>
         {(showAddModal || showEditModal) && (
           <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <motion.div className="bg-gradient-to-br from-gray-800 to-gray-900 p-4 md:p-6 rounded-lg w-full max-w-md mx-4 shadow-2xl">
+            <motion.div className="bg-gradient-to-br from-gray-800 to-gray-900 p-4 md:p-6 rounded-lg w-full max-w-md shadow-2xl">
               <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
                 <Icon icon={showEditModal ? 'mdi:pencil' : 'mdi:plus'} className="text-[#07f468]" />
                 {showEditModal ? 'Edit Terrain' : 'Add New Terrain'}
@@ -554,12 +605,22 @@ const Terrains = () => {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-white mb-2">prix</label>
+                  <input
+                    type="number"
+                    value={formData.prix}
+                    onChange={(e) => setFormData({ ...formData, prix: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
                   <label className="block text-white mb-2">Image</label>
                   <div className="flex gap-4 items-center">
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handleImageUpload(e, setFormData, formData)}
+                      onChange={handleImageUpload}
                       className="hidden"
                       id="imageInput"
                     />
@@ -570,16 +631,26 @@ const Terrains = () => {
                       <Icon icon="mdi:upload" />
                       Choose Image
                     </label>
-                    {formData.image && (
+                    {(formData.image || formData.imagePreview) && (
                       <div className="relative w-16 h-16">
                         <img
-                          src={formData.image}
+                          src={
+                            formData.imagePreview 
+                              ? formData.imagePreview 
+                              : formData.image 
+                                ? `http://127.0.0.1:8000/${formData.image}` 
+                                : 'https://via.placeholder.com/300'
+                          }
                           alt="Preview"
                           className="w-full h-full object-cover rounded-lg"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://via.placeholder.com/300';
+                          }}
                         />
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, image: 'https://via.placeholder.com/300' })}
+                          onClick={handleImageRemove}
                           className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                         >
                           <Icon icon="mdi:close" className="w-4 h-4" />
@@ -587,17 +658,6 @@ const Terrains = () => {
                       </div>
                     )}
                   </div>
-                </div>
-                <div>
-                  <label className="block text-white mb-2">Usage (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.usage}
-                    onChange={(e) => setFormData({ ...formData, usage: parseInt(e.target.value) || 0 })}
-                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg"
-                  />
                 </div>
                 <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4 mt-6">
                   <motion.button
@@ -613,8 +673,9 @@ const Terrains = () => {
                         name: '',
                         capacity: '',
                         type: 'indoor',
-                        image: 'https://via.placeholder.com/300',
-                        usage: 0
+                        prix: '',
+                        image: null,
+                        imagePreview: null
                       });
                     }}
                     className="bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
