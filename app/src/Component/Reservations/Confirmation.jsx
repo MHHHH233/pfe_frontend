@@ -81,6 +81,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     expiryDate: '',
     cvv: ''
   });
+  const isAdmin = sessionStorage.getItem("type") === "admin";
 
   useEffect(() => {
     // Remove the auto-close timeout
@@ -261,22 +262,13 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
             
             <div className="bg-gray-800 rounded-lg p-4 mb-6">
               <div className="space-y-4">
-                {/* Client Name */}
-                <div className="flex items-center space-x-3">
-                  <User size={18} className="text-gray-400" />
-                  <div>
-                    <p className="text-xs text-gray-400">Client Name</p>
-                    <p className="text-white">{data.Name || 'Not provided'}</p>
-                  </div>
-                </div>
-
-                {/* Client ID - Only show for admin */}
-                {sessionStorage.getItem("type") === "admin" && (
+                {/* Only show client info if not in admin mode */}
+                {!isAdmin && data.Name && (
                   <div className="flex items-center space-x-3">
                     <User size={18} className="text-gray-400" />
                     <div>
-                      <p className="text-xs text-gray-400">Client ID</p>
-                      <p className="text-white">{data.id_client || 'Not provided'}</p>
+                      <p className="text-xs text-gray-400">Client Name</p>
+                      <p className="text-white">{data.Name}</p>
                     </div>
                   </div>
                 )}

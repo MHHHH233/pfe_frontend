@@ -15,16 +15,52 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   const userId = sessionStorage.getItem("userId");
   const isLoggedIn = !!userId;
   
+  // Add more detailed logging to debug the terrain data
+  console.log("FormResev initial props:", { 
+    Terrain, 
+    selectedHour, 
+    selectedTime, 
+    isAdmin, 
+    userId 
+  });
+  
+  // Initialize form with session storage as backup
   const [formData, setFormData] = useState({
-    id_terrain: Terrain || '',
-    date: '',
-    heure: selectedTime || '',
+    id_terrain: Terrain?.id_terrain || sessionStorage.getItem("selectedTerrainId") || '',
+    date: selectedTime || '',
+    heure: selectedHour || '',
     type: userType,
     id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) : null,
     Name: '',
     email: '',
     telephone: '',
   });
+  
+  // When terrain changes, update form data
+  useEffect(() => {
+    console.log("FormResev terrain changed:", Terrain);
+    
+    // Check if we need to update the form based on new terrain
+    if (Terrain && Terrain.id_terrain) {
+      setFormData(prev => ({
+        ...prev,
+        id_terrain: Terrain.id_terrain,
+      }));
+      console.log("Updated form with terrain ID:", Terrain.id_terrain);
+    }
+  }, [Terrain]);
+  
+  // When hour or date changes, update form data
+  useEffect(() => {
+    if (selectedHour || selectedTime) {
+      setFormData(prev => ({
+        ...prev,
+        heure: selectedHour || prev.heure,
+        date: selectedTime || prev.date,
+      }));
+      console.log("Updated form with hour/time:", { selectedHour, selectedTime });
+    }
+  }, [selectedHour, selectedTime]);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -41,10 +77,12 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   const [selectedClientId, setSelectedClientId] = useState('');
 
   useEffect(() => {
+    console.log("FormResev received props:", { Terrain, selectedHour, selectedTime });
+    
     // Update form when props change
     setFormData(prev => ({
       ...prev,
-      id_terrain: Terrain || prev.id_terrain,
+      id_terrain: Terrain?.id_terrain || prev.id_terrain,
       heure: selectedHour || prev.heure,
       date: selectedTime || prev.date,
       id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) || null : null,
@@ -53,22 +91,38 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       telephone: ''
     }));
     
-    // Set today's date as default only if no date is provided
-    if (!selectedTime && !formData.date) {
-      const today = new Date();
-      const formattedDate = today.toISOString().split('T')[0];
-      setFormData(prev => ({
-        ...prev,
-        date: formattedDate
-      }));
-    }
-    
-    console.log("Form data updated:", {
-      terrain: Terrain,
-      hour: selectedHour,
-      date: selectedTime
-    });
+    // Log the current form data for debugging
+    console.log("Form data updated:", formData);
   }, [Terrain, selectedHour, selectedTime, userId]);
+
+  // Add event listener for terrain selection events from parent components
+  useEffect(() => {
+    const handleTerrainSelected = (event) => {
+      const { terrain } = event.detail;
+      console.log("Received terrain selection event:", terrain);
+      if (terrain) {
+        setFormData(prev => ({
+          ...prev,
+          id_terrain: terrain.id_terrain
+        }));
+      }
+    };
+
+    document.addEventListener('terrainSelected', handleTerrainSelected);
+    return () => {
+      document.removeEventListener('terrainSelected', handleTerrainSelected);
+    };
+  }, []);
+
+  // Add fallback to get terrain ID from sessionStorage if not provided as prop
+  const terrainId = Terrain?.id_terrain || sessionStorage.getItem("selectedTerrainId") || '';
+  const terrainName = Terrain?.nom_terrain || sessionStorage.getItem("selectedTerrainName") || '';
+  
+  console.log("FormResev terrain data:", { 
+    terrainId, 
+    terrainName, 
+    propTerrain: Terrain 
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -139,7 +193,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     
     // Clear form with the correct structure
     setFormData({
-      id_terrain: Terrain || '',
+      id_terrain: Terrain?.id_terrain || '',
       date: selectedTime || '',
       heure: selectedHour || '',
       type: userType,
@@ -179,6 +233,14 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
         {isAdmin ? "Create Reservation" : "Book a Terrain"}
       </h3>
       
+      {/* Display selected terrain name to confirm correct selection */}
+      {terrainId && (
+        <div className="mb-4 p-3 bg-gray-700/50 rounded-lg border border-gray-600">
+          <p className="text-sm text-gray-300">Selected Terrain:</p>
+          <p className="text-white font-medium">{terrainName}</p>
+        </div>
+      )}
+      
       {error && (
         <div className="bg-red-900/30 border border-red-500 text-red-300 p-3 rounded-lg mb-4 flex items-center">
           <X size={18} className="mr-2 flex-shrink-0" />
@@ -196,28 +258,12 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       )}
       
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Terrain</label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MapPin size={16} className="text-gray-400" />
-            </div>
-            <select
-              name="id_terrain"
-              value={formData.id_terrain}
-              onChange={handleChange}
-              required
-              className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none appearance-none"
-            >
-              <option value="">Select a terrain</option>
-              <option value="1">Terrain 1</option>
-              <option value="2">Terrain 2</option>
-              <option value="3">Terrain 3</option>
-              <option value="4">Terrain 4</option>
-              <option value="5">Terrain 5</option>
-            </select>
-          </div>
-        </div>
+        {/* Remove or hide the Terrain input field since it's shown above */}
+        <input 
+          type="hidden" 
+          name="id_terrain" 
+          value={formData.id_terrain} 
+        />
         
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
@@ -230,8 +276,8 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
               name="date"
               value={formData.date}
               onChange={handleChange}
+              className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white focus:ring-2 focus:ring-[#07f468] focus:outline-none"
               required
-              className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
             />
           </div>
         </div>

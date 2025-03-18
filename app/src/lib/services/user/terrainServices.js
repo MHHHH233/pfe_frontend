@@ -20,7 +20,9 @@ const terrainService = {
       console.error(`Error fetching terrain ${id}:`, error);
       throw error;
     }
-  }
+  },
+
+  
 };
 
 export default terrainService; 

@@ -131,7 +131,12 @@ const Terrains = () => {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFormData({ ...formData, image: file, imagePreview: URL.createObjectURL(file) });
+      const imageUrl = URL.createObjectURL(file);
+      setFormData(prev => ({
+        ...prev,
+        image: file,
+        imagePreview: imageUrl
+      }));
     }
   };
 
@@ -147,16 +152,16 @@ const Terrains = () => {
         toast.error('Please fill in all required fields');
         return;
       }
-      
+
       const formDataToSend = new FormData();
-      formDataToSend.append('nom_terrain', 'sdfsedfgv');
-      formDataToSend.append('capacite', '5v5');
-      formDataToSend.append('type', 'indoor');
-      formDataToSend.append('prix', '150');
-      if (formData.image) {
+      formDataToSend.append('nom_terrain', formData.name);
+      formDataToSend.append('capacite', formData.capacity);
+      formDataToSend.append('type', formData.type);
+      formDataToSend.append('prix', formData.prix);
+      if (formData.image instanceof File) {
         formDataToSend.append('image', formData.image);
       }
-      
+
       const response = await terrainService.createTerrain(formDataToSend);
       await fetchTerrains(); // Refresh the list
       toast.success('Terrain added successfully');
@@ -184,16 +189,19 @@ const Terrains = () => {
         return;
       }
 
+      // Always use FormData for consistency
       const formDataToSend = new FormData();
-      formDataToSend.append('nom_terrain', 'sdfsedfgv');
-      formDataToSend.append('capacite', '5v5');
-      formDataToSend.append('type', 'indoor');
-      formDataToSend.append('prix', '150');
-      if (formData.image) {
+      formDataToSend.append('nom_terrain', formData.name);
+      formDataToSend.append('capacite', formData.capacity);
+      formDataToSend.append('type', formData.type);
+      formDataToSend.append('prix', formData.prix);
+
+      // Only append image if it's a new File object
+      if (formData.image instanceof File) {
         formDataToSend.append('image', formData.image);
       }
 
-      await terrainService.updateTerrain(selectedTerrain.id, formDataToSend);
+      await terrainService.updateTerrain(selectedTerrain.id_terrain, formDataToSend);
       await fetchTerrains(); // Refresh the list
       toast.success('Terrain updated successfully');
       setShowEditModal(false);
@@ -208,19 +216,19 @@ const Terrains = () => {
       });
     } catch (error) {
       console.error('Failed to update terrain:', error);
-      toast.error(error.response?.data?.message || 'Failed to update terrain');
+      toast.error(error.response?.data?.error || 'Failed to update terrain');
     }
   };
 
   const handleEdit = (terrain) => {
     setSelectedTerrain(terrain);
     setFormData({
-      name: terrain.name,
-      capacity: terrain.capacity,
+      name: terrain.nom_terrain,
+      capacity: terrain.capacite,
       type: terrain.type,
       prix: terrain.prix,
-      image: terrain.image,
-      imagePreview: null
+      image: terrain.image_path,
+      imagePreview: terrain.image_path ? `http://127.0.0.1:8000/${terrain.image_path}` : null
     });
     setShowEditModal(true);
   };
@@ -302,16 +310,29 @@ const Terrains = () => {
               cx="50%"
               cy="50%"
               outerRadius={80}
-              fill="#8884d8"
+              fill="#07f468"
               dataKey="value"
               label
             >
               {pieData.map((entry, index) => (
-                <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                <Cell 
+                  key={index} 
+                  fill={index === 0 ? '#07f468' : '#06d35a'} 
+                />
               ))}
             </Pie>
-            <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
-            <Legend />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#1f2937', 
+                border: 'none',
+                borderRadius: '8px'
+              }} 
+            />
+            <Legend 
+              wrapperStyle={{
+                paddingTop: '20px'
+              }}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -319,21 +340,39 @@ const Terrains = () => {
         <h4 className="text-white mb-4 font-semibold">Price Distribution</h4>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={priceData}>
-            <XAxis dataKey="name" stroke="#fff" />
-            <YAxis stroke="#fff" />
-            <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none' }} />
-            <Bar dataKey="prix" name="Price (DH)" fill="#07f468">
+            <XAxis 
+              dataKey="name" 
+              stroke="#fff" 
+              tick={{ fill: '#fff' }}
+            />
+            <YAxis 
+              stroke="#fff" 
+              tick={{ fill: '#fff' }}
+            />
+            <Tooltip 
+              contentStyle={{ 
+                backgroundColor: '#1f2937', 
+                border: 'none',
+                borderRadius: '8px'
+              }} 
+            />
+            <Bar 
+              dataKey="prix" 
+              name="Price (DH)" 
+              fill="#07f468"
+            >
               {priceData.map((entry, index) => (
-                <Cell key={index} fill={`url(#colorGradient${index})`} />
+                <Cell 
+                  key={index} 
+                  fill={`url(#priceGradient)`} 
+                />
               ))}
             </Bar>
             <defs>
-              {priceData.map((entry, index) => (
-                <linearGradient key={index} id={`colorGradient${index}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#07f468" stopOpacity={0.8}/>
-                  <stop offset="100%" stopColor="#00c4ff" stopOpacity={0.8}/>
-                </linearGradient>
-              ))}
+              <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#07f468" stopOpacity={0.8}/>
+                <stop offset="100%" stopColor="#06d35a" stopOpacity={0.8}/>
+              </linearGradient>
             </defs>
           </BarChart>
         </ResponsiveContainer>
@@ -469,11 +508,15 @@ const Terrains = () => {
       >
         {terrains.filter(
           terrain =>
-            terrain.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            terrain.type.toLowerCase().includes(searchQuery.toLowerCase())
+            (terrain?.nom_terrain || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()) ||
+            (terrain?.type || '')
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase())
         ).map((terrain, index) => (
           <motion.div
-            key={terrain.id}
+            key={terrain.id_terrain}
             variants={cardVariants}
             className={`group bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-500 backdrop-blur-xl border border-gray-700/50 hover:border-[#07f468]/30 ${
               viewMode === 'list' ? 'flex flex-col sm:flex-row' : ''
@@ -491,11 +534,14 @@ const Terrains = () => {
               }}
             >
               <img
-                src={terrain.image ? `http://127.0.0.1:8000/${terrain.image}` : 'https://via.placeholder.com/300'}
-                alt={terrain.name}
+                src={terrain.image ? `http://127.0.0.1:8000/${terrain.image}` : ''}
+                alt={terrain.nom_terrain}
                 className={`${
                   viewMode === 'list' ? 'w-48 h-48' : 'w-full h-56'
                 } object-cover transition-transform duration-700 group-hover:scale-110`}
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                 <motion.div
@@ -508,7 +554,9 @@ const Terrains = () => {
               </div>
             </div>
             <div className="p-4 md:p-6 flex-grow">
-              <h3 className="text-xl md:text-2xl font-bold text-white mb-4">{terrain.name}</h3>
+              <h3 className="text-xl md:text-2xl font-bold text-white mb-4">
+                {terrain.nom_terrain}
+              </h3>
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-gray-300">
                   <div className="bg-gray-700/50 p-2 rounded-lg">
@@ -520,7 +568,7 @@ const Terrains = () => {
                   <div className="bg-gray-700/50 p-2 rounded-lg">
                     <Icon icon="mdi:account-group" className="text-[#07f468] w-5 h-5" />
                   </div>
-                  <span className="text-lg">{terrain.capacity}</span>
+                  <span className="text-lg">{terrain.capacite}</span>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-gray-300">
@@ -631,21 +679,14 @@ const Terrains = () => {
                       <Icon icon="mdi:upload" />
                       Choose Image
                     </label>
-                    {(formData.image || formData.imagePreview) && (
+                    {(formData.imagePreview || formData.image) && (
                       <div className="relative w-16 h-16">
                         <img
-                          src={
-                            formData.imagePreview 
-                              ? formData.imagePreview 
-                              : formData.image 
-                                ? `http://127.0.0.1:8000/${formData.image}` 
-                                : 'https://via.placeholder.com/300'
-                          }
+                          src={formData.imagePreview || (formData.image ? `http://127.0.0.1:8000/${formData.image}` : '')}
                           alt="Preview"
                           className="w-full h-full object-cover rounded-lg"
                           onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'https://via.placeholder.com/300';
+                            e.target.style.display = 'none';
                           }}
                         />
                         <button
@@ -710,7 +751,7 @@ const Terrains = () => {
                 <div>
                   <h2 className="text-2xl font-bold text-white mb-2">Confirm Deletion</h2>
                   <p className="text-gray-300 mb-6">
-                    Are you sure you want to delete "{terrainToDelete?.name}"? This action cannot be undone.
+                    Are you sure you want to delete "{terrainToDelete?.nom_terrain}"? This action cannot be undone.
                   </p>
                 </div>
               </div>
@@ -733,7 +774,7 @@ const Terrains = () => {
                   variants={buttonVariants}
                   whileHover="hover"
                   whileTap="tap"
-                  onClick={() => handleDeleteTerrain(terrainToDelete.id)}
+                  onClick={() => handleDeleteTerrain(terrainToDelete.id_terrain)}
                   className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg flex items-center gap-2 shadow-lg hover:shadow-xl transition-shadow"
                 >
                   <Icon icon="mdi:delete" />
@@ -749,9 +790,12 @@ const Terrains = () => {
           <motion.div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <motion.div className="relative max-w-4xl w-full mx-4">
               <img
-                src={selectedImage}
+                src={selectedImage ? `http://127.0.0.1:8000/${selectedImage}` : ''}
                 alt="Terrain Preview"
                 className="w-full h-auto rounded-lg shadow-2xl"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
               />
               <motion.button
                 variants={buttonVariants}

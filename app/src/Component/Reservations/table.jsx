@@ -89,7 +89,7 @@ const isTimeSlotInPast = (heure, dayIndex) => {
   return false;
 };
 
-export default function Tableau({ Terrain }) {
+export default function Tableau({ terrain }) {
   const location = useLocation();
   const navigate = useNavigate();
   const Heures = [
@@ -105,6 +105,8 @@ export default function Tableau({ Terrain }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [useMockData, setUseMockData] = useState(false);
+  const [selectedTerrain, setSelectedTerrain] = useState(terrain?.id_terrain || null);
+  const [terrainDetails, setTerrainDetails] = useState(terrain || null);
   
   // Debug useEffect - MOVED HERE before any conditional returns
   useEffect(() => {
@@ -117,69 +119,52 @@ export default function Tableau({ Terrain }) {
   
   // Use useCallback to prevent recreation of this function on every render
   const fetchReservations = useCallback(async () => {
-    if (!Terrain) return;
+    if (!terrainDetails) return;
     
     setLoading(true);
     try {
-      const reservationService = sessionStorage.getItem("type") === "admin" 
+      // Check if user is admin - ensure consistent check throughout the app
+      const isAdmin = sessionStorage.getItem("type") === "admin";
+      console.log("User role in Tableau:", isAdmin ? "admin" : "user");
+      
+      const reservationService = isAdmin 
         ? adminReservationService 
         : userReservationService;
         
       const response = await reservationService.getAllReservations();
-      if (response.status === "success") {
-        const reservationData = response.data.map(res => {
-          if (sessionStorage.getItem("type") === "admin") {
-            return {
-              id_reservation: res.id_reservation,
-              num_res: res.num_res,
-              client: {
-                id_client: res.client?.id_client || null,
-                nom: res.client?.nom || '',
-                prenom: res.client?.prenom || '',
-                telephone: res.client?.telephone || '',
-                email: res.client?.email || ''
-              },
-              terrain: {
-                id_terrain: res.terrain?.id_terrain,
-                nom: res.terrain?.nom || '',
-                type: res.terrain?.type || '',
-                prix: res.terrain?.prix || 0
-              },
-              date: res.date,
-              heure: res.heure,
-              etat: res.etat,
-              created_at: res.created_at
-            };
-          } else {
-            // Handle user service format
-            return {
-              id_reservation: res.id_reservation,
-              num_res: res.num_res,
+      console.log("Reservation API response:", response);
+      
+      if (response.status === "success" && Array.isArray(response.data)) {
+        // Map the data with proper structure depending on role
+        const mappedReservations = response.data.map(res => {
+          // Handle different data structures for admin vs user APIs
+          return {
+            id_reservation: res.id_reservation,
+            num_res: res.num_res || "",
+            id_client: res.client?.id_client || res.id_client,
+            id_terrain: res.terrain?.id_terrain || res.id_terrain,
+            date: res.date,
+            heure: res.heure,
+            etat: res.etat || "en attente",
+            created_at: res.created_at,
+            client: res.client || {
               id_client: res.id_client,
+              nom: res.name || "",
+              prenom: "",
+              telephone: "",
+              email: ""
+            },
+            terrain: res.terrain || {
               id_terrain: res.id_terrain,
-              client: {
-                id_client: res.id_client,
-                nom: res.name || '',
-                prenom: '',
-                telephone: '',
-                email: ''
-              },
-              terrain: {
-                id_terrain: res.id_terrain,
-                nom: `Terrain ${res.id_terrain}`,
-                type: '',
-                prix: 0
-              },
-              date: res.date,
-              heure: res.heure,
-              etat: res.etat,
-              created_at: res.created_at
-            };
-          }
+              nom: res.nom_terrain || `Terrain ${res.id_terrain}`,
+              type: res.type || "",
+              prix: res.prix || 0
+            }
+          };
         });
-        
-        setReservations(reservationData);
-        console.log("Mapped reservations:", reservationData);
+
+        setReservations(mappedReservations);
+        console.log("Mapped reservations:", mappedReservations);
       } else {
         setError("Failed to fetch reservations");
         setUseMockData(true);
@@ -191,38 +176,42 @@ export default function Tableau({ Terrain }) {
     } finally {
       setLoading(false);
     }
-  }, [Terrain]);
+  }, [terrainDetails]);
 
   useEffect(() => {
     // Only fetch when terrain changes - no automatic polling
-    if (Terrain) {
+    if (terrainDetails) {
       fetchReservations();
     } else {
       setLoading(false);
     }
-  }, [fetchReservations, Terrain]);
+  }, [fetchReservations, terrainDetails]);
+
+  useEffect(() => {
+    if (terrain) {
+      setSelectedTerrain(terrain.id_terrain);
+      setTerrainDetails(terrain);
+      console.log("Terrain updated in Tableau:", terrain);
+    }
+  }, [terrain]);
 
   // Memoize this function to prevent recreation on every render
   const getReservationsForDay = useCallback((dayIndex) => {
-    if (!Terrain) return []; // Return empty array if no terrain selected
+    if (!terrainDetails) return [];
     
     const date = new Date();
     date.setDate(date.getDate() + dayIndex);
     const dateString = formatDateForAPI(date);
     
-    // Filter reservations for this day and terrain
+    console.log("Filtering reservations for day:", dateString, "terrain:", terrainDetails.id_terrain);
+    
     return reservations.filter(res => {
-      // First check if we have a valid date match
       if (res.date !== dateString) return false;
-
-      // Then handle terrain comparison based on user type
-      if (sessionStorage.getItem("type") === "admin") {
-        return res.terrain?.id_terrain?.toString() === Terrain.toString();
-      } else {
-        return res.id_terrain?.toString() === Terrain.toString();
-      }
+      // Add more logging to debug the filtering
+      console.log(`Comparing: res.id_terrain=${res.id_terrain}, terrainDetails.id_terrain=${terrainDetails.id_terrain}`);
+      return res.id_terrain === terrainDetails.id_terrain;
     });
-  }, [reservations, Terrain]);
+  }, [reservations, terrainDetails]);
 
   // Format date in YYYY-MM-DD format for API
   const formatDateForAPI = (date) => {
@@ -252,14 +241,13 @@ export default function Tableau({ Terrain }) {
     if(location.pathname === "/Admin"){
       sessionStorage.setItem("selectedHour", heure);
       sessionStorage.setItem("selectedTime", dateString);
-      sessionStorage.setItem("selectedTerrain", Terrain);
-      
+      sessionStorage.setItem("selectedTerrain", terrainDetails?.id_terrain || '');
       // Trigger the popup in Admin component
       sessionStorage.setItem("showReservationPopup", "true");
       
       // Dispatch a custom event to notify the Admin component
       const event = new CustomEvent('reservationCellClicked', {
-        detail: { hour: heure, date: dateString, terrain: Terrain }
+        detail: { hour: heure, date: dateString, terrain: terrainDetails?.id_terrain || '' }
       });
       document.dispatchEvent(event);
     }
@@ -303,7 +291,7 @@ export default function Tableau({ Terrain }) {
           <h2 className="text-lg sm:text-xl font-semibold text-white">
             Terrain sélectionné :{" "}
             <span className="text-green-400">
-              {Terrain !== null ? "Terrain " + Terrain : "Aucun terrain sélectionné"}
+              {terrainDetails ? terrainDetails.nom_terrain : "Aucun terrain sélectionné"}
             </span>
           </h2>
           
@@ -319,7 +307,7 @@ export default function Tableau({ Terrain }) {
           </button>
         </div>
         
-        {!Terrain ? (
+        {!terrainDetails ? (
           <div className="text-center p-6 text-gray-400">
             Please select a terrain to view availability
           </div>
@@ -384,7 +372,7 @@ export default function Tableau({ Terrain }) {
       
       {sessionStorage.getItem("type") !== "admin" ? (
         <FormResev 
-          Terrain={Terrain} 
+          Terrain={terrainDetails} 
           selectedHour={selectedHour} 
           selectedTime={selectedTime} 
           onSuccess={fetchReservations} // Refresh after successful reservation

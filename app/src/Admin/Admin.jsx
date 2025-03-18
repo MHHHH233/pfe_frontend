@@ -125,12 +125,12 @@ const FootballAdminDashboard = () => {
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0 }}
-          className="fixed bottom-6 right-6 z-50 bg-[#07f468] text-gray-900 p-3 rounded-full shadow-lg"
+          className="fixed bottom-4 right-4 z-50 bg-[#07f468] text-gray-900 p-2.5 rounded-lg shadow-lg md:hidden hover:bg-[#06d35a] transition-colors duration-200"
           onClick={toggleSidebar}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          <Menu size={24} />
+          <Menu size={20} />
         </motion.button>
       )}
     </div>
@@ -158,7 +158,7 @@ const Header = ({ toggleSidebar }) => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={toggleSidebar}
-        className="text-white focus:outline-none"
+        className="text-white focus:outline-none md:block hidden" // Hide on mobile, show on md screens
       >
         <Menu size={24} />
       </motion.button>
@@ -208,11 +208,13 @@ const Sidebar = ({ isOpen, activeTab, setActiveTab, closeSidebar }) => {
           
           {/* Sidebar */}
           <motion.nav
-            initial={{ x: -256 }}
+            initial={{ x: window.innerWidth < 768 ? 256 : -256 }}  // Slide from right on mobile, left on desktop
             animate={{ x: 0 }}
-            exit={{ x: -256 }}
+            exit={{ x: window.innerWidth < 768 ? 256 : -256 }}    // Exit to right on mobile, left on desktop
             transition={{ duration: 0.3 }}
-            className="bg-gray-900 min-h-screen overflow-hidden fixed md:relative z-50 shadow-xl"
+            className={`bg-gray-900 min-h-screen overflow-hidden fixed md:relative z-50 shadow-xl ${
+              window.innerWidth < 768 ? 'right-0' : 'left-0'  // Position right on mobile, left on desktop
+            }`}
           >
             <div className="w-64 p-4">
               <div className="flex justify-between items-center mb-6">
@@ -894,8 +896,9 @@ const Users1 = () => {
                   <th scope="col" className="px-6 py-4 font-medium tracking-wider w-[20%] sm:w-[15%]">
                     Role
                   </th>
-                  <th scope="col" className="hidden md:table-cell px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                    Actions
+                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                    <span className="md:hidden">Actions</span>
+                    <span className="hidden md:inline">Actions</span>
                   </th>
                 </tr>
               </thead>
@@ -943,35 +946,57 @@ const Users1 = () => {
                         {user.role}
                       </button>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3.5 text-sm text-center" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3.5 text-sm text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="relative inline-block">
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleEditClick(user)}
-                          className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-[#07f468] transition-colors duration-200"
-                          title="Edit User"
+                          onClick={() => toggleMenu(user.id_compte)}
+                          className="text-white hover:text-[#07f468] transition-colors p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:ring-opacity-50"
                         >
-                          <Edit size={16} />
+                          <MoreVertical size={16} />
                         </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleResetPassword(user.id_compte)}
-                          className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-yellow-400 transition-colors duration-200"
-                          title="Reset Password"
-                        >
-                          <Key size={16} />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDeleteClick(user.id_compte)}
-                          className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-red-400 transition-colors duration-200"
-                          title="Delete User"
-                        >
-                          <Trash2 size={16} />
-                        </motion.button>
+                        
+                        <AnimatePresence>
+                          {openMenu === user.id_compte && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                              transition={{ duration: 0.2 }}
+                              ref={menuRef}
+                              className="absolute right-0 z-10 mt-2 w-48 bg-gray-900 rounded-lg shadow-xl border border-gray-700"
+                              style={{ top: "100%" }}
+                            >
+                              <div className="py-1">
+                                <motion.button
+                                  whileHover={{ backgroundColor: "#1f2937" }}
+                                  className="flex items-center w-full px-4 py-3 text-sm text-white hover:text-[#07f468] transition-colors focus:outline-none"
+                                  onClick={() => handleEditClick(user)}
+                                >
+                                  <Edit size={16} className="mr-3" />
+                                  Edit User
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ backgroundColor: "#1f2937" }}
+                                  className="flex items-center w-full px-4 py-3 text-sm text-white hover:text-yellow-400 transition-colors focus:outline-none"
+                                  onClick={() => handleResetPassword(user.id_compte)}
+                                >
+                                  <Key size={16} className="mr-3" />
+                                  Reset Password
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ backgroundColor: "#1f2937" }}
+                                  className="flex items-center w-full px-4 py-3 text-sm text-white hover:text-red-400 transition-colors focus:outline-none"
+                                  onClick={() => handleDeleteClick(user.id_compte)}
+                                >
+                                  <Trash2 size={16} className="mr-3" />
+                                  Delete User
+                                </motion.button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     </td>
                   </motion.tr>
@@ -1347,7 +1372,7 @@ const Users1 = () => {
 const Reservations = () => {
   const [reservations, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [idTerrain, setIdTerrain] = useState(null);
+  const [idTerrain, setIdTerrain] = useState();
   const [reserv, setReserv] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -1394,9 +1419,9 @@ const Reservations = () => {
     if (sessionStorage.getItem("selectedHour") && sessionStorage.getItem("selectedTime")) {
       setReserv(true);
       // Also set the terrain if it's stored
-      if (sessionStorage.getItem("selectedTerrain")) {
-        setIdTerrain(sessionStorage.getItem("selectedTerrain"));
-      }
+      // if (sessionStorage.getItem("selectedTerrain")) {
+      //   setIdTerrain(sessionStorage.getItem("selectedTerrain"));
+      // }
     } else {
       setReserv(false); // Reset if values are not present
     }
@@ -1449,7 +1474,23 @@ const Reservations = () => {
 
   // Handle terrain change
   const handleChange = (terrain) => {
+    console.log("Selected terrain in Admin:", terrain);
     setIdTerrain(terrain);
+    
+    // Store terrain data in sessionStorage
+    if (terrain) {
+      sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
+      sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
+      
+      // If there's an open form modal, we need to update it
+      if (reserv) {
+        // Dispatch a custom event to notify form
+        const event = new CustomEvent('terrainSelected', {
+          detail: { terrain: terrain }
+        });
+        document.dispatchEvent(event);
+      }
+    }
   };
 
   // Toggle menu
@@ -1551,6 +1592,21 @@ const Reservations = () => {
     setSelectedReservation(null);
   };
 
+  // Update in Admin.jsx to ensure terrain data is correctly passed
+  const handleOpenReservationForm = () => {
+    setReserv(true);
+    
+    // Make sure we have the terrain data in the form
+    if (idTerrain) {
+      console.log("Opening form with terrain data:", idTerrain);
+      // Explicitly set the selectedTerrain in sessionStorage
+      sessionStorage.setItem("selectedTerrainId", idTerrain.id_terrain);
+      sessionStorage.setItem("selectedTerrainName", idTerrain.nom_terrain);
+    } else {
+      console.warn("No terrain selected when opening reservation form");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
@@ -1558,20 +1614,11 @@ const Reservations = () => {
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setReserv(!reserv)}
+          onClick={handleOpenReservationForm}
           className="flex items-center gap-2 bg-[#07f468] hover:bg-[#05c757] text-gray-900 font-medium px-4 py-2 rounded-lg shadow-lg transition duration-200"
         >
-          {reserv ? (
-            <>
-              <X size={18} />
-              <span className="hidden sm:inline">Close Form</span>
-            </>
-          ) : (
-            <>
-              <Plus size={18} />
-              <span className="hidden sm:inline">New Reservation</span>
-            </>
-          )}
+          <Plus size={18} />
+          <span className="hidden sm:inline">Add Reservation</span>
         </motion.button>
       </div>
       
@@ -1622,17 +1669,19 @@ const Reservations = () => {
                     Terrain={idTerrain}
                     selectedHour={sessionStorage.getItem("selectedHour")}
                     selectedTime={sessionStorage.getItem("selectedTime")}
-                    onSuccess={fetchData}
+                    onSuccess={() => {
+                      fetchData();
+                      setReserv(false); // Close modal after success
+                    }}
                   />
                 </motion.div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-
         <Buttons onChange={handleChange} />
         <div className="mt-4">
-          <Tableau Terrain={idTerrain} />
+          <Tableau terrain={idTerrain} />
         </div>
       </motion.div>
    
@@ -1743,17 +1792,20 @@ const Reservations = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Time</th>
                     <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Terrain</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Client</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
-                    <th className="hidden md:table-cell px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                      <span className="sm:hidden">Actions</span>
-                      <span className="hidden sm:inline">Actions</span>
+                    {/* Show Status on mobile, hide on larger screens */}
+                    <th className="sm:hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                    {/* Hide Status on mobile, show on larger screens */}
+                    <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                    {/* Hide Actions on mobile, show on larger screens */}
+                    <th className="hidden sm:table-cell px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
+                      Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
                   {filteredReservations.map((reservation, index) => (
                     <motion.tr 
-                      key={reservation.id_reservation} 
+                      key={reservation.id_reservation}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
@@ -1770,7 +1822,8 @@ const Reservations = () => {
                           ? `${reservation.client.nom} ${reservation.client.prenom || ''}`.trim()
                           : 'Unknown Client'}
                       </td>
-                      <td className="px-4 py-3.5 text-sm">
+                      {/* Show Status on mobile */}
+                      <td className="sm:hidden px-4 py-3.5 text-sm">
                         <span
                           className={`px-2.5 py-1 text-xs font-medium rounded-full ${
                             reservation.etat === "reserver"
@@ -1781,7 +1834,20 @@ const Reservations = () => {
                           {reservation.etat === "reserver" ? "Confirmed" : "Pending"}
                         </span>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3.5 text-sm text-center" onClick={(e) => e.stopPropagation()}>
+                      {/* Hide Status on mobile */}
+                      <td className="hidden sm:table-cell px-4 py-3.5 text-sm">
+                        <span
+                          className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                            reservation.etat === "reserver"
+                              ? "bg-green-900/50 text-green-300 border border-green-500/30"
+                              : "bg-yellow-900/50 text-yellow-300 border border-yellow-500/30"
+                          }`}
+                        >
+                          {reservation.etat === "reserver" ? "Confirmed" : "Pending"}
+                        </span>
+                      </td>
+                      {/* Hide Actions on mobile */}
+                      <td className="hidden sm:table-cell px-4 py-3.5 text-sm text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="relative inline-block">
                           <motion.button
                             whileHover={{ scale: 1.1 }}
@@ -1802,7 +1868,7 @@ const Reservations = () => {
                                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                                 transition={{ duration: 0.2 }}
                                 ref={menuRef}
-                                className="absolute right-0 z-10 mt-2 w-56 bg-gray-900 rounded-lg shadow-xl border border-gray-700"
+                                className="absolute right-0 z-10 mt-2 w-48 bg-gray-900 rounded-lg shadow-xl border border-gray-700"
                                 style={{ top: "100%" }}
                               >
                                 <div className="py-1">

@@ -7,9 +7,9 @@ const terrainService = {
       const response = await apiClient.get(terrainEndpoints.getAllTerrains, { params });
       return {
         data: response.data.data.map(terrain => ({
-          id: terrain.id_terrain,
-          name: terrain.nom_terrain,
-          capacity: terrain.capacite,
+          id_terrain: terrain.id_terrain,
+          nom_terrain: terrain.nom_terrain,
+          capacite: terrain.capacite,
           type: terrain.type,
           prix: terrain.prix,
           image: terrain.image_path,
@@ -39,20 +39,9 @@ const terrainService = {
     }
   },
 
-  async updateTerrain(id, formData) {
+  async updateTerrain(id, payload) {
     try {
-      const payload = {
-        nom_terrain: formData.name,
-        capacite: formData.capacity,
-        type: formData.type,
-        prix: formData.prix,
-        image: formData.image
-      };
-      const response = await apiClient.patch(terrainEndpoints.updateTerrain(id), payload, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      const response = await apiClient.put(terrainEndpoints.updateTerrain(id), payload);
       return response.data;
     } catch (error) {
       console.error(`Error updating terrain ${id}:`, error);

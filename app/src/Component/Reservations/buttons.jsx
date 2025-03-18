@@ -13,17 +13,22 @@ export default function Buttons({ onChange }) {
     const fetchTerrains = async () => {
       try {
         setLoading(true);
-        const service = sessionStorage.getItem("type") === "admin" 
+        // Check if user is admin - ensure consistent check
+        const isAdmin = sessionStorage.getItem("type") === "admin";
+        console.log("User role in Buttons:", isAdmin ? "admin" : "user");
+        
+        const service = isAdmin 
           ? adminTerrainService 
           : userTerrainService;
         
         const response = await service.getAllTerrains();
+        console.log("Terrain API response:", response);
+        
         if (response.data) {
-          const formattedTerrains = response.data.map(terrain => ({
-            id: terrain.id_terrain,
-            name: terrain.nom_terrain
-          }));
-          setTerrains(formattedTerrains);
+          setTerrains(response.data);
+          console.log("Terrains loaded:", response.data);
+        } else {
+          setError("No terrains found");
         }
       } catch (error) {
         console.error("Error fetching terrains:", error);
@@ -37,16 +42,36 @@ export default function Buttons({ onChange }) {
   }, []);
 
   const handleButtonClick = (terrain) => {
-    setSelectedTerrain(terrain);
+    setSelectedTerrain(terrain.id_terrain);
+    console.log("Selected terrain in Buttons:", terrain);
+    
+    // Store in sessionStorage for persistence
+    sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
+    sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
+    
     if (onChange) onChange(terrain);
   };
 
   if (loading) {
-    return <div className="text-center text-gray-400">Loading terrains...</div>;
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="text-center text-red-400">{error}</div>;
+    return (
+      <div className="bg-red-900/20 border border-red-500 p-4 rounded-lg text-center">
+        <p className="text-red-400 mb-2">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -54,17 +79,17 @@ export default function Buttons({ onChange }) {
       <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
         {terrains.map((terrain) => (
           <motion.button
-            key={terrain.id}
-            onClick={() => handleButtonClick(terrain.id)}
+            key={terrain.id_terrain}
+            onClick={() => handleButtonClick(terrain)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className={`px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base rounded-lg text-white font-semibold transition-all duration-300 ease-in-out ${
-              selectedTerrain === terrain.id
+              selectedTerrain === terrain.id_terrain
                 ? "bg-green-500 shadow-md hover:bg-green-600"
                 : "bg-gray-700 hover:bg-gray-600"
             }`}
           >
-            {terrain.name}
+            {terrain.nom_terrain}
           </motion.button>
         ))}
       </div>     

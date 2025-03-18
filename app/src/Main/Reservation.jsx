@@ -15,9 +15,14 @@ export default function Reservations() {
   const userName = sessionStorage.getItem("nom") || sessionStorage.getItem("name");
   const isLoggedIn = !!userId;
   const navigate = useNavigate();
+  const [selectedTerrain, setSelectedTerrain] = useState(null);
 
   const handleChange = (terrain) => {
     setIdTerrain(terrain);
+  };
+
+  const handleTerrainChange = (terrain) => {
+    setSelectedTerrain(terrain);
   };
 
   // Redirect to login
@@ -51,13 +56,13 @@ export default function Reservations() {
         {/* Terrain selection buttons */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-white mb-4">Select a Terrain</h2>
-          <Buttons onChange={handleChange} />
+          <Buttons onChange={handleTerrainChange} />
         </div>
         
         {/* Reservation table */}
         <div className="bg-gray-800/80 backdrop-blur-sm p-4 rounded-lg">
           <h2 className="text-xl font-semibold text-white mb-4">Available Time Slots</h2>
-          <Tableau Terrain={idTerrain} />
+          <Tableau terrain={selectedTerrain} />
         </div>
         
         {/* Instructions */}
