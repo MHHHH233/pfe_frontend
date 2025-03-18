@@ -24,13 +24,13 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     userId 
   });
   
-  // Initialize form with session storage as backup
+  // Initialize form with correct user ID
   const [formData, setFormData] = useState({
     id_terrain: Terrain?.id_terrain || sessionStorage.getItem("selectedTerrainId") || '',
     date: selectedTime || '',
     heure: selectedHour || '',
     type: userType,
-    id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) : null,
+    id_client: parseInt(sessionStorage.getItem("userId")),
     Name: '',
     email: '',
     telephone: '',
@@ -79,21 +79,23 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   useEffect(() => {
     console.log("FormResev received props:", { Terrain, selectedHour, selectedTime });
     
+    const currentUserId = parseInt(sessionStorage.getItem("userId"));
+    console.log("Current User ID in useEffect:", currentUserId);
+    
     // Update form when props change
     setFormData(prev => ({
       ...prev,
       id_terrain: Terrain?.id_terrain || prev.id_terrain,
       heure: selectedHour || prev.heure,
       date: selectedTime || prev.date,
-      id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) || null : null,
+      id_client: currentUserId,
       Name: '',
       email: '',
       telephone: ''
     }));
     
-    // Log the current form data for debugging
     console.log("Form data updated:", formData);
-  }, [Terrain, selectedHour, selectedTime, userId]);
+  }, [Terrain, selectedHour, selectedTime]);
 
   // Add event listener for terrain selection events from parent components
   useEffect(() => {
@@ -162,19 +164,27 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       return;
     }
     
-    // Create reservation data
+    // Debug alert for user ID
+    const currentUserId = sessionStorage.getItem("userId");
+    alert(`Debug - Current User ID: ${currentUserId}`);
+    
+    // Create reservation data with guaranteed user ID
     const reservationDetails = {
       id_terrain: parseInt(formData.id_terrain),
       date: formData.date,
       heure: formatTimeToHis(formData.heure),
       type: formData.type,
-      id_client: isAdmin ? parseInt(sessionStorage.getItem("userId")) : null,
-      Name: formData.Name,
+      id_client: parseInt(sessionStorage.getItem("userId")), // Explicitly set user ID
+      payment_method: "cash",
+      Name: formData.Name || "Guest",
       ...(formData.email && { email: formData.email }),
       ...(formData.telephone && { telephone: formData.telephone })
     };
 
-    console.log('Submitting reservation:', reservationDetails); // Debug log
+    // Debug alert for final payload
+    alert(`Debug - Reservation Payload: ${JSON.stringify(reservationDetails, null, 2)}`);
+
+    console.log('Submitting reservation:', reservationDetails); 
     
     setReservationData(reservationDetails);
     setShowConfirmation(true);

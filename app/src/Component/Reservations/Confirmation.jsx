@@ -115,28 +115,33 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       return;
     }
     
+    // Debug the incoming data
+    console.log("Incoming data:", data);
+    const userId = parseInt(sessionStorage.getItem("userId"));
+    console.log("Current user ID:", userId);
+    
     const formData = {
       id_terrain: data.id_terrain,
       date: data.date,
       heure: data.heure || data.heuredebut,
       type: data.type || "client",
       payment_method: paymentMethod,
-      // For admin reservations, use the provided Name and id_client
-      ...(sessionStorage.getItem("type") === "admin" ? {
+      id_client: userId, // Explicitly set the user ID
+      // For admin reservations, use the provided Name
+      ...(isAdmin ? {
         Name: data.Name,
-        id_client: data.id_client || parseInt(sessionStorage.getItem("userId"))
       } : {
         // For user/guest reservations
-        Name: data.Name || sessionStorage.getItem("guestName") || 'Guest',
-        email: data.email || sessionStorage.getItem("guestEmail") || '',
-        telephone: data.telephone || sessionStorage.getItem("guestTelephone") || ''
+        Name: data.Name || sessionStorage.getItem("name") || 'Guest',
+        email: data.email || '',
+        telephone: data.telephone || ''
       })
     };
-  
-    console.log("Submitting reservation with data:", formData);
-  
+
+    console.log("Final form data being submitted:", formData);
+
     try {
-      const reservationService = sessionStorage.getItem("type") === "admin" 
+      const reservationService = isAdmin 
         ? adminReservationService 
         : userReservationService;
       
