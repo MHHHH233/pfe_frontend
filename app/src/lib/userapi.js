@@ -5,6 +5,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  Authorization: `Bearer ${sessionStorage.getItem('token')}`
 });
 
 // Add a request interceptor

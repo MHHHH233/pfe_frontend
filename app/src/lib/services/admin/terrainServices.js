@@ -1,5 +1,5 @@
 import terrainEndpoints from '../../endpoint/admin/terrain';
-import apiClient from '../../adminapi';
+import apiClient from '../../userapi';
 
 const terrainService = {
   async getAllTerrains(params = {}) {
@@ -39,9 +39,17 @@ const terrainService = {
     }
   },
 
-  async updateTerrain(id, payload) {
+  async updateTerrain(id, formData) {
     try {
-      const response = await apiClient.put(terrainEndpoints.updateTerrain(id), payload);
+      // Add method spoofing for Laravel
+      if (formData instanceof FormData) {
+        formData.append('_method', 'PUT');
+      }
+      const response = await apiClient.post(terrainEndpoints.updateTerrain(id), formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
       return response.data;
     } catch (error) {
       console.error(`Error updating terrain ${id}:`, error);

@@ -1,219 +1,15 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { School, Users, Calendar, DollarSign, Book, MoreVertical, Edit, Trash2, Plus, Search, Filter, Eye, X, Instagram, Clock, User, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
-
-// Mock data
-const academies = [
-  {
-    id_academie: 1,
-    nom: "Football Tech Academy",
-    description: "Learn cutting-edge football techniques with professional coaches",
-    date_creation: "2023-01-15",
-    plan_base: 99,
-    plan_premium: 199
-  },
-  {
-    id_academie: 2,
-    nom: "Elite Soccer School",
-    description: "Premier football training for aspiring athletes",
-    date_creation: "2023-03-20",
-    plan_base: 149,
-    plan_premium: 299
-  },
-  {
-    id_academie: 3,
-    nom: "Youth Football Academy",
-    description: "Specialized training programs for young talents",
-    date_creation: "2023-06-10",
-    plan_base: 79,
-    plan_premium: 159
-  },
-  {
-    id_academie: 4,
-    nom: "Pro Football Institute",
-    description: "Advanced training for professional development",
-    date_creation: "2023-09-05",
-    plan_base: 199,
-    plan_premium: 399
-  }
-];
-
-const activities = [
-  {
-    id_activites: 1,
-    id_academie: 1,
-    title: "Advanced Dribbling Techniques",
-    description: "Master the art of ball control and dribbling",
-    date_debut: "2024-03-01",
-    date_fin: "2024-05-31"
-  },
-  {
-    id_activites: 2,
-    id_academie: 1,
-    title: "Tactical Training",
-    description: "Learn advanced tactical plays and strategies",
-    date_debut: "2024-04-01",
-    date_fin: "2024-06-30"
-  },
-  {
-    id_activites: 3,
-    id_academie: 2,
-    title: "Speed and Agility",
-    description: "Enhance your speed and agility on the field",
-    date_debut: "2024-03-15",
-    date_fin: "2024-05-15"
-  },
-  {
-    id_activites: 4,
-    id_academie: 2,
-    title: "Shooting Masterclass",
-    description: "Perfect your shooting technique",
-    date_debut: "2024-04-15",
-    date_fin: "2024-07-15"
-  },
-  {
-    id_activites: 5,
-    id_academie: 3,
-    title: "Youth Development Program",
-    description: "Comprehensive training for young players",
-    date_debut: "2024-03-10",
-    date_fin: "2024-09-10"
-  }
-];
-
-const coaches = [
-  {
-    id_coach: 1,
-    id_academie: 1,
-    nom: "John Doe",
-    pfp: "https://randomuser.me/api/portraits/men/6.jpg",
-    description: "Former professional player with 10 years of coaching experience",
-    instagram: "@johndoecoach"
-  },
-  {
-    id_coach: 2,
-    id_academie: 1,
-    nom: "Sarah Smith",
-    pfp: "https://randomuser.me/api/portraits/women/1.jpg",
-    description: "UEFA licensed coach specializing in youth development",
-    instagram: "@sarahsmith_coach"
-  },
-  {
-    id_coach: 3,
-    id_academie: 2,
-    nom: "Mike Johnson",
-    pfp: "https://randomuser.me/api/portraits/men/2.jpg",
-    description: "Former national team player and experienced trainer",
-    instagram: "@mikejohnson_football"
-  },
-  {
-    id_coach: 4,
-    id_academie: 2,
-    nom: "Emma Wilson",
-    pfp: "https://randomuser.me/api/portraits/women/2.jpg",
-    description: "Specialist in tactical training and team development",
-    instagram: "@emmawilson_coach"
-  },
-  {
-    id_coach: 5,
-    id_academie: 3,
-    nom: "David Brown",
-    pfp: "https://randomuser.me/api/portraits/men/3.jpg",
-    description: "Youth development expert with international experience",
-    instagram: "@davidbrown_coach"
-  }
-];
-
-const programmes = [
-  {
-    id_programme: 1,
-    id_academie: 1,
-    jour: "Monday",
-    horaire: "18:00 - 20:00",
-    programme: "Tactical Training Session"
-  },
-  {
-    id_programme: 2,
-    id_academie: 1,
-    jour: "Wednesday",
-    horaire: "17:00 - 19:00",
-    programme: "Technical Skills Development"
-  },
-  {
-    id_programme: 3,
-    id_academie: 2,
-    jour: "Tuesday",
-    horaire: "16:00 - 18:00",
-    programme: "Speed and Agility Training"
-  },
-  {
-    id_programme: 4,
-    id_academie: 2,
-    jour: "Thursday",
-    horaire: "18:30 - 20:30",
-    programme: "Match Practice Session"
-  },
-  {
-    id_programme: 5,
-    id_academie: 3,
-    jour: "Friday",
-    horaire: "17:30 - 19:30",
-    programme: "Youth Development Training"
-  },
-  {
-    id_programme: 6,
-    id_academie: 3,
-    jour: "Saturday",
-    horaire: "10:00 - 12:00",
-    programme: "Weekend Intensive Training"
-  }
-];
-
-const members = [
-  {
-    id_member: 1,
-    id_compte: 101,
-    id_activites: 1,
-    nom: "Alex Thompson",
-    age: 16,
-    niveau: "Advanced"
-  },
-  {
-    id_member: 2,
-    id_compte: 102,
-    id_activites: 1,
-    nom: "Maria Garcia",
-    age: 15,
-    niveau: "Intermediate"
-  },
-  {
-    id_member: 3,
-    id_compte: 103,
-    id_activites: 2,
-    nom: "James Wilson",
-    age: 17,
-    niveau: "Advanced"
-  },
-  {
-    id_member: 4,
-    id_compte: 104,
-    id_activites: 3,
-    nom: "Sophie Chen",
-    age: 14,
-    niveau: "Beginner"
-  },
-  {
-    id_member: 5,
-    id_compte: 105,
-    id_activites: 4,
-    nom: "Lucas Silva",
-    age: 16,
-    niveau: "Intermediate"
-  }
-];
+import academieService from '../../lib/services/admin/academieServices';
+import academieActivitesService from '../../lib/services/admin/academieActivitesService';
+import academieCoachesService from '../../lib/services/admin/academieCoachesService';
+import academieProgrammesService from '../../lib/services/admin/academieProgrammesService';
+import activitesMembersService from '../../lib/services/admin/activitesMembersService';
+import compteService from '../../lib/services/admin/compteServices';
 
 // Add these animation variants at the top after imports
 const pageTransition = {
@@ -387,54 +183,217 @@ const useNotification = () => {
 
 // Update FootballAcademieManagement component
 const FootballAcademieManagement = () => {
-  // Use mock data directly with state
-  const [academiesList, setAcademiesList] = useState(academies);
-  const [activitiesList, setActivitiesList] = useState(activities);
-  const [coachesList, setCoachesList] = useState(coaches);
-  const [programmesList, setProgrammesList] = useState(programmes);
-  const [membersList, setMembersList] = useState(members);
-  const [loading, setLoading] = useState(true);
+  return (
+    <NotificationProvider>
+      <FootballAcademieContent />
+    </NotificationProvider>
+  );
+};
 
-  // Simulate initial loading
+// Move the main content to a new component
+const FootballAcademieContent = () => {
+  const [academies, setAcademies] = useState([]);
+  const [activities, setActivities] = useState([]);
+  const [coaches, setCoaches] = useState([]);
+  const [programmes, setProgrammes] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [activeTab, setActiveTab] = useState('academies');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const showNotification = useNotification();
+
+  // Fetch academies on initial load
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+    fetchAcademies();
   }, []);
 
+  // Fetch other data when tab changes
+  useEffect(() => {
+    if (activeTab === 'activities' && activities.length === 0) {
+      fetchActivities();
+    } else if (activeTab === 'coaches' && coaches.length === 0) {
+      fetchCoaches();
+    } else if (activeTab === 'programmes' && programmes.length === 0) {
+      fetchProgrammes();
+    } else if (activeTab === 'members' && members.length === 0) {
+      fetchMembers();
+    }
+  }, [activeTab]);
+
+  const fetchAcademies = async () => {
+    setLoading(true);
+    try {
+      const response = await academieService.getAllAcademies();
+      setAcademies(response.data || []);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching academies:', error);
+      setError('Failed to fetch academies');
+      showNotification('Failed to fetch academies', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchActivities = async () => {
+    setLoading(true);
+    try {
+      const response = await academieActivitesService.getAllActivites();
+      setActivities(response.data || []);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      showNotification('Failed to fetch activities', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCoaches = async () => {
+    setLoading(true);
+    try {
+      const response = await academieCoachesService.getAllCoaches();
+      setCoaches(response.data || []);
+    } catch (error) {
+      console.error('Error fetching coaches:', error);
+      showNotification('Failed to fetch coaches', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProgrammes = async () => {
+    setLoading(true);
+    try {
+      const response = await academieProgrammesService.getAllProgrammes();
+      setProgrammes(response.data || []);
+    } catch (error) {
+      console.error('Error fetching programmes:', error);
+      showNotification('Failed to fetch programmes', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMembers = async () => {
+    setLoading(true);
+    try {
+      // Fetch activities first if they haven't been fetched yet
+      if (activities.length === 0) {
+        await fetchActivities();
+      }
+      const response = await activitesMembersService.getAllMembers();
+      setMembers(response.data || []);
+    } catch (error) {
+      console.error('Error fetching members:', error);
+      showNotification('Failed to fetch members', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
-  return (
-      <div className="min-h-screen flex items-center justify-center">
+    return (
+      <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-[#07f468]"></div>
-    </div>
+      </div>
     );
   }
 
-  return (
-    <NotificationProvider>
-      <motion.div 
-        variants={pageTransition}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        className="min-h-screen bg-gradient-to-br rounded-3xl bg-gray-900 text-white p-3 md:p-6 space-y-6 md:space-y-8"
-      >
-        <Header />
-        <motion.div 
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate" 
-          className="space-y-6 md:space-y-8"
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
+        <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-red-500 mb-2">Error</h2>
+        <p className="text-gray-400 mb-4">{error}</p>
+        <button
+          onClick={fetchAcademies}
+          className="bg-[#07f468] text-gray-900 px-6 py-2 rounded-full font-medium hover:bg-[#06d35a] transition-colors duration-300"
         >
-          <AcademieSection academies={academiesList} setAcademies={setAcademiesList} />
-          <ActivitySection activities={activitiesList} setActivities={setActivitiesList} academies={academiesList} />
-          <CoachSection coaches={coachesList} setCoaches={setCoachesList} academies={academiesList} />
-          <ProgrammeSection programmes={programmesList} setProgrammes={setProgrammesList} academies={academiesList} />
-          <MemberSection members={membersList} setMembers={setMembersList} activities={activitiesList} />
-        </motion.div>
-      </motion.div>
-    </NotificationProvider>
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  const tabs = [
+    { id: 'academies', label: 'Academies', icon: School },
+    { id: 'activities', label: 'Activities', icon: Book },
+    { id: 'coaches', label: 'Coaches', icon: Users },
+    { id: 'programmes', label: 'Programmes', icon: Calendar },
+    { id: 'members', label: 'Members', icon: User }
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold mb-4">Football Academy Management</h1>
+          <nav className="flex flex-wrap gap-2">
+            {tabs.map(tab => (
+              <motion.button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors duration-300 ${
+                  activeTab === tab.id
+                    ? 'bg-[#07f468] text-gray-900'
+                    : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <tab.icon className="w-5 h-5" />
+                <span className="font-medium">{tab.label}</span>
+              </motion.button>
+            ))}
+          </nav>
+        </header>
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === 'academies' && (
+              <AcademieSection 
+                academies={academies} 
+                setAcademies={setAcademies} 
+              />
+            )}
+            {activeTab === 'activities' && (
+              <ActivitySection 
+                activities={activities} 
+                setActivities={setActivities}
+                academies={academies}
+              />
+            )}
+            {activeTab === 'coaches' && (
+              <CoachSection 
+                coaches={coaches} 
+                setCoaches={setCoaches}
+                academies={academies}
+              />
+            )}
+            {activeTab === 'programmes' && (
+              <ProgrammeSection 
+                programmes={programmes} 
+                setProgrammes={setProgrammes}
+                academies={academies}
+              />
+            )}
+            {activeTab === 'members' && (
+              <MemberSection 
+                members={members} 
+                setMembers={setMembers}
+                activities={activities}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
   );
 };
 
@@ -486,43 +445,25 @@ const ActionButton = ({ icon: Icon, label, onClick, variant = 'default' }) => {
 };
 
 // Update the Modal component
-const Modal = ({ isOpen, onClose, title, children }) => (
-  <AnimatePresence>
-    {isOpen && (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.9, y: 20, opacity: 0 }}
-          animate={{ scale: 1, y: 0, opacity: 1 }}
-          exit={{ scale: 0.9, y: 20, opacity: 0 }}
-          className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-4 md:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-700/50 m-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center mb-4 md:mb-6">
-            <h3 className="text-xl md:text-2xl font-bold bg-[#07f468] bg-clip-text text-transparent">{title}</h3>
-            <motion.button 
-              variants={buttonVariants}
-              whileHover="hover"
-              whileTap="tap"
-              onClick={onClose} 
-              className="text-gray-400 hover:text-white"
-            >
-              <X className="w-5 h-5 md:w-6 md:h-6" />
-            </motion.button>
-          </div>
-          <div className="space-y-4 md:space-y-6">
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center p-4 border-b border-gray-700">
+          <h3 className="text-xl font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="p-4 flex-1 overflow-y-auto scrollbar-hide">
           {children}
-          </div>
-        </motion.div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-);
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Update the AcademieListItem component
 const AcademieListItem = ({ academie, onView, onEdit, onDelete }) => (
@@ -575,36 +516,93 @@ const AcademieSection = ({ academies, setAcademies }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedAcademie, setSelectedAcademie] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const showNotification = useNotification();
+
+  // Fetch academies on component mount
+  useEffect(() => {
+    fetchAcademies();
+  }, []);
+
+  const fetchAcademies = async () => {
+    try {
+      setLoading(true);
+      const data = await academieService.getAllAcademies();
+      setAcademies(data);
+    } catch (error) {
+      setError('Failed to fetch academies');
+      showNotification('Failed to fetch academies', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdd = async (formData) => {
+    try {
+      setLoading(true);
+      const response = await academieService.createAcademie(formData);
+      setAcademies(prev => [...prev, response.data]);
+      showNotification('Academy added successfully');
+      setIsAddModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to add academy', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdate = async (id, formData) => {
+    try {
+      setLoading(true);
+      const response = await academieService.updateAcademie(id, formData);
+      setAcademies(prev => prev.map(a => 
+        a.id_academie === id ? response.data : a
+      ));
+      showNotification('Academy updated successfully');
+      setIsEditModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to update academy', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this academy?')) return;
+    
+    try {
+      setLoading(true);
+      await academieService.deleteAcademie(id);
+      setAcademies(prev => prev.filter(a => a.id_academie !== id));
+      showNotification('Academy deleted successfully');
+    } catch (error) {
+      showNotification('Failed to delete academy', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading && !academies.length) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-[#07f468]"></div>
+      </div>
+    );
+  }
+
+  if (error && !academies.length) {
+    return (
+      <div className="text-red-500 text-center p-8">
+        {error}
+      </div>
+    );
+  }
 
   const filteredAcademies = academies.filter(academie => 
     academie.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
     academie.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const handleAdd = (formData) => {
-    const newAcademie = {
-      ...formData,
-      id_academie: Math.max(...academies.map(a => a.id_academie)) + 1
-    };
-    setAcademies(prev => [...prev, newAcademie]);
-    showNotification('Academy added successfully');
-    setIsAddModalOpen(false);
-  };
-
-  const handleUpdate = (id, formData) => {
-    setAcademies(prev => prev.map(a => 
-      a.id_academie === id ? { ...formData, id_academie: id } : a
-    ));
-    showNotification('Academy updated successfully');
-    setIsEditModalOpen(false);
-  };
-
-  const handleDelete = (id) => {
-    if (!window.confirm('Are you sure you want to delete this academy?')) return;
-    setAcademies(prev => prev.filter(a => a.id_academie !== id));
-    showNotification('Academy deleted successfully');
-  };
 
   return (
     <section>
@@ -726,14 +724,27 @@ const AcademieForm = ({ academie, onSubmit }) => {
   const [formData, setFormData] = useState(academie || {
     nom: "",
     description: "",
-    date_creation: "",
+    date_creation: new Date().toISOString().split('T')[0],
     plan_base: "",
     plan_premium: ""
   });
 
+  const [errors, setErrors] = useState({});
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.nom) newErrors.nom = 'Name is required';
+    if (!formData.date_creation) newErrors.date_creation = 'Creation date is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (validateForm()) {
+      onSubmit(formData);
+    }
   };
 
   const handleChange = (e) => {
@@ -742,6 +753,10 @@ const AcademieForm = ({ academie, onSubmit }) => {
       ...prev,
       [name]: value
     }));
+    // Clear error when field is edited
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
   };
 
   return (
@@ -751,12 +766,14 @@ const AcademieForm = ({ academie, onSubmit }) => {
         label="Name"
         value={formData.nom}
         onChange={handleChange}
+        error={errors.nom}
       />
       <FormTextarea
         name="description"
         label="Description"
         value={formData.description}
         onChange={handleChange}
+        error={errors.description}
       />
       <FormInput
         name="date_creation"
@@ -764,6 +781,7 @@ const AcademieForm = ({ academie, onSubmit }) => {
         type="date"
         value={formData.date_creation}
         onChange={handleChange}
+        error={errors.date_creation}
       />
       <FormInput
         name="plan_base"
@@ -771,6 +789,7 @@ const AcademieForm = ({ academie, onSubmit }) => {
         type="number"
         value={formData.plan_base}
         onChange={handleChange}
+        error={errors.plan_base}
       />
       <FormInput
         name="plan_premium"
@@ -778,6 +797,7 @@ const AcademieForm = ({ academie, onSubmit }) => {
         type="number"
         value={formData.plan_premium}
         onChange={handleChange}
+        error={errors.plan_premium}
       />
       <div className="flex justify-end">
         <SubmitButton isUpdate={!!academie} />
@@ -793,30 +813,70 @@ const ActivitySection = ({ activities, setActivities, academies }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const showNotification = useNotification();
 
-  const handleAdd = (formData) => {
-    const newActivity = {
-      ...formData,
-      id_activites: Math.max(...activities.map(a => a.id_activites)) + 1
-    };
-    setActivities(prev => [...prev, newActivity]);
-    showNotification('Activity added successfully');
-    setIsAddModalOpen(false);
+  useEffect(() => {
+    fetchActivities();
+  }, []);
+
+  const fetchActivities = async () => {
+    try {
+      setLoading(true);
+      const data = await academieActivitesService.getAllActivites();
+      setActivities(data.data); // Assuming the response has a data property
+    } catch (error) {
+      setError('Failed to fetch activities');
+      showNotification('Failed to fetch activities', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdate = (id, formData) => {
-    setActivities(prev => prev.map(a => 
-      a.id_activites === id ? { ...formData, id_activites: id } : a
-    ));
-    showNotification('Activity updated successfully');
-    setIsEditModalOpen(false);
+  const handleAdd = async (formData) => {
+    try {
+      setLoading(true);
+      const response = await academieActivitesService.createActivite(formData);
+      setActivities(prev => [...prev, response.data]);
+      showNotification('Activity added successfully');
+      setIsAddModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to add activity', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id) => {
+  const handleUpdate = async (id, formData) => {
+    try {
+      setLoading(true);
+      const response = await academieActivitesService.updateActivite(id, formData);
+      setActivities(prev => prev.map(a => 
+        a.id_activites === id ? response.data : a
+      ));
+      showNotification('Activity updated successfully');
+      setIsEditModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to update activity', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this activity?')) return;
-    setActivities(prev => prev.filter(a => a.id_activites !== id));
-    showNotification('Activity deleted successfully');
+    
+    try {
+      setLoading(true);
+      await academieActivitesService.deleteActivite(id);
+      setActivities(prev => prev.filter(a => a.id_activites !== id));
+      showNotification('Activity deleted successfully');
+    } catch (error) {
+      showNotification('Failed to delete activity', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -906,7 +966,7 @@ const ActivityListItem = ({ activity, onView, onEdit, onDelete }) => (
           <div className="flex items-center gap-2 text-gray-400">
             <Calendar className="w-4 h-4 text-[#07f468]" />
             <span>{activity.date_debut} - {activity.date_fin}</span>
-      </div>
+          </div>
         </div>
       </div>
       <div className="flex gap-2">
@@ -1022,31 +1082,87 @@ const CoachSection = ({ coaches, setCoaches, academies }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const showNotification = useNotification();
 
-  const handleAdd = (formData) => {
-    const newCoach = {
-      ...formData,
-      id_coach: Math.max(...coaches.map(c => c.id_coach)) + 1
-    };
-    setCoaches(prev => [...prev, newCoach]);
-    showNotification('Coach added successfully');
-    setIsAddModalOpen(false);
+  useEffect(() => {
+    fetchCoaches();
+  }, []);
+
+  const fetchCoaches = async () => {
+    try {
+      setLoading(true);
+      const data = await academieCoachesService.getAllCoaches();
+      setCoaches(data.data);
+    } catch (error) {
+      setError('Failed to fetch coaches');
+      showNotification('Failed to fetch coaches', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdate = (id, formData) => {
-    setCoaches(prev => prev.map(c => 
-      c.id_coach === id ? { ...formData, id_coach: id } : c
-    ));
-    showNotification('Coach updated successfully');
-    setIsEditModalOpen(false);
+  const handleAdd = async (formData) => {
+    try {
+      setLoading(true);
+      const response = await academieCoachesService.createCoach(formData);
+      setCoaches(prev => [...prev, response.data]);
+      showNotification('Coach added successfully');
+      setIsAddModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to add coach', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id) => {
+  const handleUpdate = async (id, formData) => {
+    try {
+      setLoading(true);
+      const response = await academieCoachesService.updateCoach(id, formData);
+      setCoaches(prev => prev.map(c => 
+        c.id_coach === id ? response.data : c
+      ));
+      showNotification('Coach updated successfully');
+      setIsEditModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to update coach', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this coach?')) return;
-    setCoaches(prev => prev.filter(c => c.id_coach !== id));
-    showNotification('Coach deleted successfully');
+    
+    try {
+      setLoading(true);
+      await academieCoachesService.deleteCoach(id);
+      setCoaches(prev => prev.filter(c => c.id_coach !== id));
+      showNotification('Coach deleted successfully');
+    } catch (error) {
+      showNotification('Failed to delete coach', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading && !coaches.length) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-[#07f468]"></div>
+      </div>
+    );
+  }
+
+  if (error && !coaches.length) {
+    return (
+      <div className="text-red-500 text-center p-8">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <section>
@@ -1195,14 +1311,33 @@ const CoachForm = ({ coach, academies, onSubmit }) => {
   const [formData, setFormData] = useState(coach || {
     id_academie: "",
     nom: "",
-    pfp: "",
     description: "",
-    instagram: ""
+    instagram: "",
+    pfp: null,
+    pfpPreview: null
   });
+  const [errors, setErrors] = useState({});
+  const fileInputRef = useRef(null);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(formData);
+  // Initialize preview if coach exists
+  useEffect(() => {
+    if (coach?.pfp) {
+      setFormData(prev => ({
+        ...prev,
+        pfpPreview: `http://127.0.0.1:8000/${coach.pfp}`
+      }));
+    }
+  }, [coach]);
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.id_academie) newErrors.id_academie = 'Academy is required';
+    if (!formData.nom) newErrors.nom = 'Name is required';
+    if (!formData.description) newErrors.description = 'Description is required';
+    if (!formData.instagram) newErrors.instagram = 'Instagram is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleChange = (e) => {
@@ -1211,41 +1346,141 @@ const CoachForm = ({ coach, academies, onSubmit }) => {
       ...prev,
       [name]: value
     }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData(prev => ({
+        ...prev,
+        pfp: file,
+        pfpPreview: URL.createObjectURL(file)
+      }));
+    }
+  };
+
+  const handleImageRemove = () => {
+    if (formData.pfpPreview) {
+      URL.revokeObjectURL(formData.pfpPreview);
+    }
+    setFormData(prev => ({
+      ...prev,
+      pfp: null,
+      pfpPreview: null
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (validateForm()) {
+      try {
+        const formDataToSend = new FormData();
+        formDataToSend.append('id_academie', formData.id_academie);
+        formDataToSend.append('nom', formData.nom);
+        formDataToSend.append('description', formData.description);
+        formDataToSend.append('instagram', formData.instagram);
+        
+        // Only append pfp if it's a new file
+        if (formData.pfp instanceof File) {
+          formDataToSend.append('pfp', formData.pfp);
+        }
+
+        onSubmit(formDataToSend);
+      } catch (error) {
+        console.error('Error preparing form data:', error);
+      }
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
+        <label className="block text-gray-300 font-medium">Profile Picture</label>
+        <div className="flex items-center gap-4">
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-700">
+            {formData.pfpPreview ? (
+              <img 
+                src={formData.pfpPreview} 
+                alt="Preview" 
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  handleImageRemove();
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <User className="w-12 h-12 text-gray-400" />
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            Choose Photo
+          </button>
+            {formData.pfpPreview && (
+              <button
+                type="button"
+                onClick={handleImageRemove}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+        {errors.pfp && (
+          <p className="text-red-500 text-sm">{errors.pfp}</p>
+        )}
+      </div>
+
       <FormSelect
         name="id_academie"
         label="Academy"
         value={formData.id_academie}
         onChange={handleChange}
         options={academies.map(a => ({ value: a.id_academie, label: a.nom }))}
+        error={errors.id_academie}
       />
+
       <FormInput
         name="nom"
         label="Name"
         value={formData.nom}
         onChange={handleChange}
+        error={errors.nom}
       />
-      <FormInput
-        name="pfp"
-        label="Profile Picture URL"
-        value={formData.pfp}
-        onChange={handleChange}
-      />
+
       <FormTextarea
         name="description"
         label="Description"
         value={formData.description}
         onChange={handleChange}
+        error={errors.description}
       />
+
       <FormInput
         name="instagram"
         label="Instagram"
         value={formData.instagram}
         onChange={handleChange}
+        error={errors.instagram}
       />
+
       <div className="flex justify-end">
         <SubmitButton isUpdate={!!coach} />
       </div>
@@ -1260,31 +1495,87 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedProgramme, setSelectedProgramme] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const showNotification = useNotification();
 
-  const handleAdd = (formData) => {
-    const newProgramme = {
-      ...formData,
-      id_programme: Math.max(...programmes.map(p => p.id_programme)) + 1
-    };
-    setProgrammes(prev => [...prev, newProgramme]);
-    showNotification('Programme added successfully');
-    setIsAddModalOpen(false);
+  useEffect(() => {
+    fetchProgrammes();
+  }, []);
+
+  const fetchProgrammes = async () => {
+    try {
+      setLoading(true);
+      const data = await academieProgrammesService.getAllProgrammes();
+      setProgrammes(data.data);
+    } catch (error) {
+      setError('Failed to fetch programmes');
+      showNotification('Failed to fetch programmes', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdate = (id, formData) => {
-    setProgrammes(prev => prev.map(p => 
-      p.id_programme === id ? { ...formData, id_programme: id } : p
-    ));
-    showNotification('Programme updated successfully');
-    setIsEditModalOpen(false);
+  const handleAdd = async (formData) => {
+    try {
+      setLoading(true);
+      const response = await academieProgrammesService.createProgramme(formData);
+      setProgrammes(prev => [...prev, response.data]);
+      showNotification('Programme added successfully');
+      setIsAddModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to add programme', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id) => {
+  const handleUpdate = async (id, formData) => {
+    try {
+      setLoading(true);
+      const response = await academieProgrammesService.updateProgramme(id, formData);
+      setProgrammes(prev => prev.map(p => 
+        p.id_programme === id ? response.data : p
+      ));
+      showNotification('Programme updated successfully');
+      setIsEditModalOpen(false);
+    } catch (error) {
+      showNotification('Failed to update programme', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this programme?')) return;
-    setProgrammes(prev => prev.filter(p => p.id_programme !== id));
-    showNotification('Programme deleted successfully');
+    
+    try {
+      setLoading(true);
+      await academieProgrammesService.deleteProgramme(id);
+      setProgrammes(prev => prev.filter(p => p.id_programme !== id));
+      showNotification('Programme deleted successfully');
+    } catch (error) {
+      showNotification('Failed to delete programme', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading && !programmes.length) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-[#07f468]"></div>
+      </div>
+    );
+  }
+
+  if (error && !programmes.length) {
+    return (
+      <div className="text-red-500 text-center p-8">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <section>
@@ -1312,7 +1603,12 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
             Add Programme
           </motion.button>
         </div>
-        <ul className="space-y-4">
+        <motion.ul 
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="space-y-4"
+        >
           {programmes.filter(programme => 
             programme.programme.toLowerCase().includes(searchQuery.toLowerCase()) ||
             programme.jour.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1332,7 +1628,7 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
               onDelete={() => handleDelete(programme.id_programme)}
             />
           ))}
-        </ul>
+        </motion.ul>
       </div>
       
       <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="View Programme">
@@ -1417,10 +1713,29 @@ const ProgrammeForm = ({ programme, academies, onSubmit }) => {
     horaire: "",
     programme: ""
   });
+  const [errors, setErrors] = useState({});
+
+  const daysOfWeek = [
+    "Monday", "Tuesday", "Wednesday", "Thursday",
+    "Friday", "Saturday", "Sunday"
+  ];
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.id_academie) newErrors.id_academie = 'Academy is required';
+    if (!formData.jour) newErrors.jour = 'Day is required';
+    if (!formData.horaire) newErrors.horaire = 'Time is required';
+    if (!formData.programme) newErrors.programme = 'Programme is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (validateForm()) {
+      onSubmit(formData);
+    }
   };
 
   const handleChange = (e) => {
@@ -1429,6 +1744,9 @@ const ProgrammeForm = ({ programme, academies, onSubmit }) => {
       ...prev,
       [name]: value
     }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
   };
 
   return (
@@ -1439,25 +1757,47 @@ const ProgrammeForm = ({ programme, academies, onSubmit }) => {
         value={formData.id_academie}
         onChange={handleChange}
         options={academies.map(a => ({ value: a.id_academie, label: a.nom }))}
+        error={errors.id_academie}
       />
-      <FormInput
-        name="jour"
-        label="Day"
-        value={formData.jour}
-        onChange={handleChange}
-      />
+
+      <div className="space-y-2">
+        <label className="block text-gray-300 font-medium">Day</label>
+        <div className="flex flex-wrap gap-2">
+          {daysOfWeek.map(day => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => handleChange({ target: { name: 'jour', value: day } })}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                formData.jour === day 
+                  ? 'bg-[#07f468] text-gray-900' 
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+        {errors.jour && <p className="text-red-500 text-sm">{errors.jour}</p>}
+      </div>
+
       <FormInput
         name="horaire"
         label="Time"
+        type="time"
         value={formData.horaire}
         onChange={handleChange}
+        error={errors.horaire}
       />
+
       <FormTextarea
         name="programme"
         label="Programme"
         value={formData.programme}
         onChange={handleChange}
+        error={errors.programme}
       />
+
       <div className="flex justify-end">
         <SubmitButton isUpdate={!!programme} />
       </div>
@@ -1472,39 +1812,73 @@ const MemberSection = ({ members, setMembers, activities }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const showNotification = useNotification();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
 
-  const handleAdd = (formData) => {
-    const newMember = {
-      ...formData,
-      id_member: Math.max(...members.map(m => m.id_member)) + 1,
-      id_activites: parseInt(formData.id_activites),
-      id_compte: parseInt(formData.id_compte),
-      age: parseInt(formData.age)
-    };
-    setMembers(prev => [...prev, newMember]);
-    showNotification('Member added successfully');
-    setIsAddModalOpen(false);
+  // Filter members safely
+  const filteredMembers = members.filter(member => {
+    const memberName = member.nom || '';  // Use empty string as fallback
+    const activityTitle = activities.find(a => a.id_activites === member.id_activites)?.title || '';
+    return memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           activityTitle.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const handleAdd = async (formData) => {
+    try {
+      setLoading(true);
+      const response = await activitesMembersService.createMember(formData);
+      setMembers(prev => [...prev, response.data]);
+      showNotification('Member added successfully');
+      setIsAddModalOpen(false);
+    } catch (error) {
+      console.error('Error adding member:', error);
+      showNotification('Failed to add member', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleUpdate = (id, formData) => {
-    setMembers(prev => prev.map(m => 
-      m.id_member === id ? {
-        ...formData,
-        id_member: id,
-        id_activites: parseInt(formData.id_activites),
-        id_compte: parseInt(formData.id_compte),
-        age: parseInt(formData.age)
-      } : m
-    ));
-    showNotification('Member updated successfully');
-    setIsEditModalOpen(false);
+  const handleUpdate = async (id, formData) => {
+    try {
+      setLoading(true);
+      const response = await activitesMembersService.updateMember(id, formData);
+      setMembers(prev => prev.map(m => 
+        m.id_member === id ? response.data : m
+      ));
+      showNotification('Member updated successfully');
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error('Error updating member:', error);
+      showNotification('Failed to update member', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id) => {
-    if (!window.confirm('Are you sure you want to delete this member?')) return;
-    setMembers(prev => prev.filter(m => m.id_member !== id));
-    showNotification('Member deleted successfully');
+  const handleDeleteClick = (member) => {
+    setMemberToDelete(member);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!memberToDelete?.id_member) return; // Add null check
+    
+    try {
+      setLoading(true);
+      await activitesMembersService.deleteMember(memberToDelete.id_member);
+      setMembers(prev => prev.filter(m => m.id_member !== memberToDelete.id_member));
+      showNotification('Member deleted successfully');
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Error deleting member:', error);
+      showNotification('Failed to delete member', 'error');
+    } finally {
+      setLoading(false);
+      setMemberToDelete(null);
+    }
   };
 
   return (
@@ -1539,12 +1913,7 @@ const MemberSection = ({ members, setMembers, activities }) => {
           animate="animate"
           className="space-y-4"
         >
-          {members.filter(member => 
-            member.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            member.niveau.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            member.id_compte.toString().includes(searchQuery.toLowerCase()) ||
-            activities.find(a => a.id_activites === member.id_activites)?.title.toLowerCase().includes(searchQuery.toLowerCase())
-          ).map((member) => (
+          {filteredMembers.map((member) => (
             <MemberListItem 
               key={member.id_member} 
               member={member}
@@ -1557,7 +1926,7 @@ const MemberSection = ({ members, setMembers, activities }) => {
                 setSelectedMember(member);
                 setIsEditModalOpen(true);
               }}
-              onDelete={() => handleDelete(member.id_member)}
+              onDelete={() => handleDeleteClick(member)} // Pass the entire member object
             />
           ))}
         </motion.ul>
@@ -1566,8 +1935,8 @@ const MemberSection = ({ members, setMembers, activities }) => {
       <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="View Member">
         {selectedMember && (
           <MemberView 
-            member={selectedMember} 
-            activity={activities.find(a => a.id_activites === selectedMember.id_activites)} 
+            member={selectedMember}
+            activity={activities.find(a => a.id_activites === selectedMember.id_activites)}
           />
         )}
       </Modal>
@@ -1588,6 +1957,13 @@ const MemberSection = ({ members, setMembers, activities }) => {
           onSubmit={handleAdd}
         />
       </Modal>
+      
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName="member"
+      />
     </section>
   );
 };
@@ -1619,7 +1995,7 @@ const MemberListItem = ({ member, activity, onView, onEdit, onDelete }) => {
             )}
           </div>
         </div>
-        <div className="flex gap-2 w-full lg:w-auto justify-end">
+        <div className="flex gap-2">
           <ActionButton icon={Eye} label="View" onClick={onView} />
           <ActionButton icon={Edit} label="Edit" onClick={onEdit} variant="primary" />
           <ActionButton icon={Trash2} label="Delete" onClick={onDelete} variant="danger" />
@@ -1661,17 +2037,41 @@ const MemberView = ({ member, activity }) => {
 };
 
 const MemberForm = ({ member, activities, onSubmit }) => {
+  const [comptes, setComptes] = useState([]);
   const [formData, setFormData] = useState(member || {
     id_compte: "",
     id_activites: "",
-    nom: "",
-    age: "",
-    niveau: ""
+    date_joined: new Date().toISOString().split('T')[0]
   });
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const fetchComptes = async () => {
+      try {
+        const response = await compteService.getAllComptes();
+        setComptes(response.data);
+      } catch (error) {
+        console.error('Failed to fetch comptes:', error);
+      }
+    };
+    fetchComptes();
+  }, []);
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.id_compte) newErrors.id_compte = 'Member is required';
+    if (!formData.id_activites) newErrors.id_activites = 'Activity is required';
+    if (!formData.date_joined) newErrors.date_joined = 'Join date is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (validateForm()) {
+      onSubmit(formData);
+    }
   };
 
   const handleChange = (e) => {
@@ -1680,51 +2080,75 @@ const MemberForm = ({ member, activities, onSubmit }) => {
       ...prev,
       [name]: value
     }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: undefined }));
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <FormInput
+      <FormSelect
         name="id_compte"
-        label="Account ID"
+        label="Member"
         value={formData.id_compte}
         onChange={handleChange}
+        options={comptes.map(compte => ({
+          value: compte.id_compte,
+          label: `${compte.nom} ${compte.prenom}`
+        }))}
+        error={errors.id_compte}
       />
+
       <FormSelect
         name="id_activites"
         label="Activity"
         value={formData.id_activites}
         onChange={handleChange}
         options={activities.map(a => ({ value: a.id_activites, label: a.title }))}
+        error={errors.id_activites}
       />
+
       <FormInput
-        name="nom"
-        label="Name"
-        value={formData.nom}
+        name="date_joined"
+        label="Join Date"
+        type="date"
+        value={formData.date_joined}
         onChange={handleChange}
+        error={errors.date_joined}
+        min={new Date().toISOString().split('T')[0]}
       />
-      <FormInput
-        name="age"
-        label="Age"
-        type="number"
-        value={formData.age}
-        onChange={handleChange}
-      />
-      <FormSelect
-        name="niveau"
-        label="Level"
-        value={formData.niveau}
-        onChange={handleChange}
-        options={[
-          { value: "Beginner", label: "Beginner" },
-          { value: "Intermediate", label: "Intermediate" },
-          { value: "Advanced", label: "Advanced" }
-        ]}
-      />
+
       <div className="flex justify-end">
         <SubmitButton isUpdate={!!member} />
       </div>
     </form>
+  );
+};
+
+// Add a confirmation modal component for delete operations
+const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, itemName }) => {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Confirm Delete">
+      <div className="space-y-4">
+        <p className="text-gray-300">
+          Are you sure you want to delete this {itemName}? This action cannot be undone.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 };
 
