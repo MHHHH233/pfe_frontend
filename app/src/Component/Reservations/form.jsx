@@ -166,7 +166,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     
     // Debug alert for user ID
     const currentUserId = sessionStorage.getItem("userId");
-    alert(`Debug - Current User ID: ${currentUserId}`);
+    
     
     // Create reservation data with guaranteed user ID
     const reservationDetails = {
@@ -182,7 +182,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     };
 
     // Debug alert for final payload
-    alert(`Debug - Reservation Payload: ${JSON.stringify(reservationDetails, null, 2)}`);
+    
 
     console.log('Submitting reservation:', reservationDetails); 
     

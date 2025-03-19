@@ -18,31 +18,28 @@ import TournamentPage from "../Tournoi/Tournoi"
 export const Main = () => {
     // useEffect(( Loading ? <Loader/> : null), [Loading])
     const location = useLocation();
+    const isAdminPage = location.pathname === "/Admin";
+    
     return (
-        <div>
+        <div className="flex flex-col min-h-screen">
+            {!isAdminPage && <NavBar />}
             
-            <div className="">
-            {location.pathname !== "/Admin" &&<NavBar />}
-            <PopupCard/>
+            {/* Conditionally apply padding only when navbar is present */}
+            <div className={`flex-grow ${!isAdminPage ? 'pt-20' : ''}`}>
+                <PopupCard/>
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/sign-in" element={<Login />} />
                     <Route path="/sign-up" element={<SignInForm />} />
                     <Route path="/contactus" element={<ContactUsFullscreen />} />
-                    <Route path="/players" element={<FindPlayerTeam  />} />
+                    <Route path="/players" element={<FindPlayerTeam />} />
                     <Route path="/tournoi" element={<TournamentPage/>} />
-                    
-
                     
                     {/* Protected Routes */}
                     <Route 
                         path="/reservation" 
-                        element={
-                            
-                                <Reservations />
-                           
-                        } 
+                        element={<Reservations />} 
                     />
                     <Route 
                         path="/Admin" 
@@ -54,11 +51,7 @@ export const Main = () => {
                     />
                     <Route 
                         path="/Academie" 
-                        element={
-                            
-                                <AcademyPage />
-                            
-                        } 
+                        element={<AcademyPage />} 
                     />
                     <Route 
                         path="/Client" 
@@ -69,8 +62,10 @@ export const Main = () => {
                         } 
                     />
                 </Routes>
-            {location.pathname !== "/Client" && location.pathname !== "/Admin" &&<Footer/>}
             </div>
+
+            {/* Only show footer on non-admin and non-client pages */}
+            {!isAdminPage && location.pathname !== "/Client" && <Footer/>}
         </div>
     )
 }

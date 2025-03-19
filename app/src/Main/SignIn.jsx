@@ -45,9 +45,13 @@ const LoginForm = () => {
           sessionStorage.setItem("email", userData.email);
           sessionStorage.setItem("type", userData.role);
           sessionStorage.setItem("name", userData.name);
-         
+          // Store userdetails as a JSON string
+          sessionStorage.setItem("userdetails", JSON.stringify(userData));
+          const pfp = "http://127.0.0.1:8000/" + userData.pfp
+          sessionStorage.setItem("pfp", pfp);
+
           // Navigate based on role
-          if (sessionStorage.getItem("type") == "admin") {
+          if (userData.role === "admin") {
             navigate("/Admin");
           } else {
             navigate("/Client");

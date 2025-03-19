@@ -48,7 +48,7 @@ import {
   UserX,
   Check,
 } from "lucide-react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import Loader from "../Component/Loading";
 import Tableau from "../Component/Reservations/table";
 import Buttons from "../Component/Reservations/buttons";
@@ -67,70 +67,56 @@ const FootballAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
   
-  // Close sidebar automatically on small screens
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setSidebarOpen(false);
-      }
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-
   return (
-    <div className="flex h-screen bg-gray-900 text-white relative">
+    <div className="flex min-h-screen bg-gray-900 relative">
+      {/* Sidebar - fixed position */}
       <Sidebar
         isOpen={sidebarOpen}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         closeSidebar={() => setSidebarOpen(false)}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {" "}
-        <Header toggleSidebar={toggleSidebar} />{" "}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-800 p-6">
-          {" "}
+      
+      {/* Main Content - full width when sidebar closed */}
+      <div 
+        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out
+                   ${!sidebarOpen ? 'ml-0' : 'ml-0 md:ml-64'}`}
+        style={{width: sidebarOpen ? 'calc(100% - 16rem)' : '100%'}}
+      >
+        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <main className="flex-1 p-6 bg-gray-800 overflow-y-auto">
           <AnimatePresence mode="wait">
-            {" "}
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.2 }}
             >
-              {" "}
-              {activeTab === "overview" && <Overview />}{" "}
-              {activeTab === "users" && <Users1 />}{" "}
-              {activeTab === "reservations" && <Reservations />}{" "}
-              {activeTab === "inbox" && <Inbox />}{" "}
-              {activeTab === "analytics" && <Analytics />}{" "}
-              {activeTab === "joueurs/Equips" && <PlayersTeams />}{" "}
-              {activeTab === "terrains" && <Terrains />}{" "}
-              {activeTab === "tournoi" && <EnhancedTournamentManagement />}{" "}
-              {activeTab === "settings" && <SettingsManagement/>}{" "}
-              {activeTab === "academie" && <AcademieManagement />}{" "}
-            </motion.div>{" "}
-          </AnimatePresence>{" "}
-        </main>{" "}
+              {activeTab === "overview" && <Overview />}
+              {activeTab === "users" && <Users1 />}
+              {activeTab === "reservations" && <Reservations />}
+              {activeTab === "inbox" && <Inbox />}
+              {activeTab === "analytics" && <Analytics />}
+              {activeTab === "joueurs/Equips" && <PlayersTeams />}
+              {activeTab === "terrains" && <Terrains />}
+              {activeTab === "tournoi" && <EnhancedTournamentManagement />}
+              {activeTab === "settings" && <SettingsManagement/>}
+              {activeTab === "academie" && <AcademieManagement />}
+            </motion.div>
+          </AnimatePresence>
+        </main>
       </div>
-      
-      {/* Floating menu button for mobile */}
+
+      {/* Mobile menu button */}
       {!sidebarOpen && (
         <motion.button
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0 }}
-          className="fixed bottom-4 right-4 z-50 bg-[#07f468] text-gray-900 p-2.5 rounded-lg shadow-lg md:hidden hover:bg-[#06d35a] transition-colors duration-200"
-          onClick={toggleSidebar}
+          className="fixed bottom-4 right-4 z-50 bg-gray-700 text-white p-3 rounded-full shadow-lg md:hidden"
+          onClick={() => setSidebarOpen(true)}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <Menu size={20} />
+          <Menu size={24} />
         </motion.button>
       )}
     </div>
@@ -155,29 +141,36 @@ const Header = ({ toggleSidebar }) => {
   return (
     <header className="bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
       <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={toggleSidebar}
-        className="text-white focus:outline-none md:block hidden" // Hide on mobile, show on md screens
+        className="text-white focus:outline-none md:block hidden"
       >
         <Menu size={24} />
       </motion.button>
-      <h1 className="text-2xl font-bold text-[#07f468]">TerranAdmin</h1>
+      
+      <Link to="/" className="text-xl font-bold">
+        <span className="text-white">TERRAIN</span>
+        <span className="text-green-500">FC</span>
+        <span className="text-gray-400 text-sm ml-2">Admin</span>
+      </Link>
+
       <div className="flex items-center space-x-4">
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           className="text-white focus:outline-none relative"
         >
           <Bell size={24} />
-          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
         </motion.button>
         <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           className="text-white focus:outline-none"
+          onClick={handleLogout}
         >
-          <User size={24} onClick={handleLogout}/>
+          <User size={24} />
         </motion.button>
       </div>
     </header>
@@ -185,71 +178,59 @@ const Header = ({ toggleSidebar }) => {
 };
 
 const Sidebar = ({ isOpen, activeTab, setActiveTab, closeSidebar }) => {
-  // Close sidebar when clicking a menu item on mobile
-  const handleMenuItemClick = (tabId) => {
-    setActiveTab(tabId);
-    if (window.innerWidth < 768) {
-      closeSidebar();
-    }
-  };
-
   return (
-    <AnimatePresence>
+    <>
+      {/* Overlay for mobile */}
       {isOpen && (
-        <>
-          {/* Overlay for mobile */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-            onClick={closeSidebar}
-          />
-          
-          {/* Sidebar */}
-          <motion.nav
-            initial={{ x: window.innerWidth < 768 ? 256 : -256 }}  // Slide from right on mobile, left on desktop
-            animate={{ x: 0 }}
-            exit={{ x: window.innerWidth < 768 ? 256 : -256 }}    // Exit to right on mobile, left on desktop
-            transition={{ duration: 0.3 }}
-            className={`bg-gray-900 min-h-screen overflow-hidden fixed md:relative z-50 shadow-xl ${
-              window.innerWidth < 768 ? 'right-0' : 'left-0'  // Position right on mobile, left on desktop
-            }`}
-          >
-            <div className="w-64 p-4">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-[#07f468]">Menu</h2>
-                <button 
-                  className="md:hidden text-gray-400 hover:text-white"
-                  onClick={closeSidebar}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <ul className="space-y-2">
-                {menuItems.map((item) => (
-                  <li key={item.id}>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => handleMenuItemClick(item.id)}
-                      className={`w-full flex items-center space-x-2 p-2 rounded-lg ${
-                        activeTab === item.id
-                          ? "bg-[#07f468] text-gray-900"
-                          : "text-gray-300 hover:bg-gray-800"
-                      }`}
-                    >
-                      <item.icon size={20} />
-                      <span>{item.label}</span>
-                    </motion.button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </motion.nav>
-        </>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={closeSidebar}
+          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+        />
       )}
-    </AnimatePresence>
+
+      {/* Sidebar - fixed position with height: 100vh */}
+      <motion.div
+        initial={false}
+        animate={{ 
+          x: isOpen ? 0 : -280,
+          width: isOpen ? 256 : 0
+        }}
+        className={`fixed h-screen overflow-y-auto left-0 top-0 bottom-0 w-64 bg-gray-900 z-30 
+                   border-r border-gray-700 transition-all duration-300 ease-in-out`}
+      >
+        <div className="p-4 border-b border-gray-700">
+          <Link to="/" className="text-xl font-bold block text-center">
+            <span className="text-white">TERRAIN</span>
+            <span className="text-green-500">FC</span>
+          </Link>
+        </div>
+
+        <nav className="p-4 space-y-2 overflow-y-auto">
+          {menuItems.map((item) => (
+            <motion.button
+              key={item.id}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                setActiveTab(item.id);
+                window.innerWidth < 768 && closeSidebar();
+              }}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors
+                ${activeTab === item.id 
+                  ? 'bg-green-500 text-white font-medium' 
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                }`}
+            >
+              <item.icon size={20} />
+              <span>{item.label}</span>
+            </motion.button>
+          ))}
+        </nav>
+      </motion.div>
+    </>
   );
 };
 
@@ -2364,16 +2345,15 @@ const Analytics = () => {
 };
 
 const menuItems = [
-  { id: "overview", icon: Home, label: "Overview" },
-  { id: "users", icon: Users, label: "Users" },
-  { id: "reservations", icon: Calendar, label: "Reservations" },
-  { id: "academie", icon: School, label: "Academie" },
+  { id: "overview", icon: Home, label: "Dashboard" },
+  { id: "users", icon: Users, label: "Utilisateurs" },
+  { id: "reservations", icon: Calendar, label: "Réservations" },
+  { id: "academie", icon: School, label: "Académie" },
   { id: "terrains", icon: MapPin, label: "Terrains" },
-  { id: "tournoi", icon: Trophy, label: "Tournoi" },
-  { id: "joueurs/Equips", icon: UserRoundSearch, label: "joueurs/Equips" },
-  { id: "inbox", icon: MessageSquare, label: "Inbox" },
-  { id: "analytics", icon: BarChart2, label: "Analytics" },
-  { id: "settings", icon: Settings, label: "Settings" },
-  { id: "More", icon: CircleEllipsis, label: "More" },
+  { id: "tournoi", icon: Trophy, label: "Tournois" },
+  { id: "joueurs/Equips", icon: UserRoundSearch, label: "Joueurs & Équipes" },
+  { id: "inbox", icon: MessageSquare, label: "Messages" },
+  { id: "analytics", icon: BarChart2, label: "Statistiques" },
+  { id: "settings", icon: Settings, label: "Paramètres" }
 ];
 export default FootballAdminDashboard;

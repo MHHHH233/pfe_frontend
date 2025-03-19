@@ -72,7 +72,7 @@ export default function AnimatedPending() {
 
   const handleClose = () => {
     setIsVisible(false)
-    window.location.reload();
+    // window.location.reload();
   }
 
   if (!mounted || !isVisible) {

@@ -96,8 +96,6 @@ export default function Tableau({ terrain }) {
     "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00",
     "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"
   ];
-
-  const Jours = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
   
   const [reservations, setReservations] = useState([]);
   const [selectedHour, setSelectedHour] = useState(null);
@@ -317,15 +315,16 @@ export default function Tableau({ terrain }) {
               <thead>
                 <tr>
                   <th className="bg-gray-800 text-white p-1 sm:p-2 border border-gray-700">Heures</th>
-                  {Jours.map((jour, index) => {
+                  {Array(7).fill(null).map((_, index) => {
                     const today = new Date();
                     today.setDate(today.getDate() + index);
                     const dateStr = today.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
                     const apiDateStr = formatDateForAPI(today);
+                    const weekday = today.toLocaleDateString('fr-FR', { weekday: 'short' });
                     
                     return (
                       <th key={index} className="bg-gray-800 text-white p-1 sm:p-2 border border-gray-700">
-                        <div>{jour}</div>
+                        <div>{weekday}</div>
                         <div className="text-xs text-gray-400">{dateStr}</div>
                         <div className="text-xs text-gray-500">{apiDateStr}</div>
                       </th>
@@ -336,7 +335,7 @@ export default function Tableau({ terrain }) {
               <tbody>
                 {Heures.map((heure, rowIndex) => {
                   // Add this debug log
-                  console.log(`Rendering row for ${heure}:`, Jours.map((_, colIndex) => 
+                  console.log(`Rendering row for ${heure}:`, Array(7).fill(null).map((_, colIndex) => 
                     getReservationsForDay(colIndex).find(res => res.heure.startsWith(heure))
                   ));
                   
@@ -345,7 +344,7 @@ export default function Tableau({ terrain }) {
                       <td className="border border-gray-700 p-1 sm:p-2 text-center font-medium text-gray-200">
                         {heure}
                       </td>
-                      {Jours.map((_, colIndex) => {
+                      {Array(7).fill(null).map((_, colIndex) => {
                         const dayReservations = getReservationsForDay(colIndex);
                         const reservation = dayReservations.find(res => res.heure.startsWith(heure));
                         const isPast = isTimeSlotInPast(heure, colIndex);
@@ -370,7 +369,7 @@ export default function Tableau({ terrain }) {
         )}
       </motion.div>
       
-      {sessionStorage.getItem("type") !== "admin" ? (
+      {location.pathname !== "/Admin" ? (
         <FormResev 
           Terrain={terrainDetails} 
           selectedHour={selectedHour} 
@@ -378,6 +377,7 @@ export default function Tableau({ terrain }) {
           onSuccess={fetchReservations} // Refresh after successful reservation
         />
       ) : null}
+      
     </div>
   );
 }
