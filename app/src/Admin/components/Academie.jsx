@@ -1969,6 +1969,25 @@ const MemberSection = ({ members, setMembers, activities }) => {
 };
 
 const MemberListItem = ({ member, activity, onView, onEdit, onDelete }) => {
+  // Fetch the corresponding compte data
+  const [compte, setCompte] = useState(null);
+  const [loadingCompte, setLoadingCompte] = useState(true);
+
+  useEffect(() => {
+    const fetchCompte = async () => {
+      try {
+        const response = await compteService.getCompte(member.id_compte);
+        setCompte(response.data);
+      } catch (error) {
+        console.error('Error fetching compte:', error);
+      } finally {
+        setLoadingCompte(false);
+      }
+    };
+
+    fetchCompte();
+  }, [member.id_compte]);
+
   return (
     <motion.li
       variants={cardVariants}
@@ -1980,7 +1999,9 @@ const MemberListItem = ({ member, activity, onView, onEdit, onDelete }) => {
             <div className="bg-[#07f468] p-2 md:p-3 rounded-xl">
               <User className="w-6 h-6 md:w-7 md:h-7 text-gray-900" />
             </div>
-            <h3 className="text-lg md:text-xl font-semibold group-hover:text-[#07f468] transition-colors duration-300">{member.nom}</h3>
+            <h3 className="text-lg md:text-xl font-semibold group-hover:text-[#07f468] transition-colors duration-300">
+              {loadingCompte ? 'Loading...' : (compte ? `${compte.nom} ${compte.prenom}` : 'Unknown Member')}
+            </h3>
           </div>
           <div className="flex flex-wrap items-center gap-4 mt-3">
             <div className="flex items-center gap-2 text-gray-400 text-sm md:text-base">
@@ -1990,7 +2011,7 @@ const MemberListItem = ({ member, activity, onView, onEdit, onDelete }) => {
             {activity && (
               <div className="flex items-center gap-2 text-gray-400 text-sm md:text-base">
                 <Book className="w-5 h-5 text-[#07f468]" />
-                <span>{activity.title}</span>
+                <span>Activity: {activity.title}</span>
               </div>
             )}
           </div>
@@ -2006,16 +2027,48 @@ const MemberListItem = ({ member, activity, onView, onEdit, onDelete }) => {
 };
 
 const MemberView = ({ member, activity }) => {
+  const [compte, setCompte] = useState(null);
+  const [loadingCompte, setLoadingCompte] = useState(true);
+
+  useEffect(() => {
+    const fetchCompte = async () => {
+      try {
+        const response = await compteService.getCompteById(member.id_compte);
+        setCompte(response.data);
+      } catch (error) {
+        console.error('Error fetching compte:', error);
+      } finally {
+        setLoadingCompte(false);
+      }
+    };
+
+    fetchCompte();
+  }, [member.id_compte]);
+
   return (
     <ViewContainer>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ViewField 
           label="Member Information" 
           value={
-            <div className="flex items-center gap-2">
-              <User className="w-4 h-4 text-[#07f468]" />
-              <span>ID: {member.id_compte}</span>
-            </div>
+            loadingCompte ? 'Loading...' : (
+              compte ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-[#07f468]" />
+                    <span>Name: {compte.nom} {compte.prenom}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-[#07f468]" />
+                    <span>Email: {compte.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-[#07f468]" />
+                    <span>Phone: {compte.telephone}</span>
+                  </div>
+                </div>
+              ) : 'Unknown Member'
+            )
           } 
         />
         <ViewField 
