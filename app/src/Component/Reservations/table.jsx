@@ -162,8 +162,15 @@ export default function Tableau({ terrain }) {
         });
 
         setReservations(mappedReservations);
+        setError(null); // Clear any existing errors
         console.log("Mapped reservations:", mappedReservations);
+      } else if (response.status === "error" && response.message === "No reservations found.") {
+        // If no reservations found, set empty array and clear error
+        setReservations([]);
+        setError(null); // Clear any existing errors
+        console.log("No reservations found, setting empty array");
       } else {
+        // Only set error for actual error cases
         setError("Failed to fetch reservations");
         setUseMockData(true);
       }
@@ -260,8 +267,9 @@ export default function Tableau({ terrain }) {
     );
   }
 
-  // Show error state
-  if (error) {
+  // Remove the error check here since we want to show the table regardless
+  // Only show error for actual network/server errors, not for "no reservations"
+  if (error && error !== "No reservations found.") {
     return (
       <div className="bg-red-900/20 border border-red-500 p-4 rounded-lg text-center">
         <p className="text-red-400 mb-2">{error}</p>

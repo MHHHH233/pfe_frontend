@@ -47,6 +47,7 @@ import {
   Lock,
   UserX,
   Check,
+  Bug,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
 import Loader from "../Component/Loading";
@@ -62,6 +63,7 @@ import { authService } from '../lib/services/authoServices';
 import analyticsService from '../lib/services/admin/analyticsServices';
 import compteService from '../lib/services/admin/compteServices';
 import reservationService from '../lib/services/admin/reservationServices';
+import { ReportedBugs, Reviews } from './components/Assistance';
 
 const FootballAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -98,11 +100,13 @@ const FootballAdminDashboard = () => {
               {activeTab === "reservations" && <Reservations />}
               {activeTab === "inbox" && <Inbox />}
               {activeTab === "analytics" && <Analytics />}
-              {activeTab === "joueurs/Equips" && <PlayersTeams />}
-              {activeTab === "terrains" && <Terrains />}
               {activeTab === "tournoi" && <EnhancedTournamentManagement />}
-              {activeTab === "settings" && <SettingsManagement/>}
               {activeTab === "academie" && <AcademieManagement />}
+              {activeTab === "player-teams" && <PlayersTeams />}
+              {activeTab === "terrains" && <Terrains />}
+              {activeTab === "settings" && <SettingsManagement />}
+              {activeTab === "bugs" && <ReportedBugs />}
+              {activeTab === "reviews" && <Reviews />}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -178,59 +182,283 @@ const Header = ({ toggleSidebar }) => {
 };
 
 const Sidebar = ({ isOpen, activeTab, setActiveTab, closeSidebar }) => {
-  return (
-    <>
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={closeSidebar}
-          className="fixed inset-0 bg-black/50 z-20 md:hidden"
-        />
-      )}
+  const [dropdowns, setDropdowns] = useState({
+    management: false,
+    analytics: false,
+    assistance: false
+  });
+  const sidebarRef = useRef(null);
 
-      {/* Sidebar - fixed position with height: 100vh */}
-      <motion.div
-        initial={false}
-        animate={{ 
-          x: isOpen ? 0 : -280,
-          width: isOpen ? 256 : 0
-        }}
-        className={`fixed h-screen overflow-y-auto left-0 top-0 bottom-0 w-64 bg-gray-900 z-30 
-                   border-r border-gray-700 transition-all duration-300 ease-in-out`}
-      >
-        <div className="p-4 border-b border-gray-700">
-          <Link to="/" className="text-xl font-bold block text-center">
-            <span className="text-white">TERRAIN</span>
-            <span className="text-green-500">FC</span>
+  // Handle click outside for mobile
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target) && window.innerWidth < 768) {
+        closeSidebar();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [closeSidebar]);
+
+  // Add window resize handler to close sidebar on small screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768 && isOpen) {
+        closeSidebar();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isOpen, closeSidebar]);
+
+  const toggleDropdown = (section) => {
+    setDropdowns(prev => {
+      // Create a new object with all dropdowns set to false
+      const allClosed = Object.keys(prev).reduce((acc, key) => {
+        acc[key] = false;
+        return acc;
+      }, {});
+      
+      // Toggle only the clicked section
+      return {
+        ...allClosed,
+        [section]: !prev[section]
+      };
+    });
+  };
+
+  const handleMenuClick = (tab) => {
+    setActiveTab(tab);
+    if (window.innerWidth < 768) {
+      closeSidebar();
+    }
+  };
+
+  return (
+    <div 
+      ref={sidebarRef}
+      className={`fixed top-0 left-0 h-full bg-gray-900 text-white transition-all duration-300 ease-in-out z-50 
+                  border-r border-gray-800 shadow-xl overflow-y-auto
+                  ${isOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full'}`}
+    >
+      <div className="p-6">
+        {/* Logo and Title */}
+        <div className="mb-8">
+          <Link to="/" className="flex items-center gap-2">
+            <span className="text-2xl font-bold text-white">TERRAIN</span>
+            <span className="text-2xl font-bold text-[#07f468]">FC</span>
           </Link>
+          <p className="text-sm text-gray-400 mt-2">Administration Panel</p>
         </div>
 
-        <nav className="p-4 space-y-2 overflow-y-auto">
-          {menuItems.map((item) => (
-            <motion.button
-              key={item.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                setActiveTab(item.id);
-                window.innerWidth < 768 && closeSidebar();
-              }}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors
-                ${activeTab === item.id 
-                  ? 'bg-green-500 text-white font-medium' 
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                }`}
+        {/* Navigation */}
+        <nav className="space-y-6">
+          {/* Main Navigation */}
+          <div className="space-y-1">
+            <button
+              onClick={() => handleMenuClick('overview')}
+              className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                        ${activeTab === 'overview' 
+                          ? 'bg-[#07f468] text-gray-900' 
+                          : 'text-gray-300 hover:bg-gray-800/80'}`}
             >
-              <item.icon size={20} />
-              <span>{item.label}</span>
-            </motion.button>
-          ))}
+              <Home size={18} className="mr-3" />
+              Aperçu
+            </button>
+
+            <button
+              onClick={() => handleMenuClick('users')}
+              className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                        ${activeTab === 'users' 
+                          ? 'bg-[#07f468] text-gray-900' 
+                          : 'text-gray-300 hover:bg-gray-800/80'}`}
+            >
+              <Users size={18} className="mr-3" />
+              Utilisateurs
+            </button>
+
+            <button
+              onClick={() => handleMenuClick('reservations')}
+              className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                        ${activeTab === 'reservations' 
+                          ? 'bg-[#07f468] text-gray-900' 
+                          : 'text-gray-300 hover:bg-gray-800/80'}`}
+            >
+              <Calendar size={18} className="mr-3" />
+              Réservations
+            </button>
+          </div>
+
+          {/* Management Section */}
+          <div>
+            <button
+              onClick={() => toggleDropdown('management')}
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white transition-colors"
+            >
+              <span>Management</span>
+              <ChevronRight 
+                size={16} 
+                className={`transform transition-transform duration-200 ${dropdowns.management ? 'rotate-90' : ''}`}
+              />
+            </button>
+            <AnimatePresence>
+              {dropdowns.management && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1 mt-2 overflow-hidden"
+                >
+                  <button
+                    onClick={() => handleMenuClick('tournoi')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'tournoi' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <Trophy size={18} className="mr-3" />
+                    Tournois
+                  </button>
+
+                  <button
+                    onClick={() => handleMenuClick('academie')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'academie' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <School size={18} className="mr-3" />
+                    Académie
+                  </button>
+
+                  <button
+                    onClick={() => handleMenuClick('player-teams')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'player-teams' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <Users2Icon size={18} className="mr-3" />
+                    Joueurs & Équipes
+                  </button>
+
+                  <button
+                    onClick={() => handleMenuClick('terrains')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'terrains' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <MapPin size={18} className="mr-3" />
+                    Terrains
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Analytics Section */}
+          <div>
+            <button
+              onClick={() => toggleDropdown('analytics')}
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white transition-colors"
+            >
+              <span>Analytics</span>
+              <ChevronRight 
+                size={16} 
+                className={`transform transition-transform duration-200 ${dropdowns.analytics ? 'rotate-90' : ''}`}
+              />
+            </button>
+            <AnimatePresence>
+              {dropdowns.analytics && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1 mt-2 overflow-hidden"
+                >
+                  <button
+                    onClick={() => handleMenuClick('analytics')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'analytics' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <BarChart2 size={18} className="mr-3" />
+                    Analytiques
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Assistance Section */}
+          <div>
+            <button
+              onClick={() => toggleDropdown('assistance')}
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white transition-colors"
+            >
+              <span>Assistance</span>
+              <ChevronRight 
+                size={16} 
+                className={`transform transition-transform duration-200 ${dropdowns.assistance ? 'rotate-90' : ''}`}
+              />
+            </button>
+            <AnimatePresence>
+              {dropdowns.assistance && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1 mt-2 overflow-hidden"
+                >
+                  <button
+                    onClick={() => handleMenuClick('bugs')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'bugs' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <Bug size={18} className="mr-3" />
+                    Bug Reports
+                  </button>
+
+                  <button
+                    onClick={() => handleMenuClick('reviews')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'reviews' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <Star size={18} className="mr-3" />
+                    Reviews
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Settings Section */}
+          <div className="pt-4 mt-4 border-t border-gray-800">
+            <button
+              onClick={() => handleMenuClick('settings')}
+              className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                        ${activeTab === 'settings' 
+                          ? 'bg-[#07f468] text-gray-900' 
+                          : 'text-gray-300 hover:bg-gray-800/80'}`}
+            >
+              <Settings size={18} className="mr-3" />
+              Paramètres
+            </button>
+          </div>
         </nav>
-      </motion.div>
-    </>
+      </div>
+    </div>
   );
 };
 
@@ -348,7 +576,7 @@ const Overview = () => {
         </motion.button>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {data.map((stat, index) => (
           <motion.div
             key={index}
@@ -444,7 +672,7 @@ const Overview = () => {
       </div>
 
       {/* Additional Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -491,6 +719,22 @@ const Overview = () => {
             {analyticsData?.total_academie_coaches || 0}
           </div>
           <p className="text-sm text-gray-400 text-center">Professional trainers</p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+        >
+          <h3 className="text-lg font-bold mb-4 flex items-center">
+            <Trophy size={20} className="text-[#07f468] mr-2" />
+            Active Tournaments
+          </h3>
+          <div className="text-3xl font-bold text-center my-4 text-white">
+            {analyticsData?.total_active_tournaments || 0}
+          </div>
+          <p className="text-sm text-gray-400 text-center">Ongoing competitions</p>
         </motion.div>
       </div>
     </div>
@@ -1591,7 +1835,7 @@ const Reservations = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-        <h2 className="text-2xl sm:text-3xl font-bold text-[#07f468]">Reservations</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-[#07f468]">Réservations</h2>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -1599,7 +1843,7 @@ const Reservations = () => {
           className="flex items-center gap-2 bg-[#07f468] hover:bg-[#05c757] text-gray-900 font-medium px-4 py-2 rounded-lg shadow-lg transition duration-200"
         >
           <Plus size={18} />
-          <span className="hidden sm:inline">Add Reservation</span>
+          <span className="hidden sm:inline">Ajouter Réservation</span>
         </motion.button>
       </div>
       
@@ -1610,7 +1854,7 @@ const Reservations = () => {
         className="bg-gray-700/80 sm:backdrop-blur-sm p-4 sm:p-6 rounded-lg shadow-lg border border-gray-600/50"
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg sm:text-xl font-bold text-white">Reservation Calendar</h3>
+          <h3 className="text-lg sm:text-xl font-bold text-white">Calendrier de Réservation</h3>
           
           {/* Refresh button */}
           <motion.button
@@ -1618,7 +1862,7 @@ const Reservations = () => {
             whileTap={{ scale: 0.95 }}
             onClick={fetchData}
             className="p-2 bg-gray-600 hover:bg-gray-500 rounded-full text-white transition-colors"
-            title="Refresh data"
+            title="Rafraîchir les données"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1673,7 +1917,7 @@ const Reservations = () => {
         className="bg-gray-700/80 sm:backdrop-blur-sm p-4 sm:p-8 rounded-xl shadow-2xl border border-gray-600/50"
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <h3 className="text-xl sm:text-2xl font-bold text-white">Upcoming Reservations</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-white">Réservations à venir</h3>
           
           {/* Refresh button for reservations list */}
           <motion.button
@@ -1685,7 +1929,7 @@ const Reservations = () => {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span>Refresh</span>
+            <span>Rafraîchir</span>
           </motion.button>
         </div>
 
@@ -1694,7 +1938,7 @@ const Reservations = () => {
           <div className="relative flex-grow">
             <input
               type="text"
-              placeholder="Search by client or date..."
+              placeholder="Rechercher par client ou date..."
               value={searchQuery}
               onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-800 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
@@ -1711,7 +1955,7 @@ const Reservations = () => {
               onChange={handleTerrainChange}
               className="w-full pl-10 pr-8 py-2.5 bg-gray-800 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent appearance-none"
             >
-              <option value="all">All Terrains</option>
+              <option value="all">Tous les Terrains</option>
               <option value="1">Terrain 1</option>
               <option value="2">Terrain 2</option>
               <option value="3">Terrain 3</option>
@@ -1743,7 +1987,7 @@ const Reservations = () => {
               onClick={fetchData}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
-              Retry
+              Réessayer
             </button>
           </div>
         ) : filteredReservations.length === 0 ? (
@@ -1751,8 +1995,8 @@ const Reservations = () => {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <h3 className="text-xl font-medium text-white mb-2">No reservations found</h3>
-            <p className="text-gray-400 mb-6">Try adjusting your search or filter criteria</p>
+            <h3 className="text-xl font-medium text-white mb-2">Aucune réservation trouvée</h3>
+            <p className="text-gray-400 mb-6">Essayez d'ajuster vos critères de recherche ou de filtre</p>
             <button 
               onClick={() => {
                 setSearchQuery("");
@@ -1760,7 +2004,7 @@ const Reservations = () => {
               }}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
             >
-              Clear filters
+              Effacer les filtres
             </button>
           </div>
         ) : (
@@ -1770,13 +2014,13 @@ const Reservations = () => {
                 <thead className="bg-gray-900/80 text-white">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Time</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Heure</th>
                     <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Terrain</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Client</th>
                     {/* Show Status on mobile, hide on larger screens */}
-                    <th className="sm:hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                    <th className="sm:hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Statut</th>
                     {/* Hide Status on mobile, show on larger screens */}
-                    <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
+                    <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Statut</th>
                     {/* Hide Actions on mobile, show on larger screens */}
                     <th className="hidden sm:table-cell px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
                       Actions
@@ -1801,7 +2045,7 @@ const Reservations = () => {
                       <td className="hidden sm:table-cell px-4 py-3.5 text-sm text-white">
                         {reservation.client?.nom 
                           ? `${reservation.client.nom} ${reservation.client.prenom || ''}`.trim()
-                          : 'Unknown Client'}
+                          : 'Client inconnu'}
                       </td>
                       {/* Show Status on mobile */}
                       <td className="sm:hidden px-4 py-3.5 text-sm">
@@ -1812,7 +2056,7 @@ const Reservations = () => {
                               : "bg-yellow-900/50 text-yellow-300 border border-yellow-500/30"
                           }`}
                         >
-                          {reservation.etat === "reserver" ? "Confirmed" : "Pending"}
+                          {reservation.etat === "reserver" ? "Confirmé" : "En attente"}
                         </span>
                       </td>
                       {/* Hide Status on mobile */}
@@ -1824,7 +2068,7 @@ const Reservations = () => {
                               : "bg-yellow-900/50 text-yellow-300 border border-yellow-500/30"
                           }`}
                         >
-                          {reservation.etat === "reserver" ? "Confirmed" : "Pending"}
+                          {reservation.etat === "reserver" ? "Confirmé" : "En attente"}
                         </span>
                       </td>
                       {/* Hide Actions on mobile */}
@@ -1871,7 +2115,7 @@ const Reservations = () => {
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                     </svg>
-                                    Devalider
+                                    Dévalider
                                   </motion.button>
                                   <motion.button
                                     whileHover={{ backgroundColor: "#1f2937" }}
@@ -1884,7 +2128,7 @@ const Reservations = () => {
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                    Cancel Reservation
+                                    Annuler Réservation
                                   </motion.button>
                                 </div>
                               </motion.div>
@@ -1915,8 +2159,8 @@ const Reservations = () => {
                 exit={{ scale: 0.9, y: 20 }}
                 className="bg-gray-800 p-6 rounded-xl shadow-2xl max-w-md w-full border border-gray-700"
               >
-                <h3 className="text-xl font-bold text-white mb-2">Confirm Deletion</h3>
-                <p className="text-gray-300 mb-6">Are you sure you want to delete this reservation? This action cannot be undone.</p>
+                <h3 className="text-xl font-bold text-white mb-2">Confirmer la suppression</h3>
+                <p className="text-gray-300 mb-6">Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action ne peut pas être annulée.</p>
                 <div className="flex justify-end space-x-4">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -1924,7 +2168,7 @@ const Reservations = () => {
                     onClick={() => setShowConfirmation(false)}
                     className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors"
                   >
-                    Cancel
+                    Annuler
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -1932,7 +2176,7 @@ const Reservations = () => {
                     onClick={handleConfirmDelete}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   >
-                    Delete
+                    Supprimer
                   </motion.button>
                 </div>
               </motion.div>
@@ -1960,7 +2204,7 @@ const Reservations = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">Reservation Details</h3>
+                <h3 className="text-xl font-bold text-white">Détails de la réservation</h3>
                 <button 
                   onClick={closeDetailModal}
                   className="p-1 rounded-full hover:bg-gray-700"
@@ -1981,7 +2225,7 @@ const Reservations = () => {
                 <div className="flex items-center space-x-3">
                   <Clock size={18} className="text-gray-400" />
                   <div>
-                    <p className="text-xs text-gray-400">Time</p>
+                    <p className="text-xs text-gray-400">Heure</p>
                     <p className="text-white">{selectedReservation.heure}</p>
                   </div>
                 </div>
@@ -2003,7 +2247,7 @@ const Reservations = () => {
                     <p className="text-white">
                       {selectedReservation.client?.nom 
                         ? `${selectedReservation.client.nom} ${selectedReservation.client.prenom || ''}`.trim()
-                        : 'Unknown Client'}
+                        : 'Client inconnu'}
                     </p>
                   </div>
                 </div>
@@ -2015,13 +2259,13 @@ const Reservations = () => {
                       : "bg-yellow-500"
                   }`}></div>
                   <div>
-                    <p className="text-xs text-gray-400">Status</p>
+                    <p className="text-xs text-gray-400">Statut</p>
                     <p className={`text-sm font-medium px-2.5 py-1 rounded-full ${
                       selectedReservation.etat === "reserver"
                         ? "bg-green-900/50 text-green-300 border border-green-500/30"
                         : "bg-yellow-900/50 text-yellow-300 border border-yellow-500/30"
                     }`}>
-                      {selectedReservation.etat === "reserver" ? "Confirmed" : "Pending"}
+                      {selectedReservation.etat === "reserver" ? "Confirmé" : "En attente"}
                     </p>
                   </div>
                 </div>
@@ -2041,7 +2285,7 @@ const Reservations = () => {
                   {selectedReservation.etat === "reserver" ? (
                     <>
                       <X size={16} />
-                      <span>Devalider</span>
+                      <span>Dévalider</span>
                     </>
                   ) : (
                     <>
@@ -2060,7 +2304,7 @@ const Reservations = () => {
                   className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center space-x-2"
                 >
                   <Trash size={16} />
-                  <span>Delete</span>
+                  <span>Supprimer</span>
                 </button>
               </div>
             </motion.div>

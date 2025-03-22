@@ -1246,7 +1246,7 @@ const CoachListItem = ({ coach, onView, onEdit, onDelete }) => (
       <div className="flex items-center gap-4">
         <div className="relative">
           <img 
-            src={coach.pfp || "/placeholder.svg"} 
+            src={`http://127.0.0.1:8000/${coach.pfp}` || "/placeholder.svg"} 
             alt={coach.nom} 
             className="w-26 h-26 sm:w-16 sm:h-16 rounded-full object-cover border-2 border-[#07f468]/30 group-hover:border-[#07f468] transition-all duration-300" 
           />
