@@ -3,8 +3,8 @@ import PopupCard from "./Confirmation";
 import { useLocation } from "react-router-dom";
 import AnimatedCheck from "./Status/Confirmed";
 import AnimatedReserved from "./Status/Failed";
-import { motion } from 'framer-motion';
-import { Calendar, Clock, MapPin, User, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, Clock, MapPin, User, X, Mail, Phone, ChevronDown, CheckCircle } from 'lucide-react';
 import userReservationService from '../../lib/services/user/reservationServices';
 import adminReservationService from '../../lib/services/admin/reservationServices';
 
@@ -234,229 +234,261 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="bg-gray-800 p-6 rounded-lg shadow-lg"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+      className="bg-gray-900/90 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-gray-800"
     >
-      <h3 className="text-xl font-bold mb-4 text-[#07f468]">
-        {isAdmin ? "Create Reservation" : "Book a Terrain"}
-      </h3>
+      <div className="flex items-center justify-between mb-8">
+        <h3 className="text-2xl font-bold bg-gradient-to-r from-[#07f468] to-[#00d1ff] bg-clip-text text-transparent">
+          {isAdmin ? "Create Reservation" : "Book Your Session"}
+        </h3>
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-full text-sm font-medium"
+          >
+            <CheckCircle size={16} />
+            <span>Reservation Confirmed</span>
+          </motion.div>
+        )}
+      </div>
       
-      {/* Display selected terrain name to confirm correct selection */}
+      {/* Selected Terrain Card */}
       {terrainId && (
-        <div className="mb-4 p-3 bg-gray-700/50 rounded-lg border border-gray-600">
-          <p className="text-sm text-gray-300">Selected Terrain:</p>
-          <p className="text-white font-medium">{terrainName}</p>
-        </div>
-      )}
-      
-      {error && (
-        <div className="bg-red-900/30 border border-red-500 text-red-300 p-3 rounded-lg mb-4 flex items-center">
-          <X size={18} className="mr-2 flex-shrink-0" />
-          <p>{error}</p>
-        </div>
-      )}
-      
-      {success && (
-        <div className="bg-green-900/30 border border-green-500 text-green-300 p-3 rounded-lg mb-4 flex items-center">
-          <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-          </svg>
-          <p>Reservation created successfully!</p>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Remove or hide the Terrain input field since it's shown above */}
-        <input 
-          type="hidden" 
-          name="id_terrain" 
-          value={formData.id_terrain} 
-        />
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Date</label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Calendar size={16} className="text-gray-400" />
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-gray-800/50 rounded-xl border border-gray-700/50 backdrop-blur-sm"
+        >
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-[#07f468]/10 rounded-lg">
+              <MapPin size={24} className="text-[#07f468]" />
             </div>
-            <input
-              type="date"
-              name="date"
-              value={formData.date}
-              onChange={handleChange}
-              className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-              required
-            />
-          </div>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Time</label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Clock size={16} className="text-gray-400" />
+            <div>
+              <p className="text-sm font-medium text-gray-400">Selected Terrain</p>
+              <h4 className="text-lg font-semibold text-white mt-1">{terrainName}</h4>
             </div>
-            <select
-              name="heure"
-              value={formData.heure}
-              onChange={handleChange}
-              required
-              className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none appearance-none"
-            >
-              <option value="">Select a time</option>
-              <option value="08:00">08:00</option>
-              <option value="09:00">09:00</option>
-              <option value="10:00">10:00</option>
-              <option value="11:00">11:00</option>
-              <option value="12:00">12:00</option>
-              <option value="13:00">13:00</option>
-              <option value="14:00">14:00</option>
-              <option value="15:00">15:00</option>
-              <option value="16:00">16:00</option>
-              <option value="17:00">17:00</option>
-              <option value="18:00">18:00</option>
-              <option value="19:00">19:00</option>
-              <option value="20:00">20:00</option>
-              <option value="21:00">21:00</option>
-              <option value="22:00">22:00</option>
-              <option value="23:00">23:00</option>
-            </select>
           </div>
-        </div>
+        </motion.div>
+      )}
+      
+      {/* Error Message */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-500/20 rounded-lg">
+                <X size={18} className="text-red-400" />
+              </div>
+              <p className="text-red-400 font-medium">{error}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <input type="hidden" name="id_terrain" value={formData.id_terrain} />
         
-        {isAdmin && (
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Client Name</label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User size={16} className="text-gray-400" />
+        {/* Date and Time Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Date Input */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">
+              Select Date
+            </label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Calendar size={18} className="text-[#07f468] group-hover:text-[#00d1ff] transition-colors duration-200" />
               </div>
               <input
-                type="text"
-                name="Name"
-                value={formData.Name}
+                type="date"
+                name="date"
+                value={formData.date}
                 onChange={handleChange}
+                className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-700 bg-gray-800/50 text-white
+                         placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:border-transparent
+                         hover:border-gray-600 transition-all duration-200 backdrop-blur-sm"
                 required
-                placeholder="Enter client name"
-                className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
               />
             </div>
           </div>
-        )}
+          
+          {/* Time Select */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">
+              Select Time
+            </label>
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Clock size={18} className="text-[#07f468] group-hover:text-[#00d1ff] transition-colors duration-200" />
+              </div>
+              <select
+                name="heure"
+                value={formData.heure}
+                onChange={handleChange}
+                required
+                className="w-full pl-12 pr-10 py-3 rounded-xl border border-gray-700 bg-gray-800/50 text-white
+                         appearance-none cursor-pointer focus:ring-2 focus:ring-[#07f468] focus:border-transparent
+                         hover:border-gray-600 transition-all duration-200 backdrop-blur-sm"
+              >
+                <option value="">Choose time</option>
+                {["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
+                  "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", 
+                  "22:00", "23:00"].map((time) => (
+                  <option key={time} value={time}>{time}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                <ChevronDown size={18} className="text-gray-400" />
+              </div>
+            </div>
+          </div>
+        </div>
         
-        {/* Always show name input for non-logged in users */}
-        {!isAdmin && !isLoggedIn && (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Your Name</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User size={16} className="text-gray-400" />
+        {/* User Information Section */}
+        {(isAdmin || !isLoggedIn) && (
+          <div className="space-y-6 mt-8">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="h-px flex-1 bg-gray-800"></div>
+              <span className="text-sm font-medium text-gray-400">User Information</span>
+              <div className="h-px flex-1 bg-gray-800"></div>
+            </div>
+            
+            {/* Name Input */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-300">
+                {isAdmin ? "Client Name" : "Your Name"}
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <User size={18} className="text-[#07f468] group-hover:text-[#00d1ff] transition-colors duration-200" />
                 </div>
                 <input
                   type="text"
                   name="Name"
                   value={formData.Name}
                   onChange={handleChange}
-                  placeholder="Enter your name"
-                  className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
+                  placeholder={isAdmin ? "Enter client name" : "Enter your name"}
+                  className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-700 bg-gray-800/50 text-white
+                           placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:border-transparent
+                           hover:border-gray-600 transition-all duration-200 backdrop-blur-sm"
+                  required={isAdmin}
                 />
               </div>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Email Address</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+            {!isAdmin && !isLoggedIn && (
+              <>
+                {/* Email Input */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Email Address
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Mail size={18} className="text-[#07f468] group-hover:text-[#00d1ff] transition-colors duration-200" />
+                    </div>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="Enter your email"
+                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-700 bg-gray-800/50 text-white
+                               placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:border-transparent
+                               hover:border-gray-600 transition-all duration-200 backdrop-blur-sm"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
+                
+                {/* Phone Input */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Phone Number
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Phone size={18} className="text-[#07f468] group-hover:text-[#00d1ff] transition-colors duration-200" />
+                    </div>
+                    <input
+                      type="tel"
+                      name="telephone"
+                      value={formData.telephone}
+                      onChange={handleChange}
+                      placeholder="Enter your phone number"
+                      className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-700 bg-gray-800/50 text-white
+                               placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:border-transparent
+                               hover:border-gray-600 transition-all duration-200 backdrop-blur-sm"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="tel"
-                  name="telephone"
-                  value={formData.telephone}
-                  onChange={handleChange}
-                  placeholder="Enter your phone number"
-                  className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                />
-              </div>
-            </div>
-          </>
+              </>
+            )}
+          </div>
         )}
         
-        <div className="flex justify-end space-x-3 pt-4">
+        {/* Action Buttons */}
+        <div className="flex justify-end items-center gap-4 pt-8">
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             type="button"
             onClick={() => {
-              // Clear sessionStorage
               sessionStorage.removeItem("selectedHour");
               sessionStorage.removeItem("selectedTime");
               sessionStorage.removeItem("selectedTerrain");
               sessionStorage.removeItem("showReservationPopup");
               
-              // Dispatch event to notify parent components
               const event = new CustomEvent('reservationCancelled');
               document.dispatchEvent(event);
               
-              // If we're in the Admin component, we need to close the popup
               if (location.pathname === "/Admin") {
-                // Find the parent component that can close the popup
                 const closePopupEvent = new CustomEvent('closeReservationPopup');
                 document.dispatchEvent(closePopupEvent);
               }
             }}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors"
+            className="px-6 py-3 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700
+                     border border-gray-700 hover:border-gray-600
+                     transition-all duration-200 font-medium"
           >
             Cancel
           </motion.button>
           
           <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={loading}
-            className={`px-4 py-2 bg-[#07f468] text-gray-900 font-medium rounded-lg hover:bg-[#06d35a] transition-colors ${
-              loading ? "opacity-70 cursor-not-allowed" : ""
-            }`}
+            className={`px-6 py-3 rounded-xl font-medium transition-all duration-200
+                      bg-gradient-to-r from-[#07f468] to-[#00d1ff] text-gray-900
+                      hover:shadow-lg hover:shadow-[#07f468]/20
+                      disabled:opacity-70 disabled:cursor-not-allowed
+                      ${loading ? "animate-pulse" : ""}`}
           >
-            {loading ? "Creating..." : "Create Reservation"}
+            {loading ? "Processing..." : "Confirm Reservation"}
           </motion.button>
         </div>
       </form>
       
-      {/* Add the Confirmation component */}
-      {showConfirmation && (
-        <PopupCard 
-          isVisible={showConfirmation}
-          onClose={handleCloseConfirmation}
-          data={reservationData}
-          resetStatus={handleReservationSuccess}
-        />
-      )}
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <PopupCard 
+            isVisible={showConfirmation}
+            onClose={handleCloseConfirmation}
+            data={reservationData}
+            resetStatus={handleReservationSuccess}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

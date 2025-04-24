@@ -1,10 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Separateur from '../../img/curved.png'
+import academieService from "../../lib/services/user/academieServices";
 
 export default function Tarifs() {
   const [isAnnual, setIsAnnual] = useState(false);
-  const [selectedCard, setSelectedCard] = useState("plan premium"); // Set default to "plan premium"
+  const [selectedCard, setSelectedCard] = useState("plan premium");
+  const [prices, setPrices] = useState({
+    basic: { monthly: "200", annual: "2000" },
+    premium: { monthly: "400", annual: "4000" }
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const response = await academieService.getAllAcademies();
+        if (response.data && response.data.length > 0) {
+          const academie = response.data[0]; // Assuming we use the first academie's prices
+          setPrices({
+            basic: {
+              monthly: academie.prix_base_mensuel || "200",
+              annual: academie.prix_base_annuel || "2000"
+            },
+            premium: {
+              monthly: academie.prix_premium_mensuel || "400",
+              annual: academie.prix_premium_annuel || "4000"
+            }
+          });
+        }
+        setLoading(false);
+      } catch (err) {
+        setError('Failed to load prices');
+        setLoading(false);
+      }
+    };
+
+    fetchPrices();
+  }, []);
 
   const handleCardClick = (card) => setSelectedCard(card);
 
@@ -13,8 +47,8 @@ export default function Tarifs() {
       name: "Plan de Base",
       description:
         "Entraînement de base pour les enfants de 6 à 12 ans, idéal pour les débutants ou ceux qui veulent se perfectionner.",
-      monthlyPrice: "200 DH",
-      annualPrice: "2000 DH",
+      monthlyPrice: prices.basic.monthly,
+      annualPrice: prices.basic.annual,
       features: [
         "Durée: 1 heure",
         "Entraînement en groupe",
@@ -25,8 +59,8 @@ export default function Tarifs() {
       name: "Plan Premium",
       description:
         "Entraînement individuel ou en petit groupe pour un suivi personnalisé avec un coach.",
-      monthlyPrice: "400 DH",
-      annualPrice: "4000 DH",
+      monthlyPrice: prices.premium.monthly,
+      annualPrice: prices.premium.annual,
       features: [
         "Accès aux installations premium",
         "Suivi personnalisé et conseils de coach",
@@ -37,6 +71,22 @@ export default function Tarifs() {
       ],
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
+  }
 
   return (<>
     <div className="min-h-screen bg-[#1a1a1a] py-16 px-4 relative overflow-hidden">

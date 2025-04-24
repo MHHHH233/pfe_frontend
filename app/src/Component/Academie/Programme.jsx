@@ -2,30 +2,31 @@
 
 import { motion } from "framer-motion"
 import background from '../../img/fc24-hero-lg-motion-pitch-3x2-lg-md.webm'
+import { useEffect, useState } from "react"
+import academieProgrammesService from "../../lib/services/user/academieProgrammesService"
 
 export default function ProgrammeEntrainement() {
-  const schedule = [
-    {
-      day: "Lundi",
-      time: "16h00 - 18h00",
-      activities: "Activités : Techniques individuelles, passes, contrôle de balle."
-    },
-    {
-      day: "Mercredi",
-      time: "16h00 - 18h00",
-      activities: "Activités : Stratégies d'équipe, tactiques, ateliers."
-    },
-    {
-      day: "Vendredi",
-      time: "16h00 - 18h00",
-      activities: "Activités : Matchs d'entraînement, simulations de jeu."
-    },
-    {
-      day: "Samedi",
-      time: "10h00 - 12h00",
-      activities: "Activités : Entraînement intensif, fitness, et cardio."
-    }
-  ]
+  const [programmes, setProgrammes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchProgrammes = async () => {
+      try {
+        const response = await academieProgrammesService.getAllProgrammes({
+          sort_by: 'jour',
+          sort_order: 'asc'
+        });
+        setProgrammes(response.data);
+        setLoading(false);
+      } catch (err) {
+        setError('Failed to load programmes');
+        setLoading(false);
+      }
+    };
+
+    fetchProgrammes();
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -46,6 +47,22 @@ export default function ProgrammeEntrainement() {
         duration: 0.5
       }
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] flex items-center justify-center">
+        <div className="text-red-500">{error}</div>
+      </div>
+    );
   }
 
   return (
@@ -90,9 +107,9 @@ export default function ProgrammeEntrainement() {
           <div className="absolute left-1/2 top-0 h-full w-0.5 bg-green-500 transform -translate-x-1/2" />
 
           {/* Schedule Items */}
-          {schedule.map((item, index) => (
+          {programmes.map((item, index) => (
             <motion.div
-              key={item.day}
+              key={item.id}
               custom={{ index }}
               variants={itemVariants}
               className="relative mb-16 last:mb-0"
@@ -112,9 +129,9 @@ export default function ProgrammeEntrainement() {
                   whileHover={{ scale: 1.02 }}
                   className={`w-full space-y-2 ${index % 2 === 0 ? "text-right" : "text-left"}`}
                 >
-                  <h3 className="text-xl font-semibold text-white">{item.day}</h3>
-                  <p className="text-gray-400 text-sm">Horaires : {item.time}</p>
-                  <p className="text-gray-500 text-sm">{item.activities}</p>
+                  <h3 className="text-xl font-semibold text-white">{item.jour}</h3>
+                  <p className="text-gray-400 text-sm">Horaires : {item.horaire}</p>
+                  <p className="text-gray-500 text-sm">{item.programme}</p>
                 </motion.div>
               </div>
             </motion.div>

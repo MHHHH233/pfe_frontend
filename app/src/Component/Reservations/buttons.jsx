@@ -55,18 +55,18 @@ export default function Buttons({ onChange }) {
   if (loading) {
     return (
       <div className="flex justify-center items-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+        <div className="w-12 h-12 rounded-full border-4 border-green-400 border-t-transparent animate-spin"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-500 p-4 rounded-lg text-center">
-        <p className="text-red-400 mb-2">{error}</p>
+      <div className="bg-red-500/10 backdrop-blur-sm border border-red-500/50 p-6 rounded-xl text-center">
+        <p className="text-red-400 mb-4 font-medium">{error}</p>
         <button 
           onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+          className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
         >
           Retry
         </button>
@@ -75,21 +75,35 @@ export default function Buttons({ onChange }) {
   }
 
   return (
-    <div className="mt-5 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
+    <div className="mt-8 px-4 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:flex-wrap lg:justify-center gap-4">
         {terrains.map((terrain) => (
           <motion.button
             key={terrain.id_terrain}
             onClick={() => handleButtonClick(terrain)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base rounded-lg text-white font-semibold transition-all duration-300 ease-in-out ${
-              selectedTerrain === terrain.id_terrain
-                ? "bg-green-500 shadow-md hover:bg-green-600"
-                : "bg-gray-700 hover:bg-gray-600"
-            }`}
+            className={`
+              relative w-full lg:w-auto px-6 py-3 rounded-xl font-medium
+              transition-all duration-300 ease-out
+              ${selectedTerrain === terrain.id_terrain
+                ? "bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/25"
+                : "bg-gray-800/80 hover:bg-gray-700/90 text-gray-100 backdrop-blur-sm"
+              }
+              group flex items-center justify-center gap-2
+              focus:outline-none focus:ring-2 focus:ring-green-500/50
+            `}
           >
-            {terrain.nom_terrain}
+            <span className="relative">
+              {terrain.nom_terrain}
+              {selectedTerrain === terrain.id_terrain && (
+                <motion.span
+                  layoutId="underline"
+                  className="absolute -bottom-1 left-0 right-0 h-0.5 bg-white"
+                  initial={false}
+                />
+              )}
+            </span>
           </motion.button>
         ))}
       </div>     

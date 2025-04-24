@@ -9,6 +9,7 @@ import tournament1 from "../img/tournament1.webp"
 import tournament2 from "../img/tournament2.webp"
 import tournament7 from "../img/tournament7.webp"
 import reservationService from "../lib/services/admin/reservationServices"
+import userService from '../lib/services/user/userServices'
 
 
 export default function EnhancedClientDashboard() {
@@ -252,33 +253,70 @@ function HeroSection() {
 }
 
 const OverviewSection = () => {
-  const clientInfo = {
-    name: sessionStorage.getItem("nom") + " " + sessionStorage.getItem("prenom"),
-    email: sessionStorage.getItem("email"),
-    memberSince: sessionStorage.getItem("date_inscription"),
-  };
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const upcomingMatches = [
-    { date: "2024-03-15", opponent: "FC Barcelona", time: "15:00" },
-    { date: "2024-03-22", opponent: "Real Madrid", time: "18:30" },
-  ];
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await userService.getProfile();
+        setUserData(response.data);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching user data:", err);
+        setError("Failed to load user data");
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
 
   return (
     <section id="overview" className="py-24 bg-[#222] text-white">
       <div className="container mx-auto px-4">
         <h2 className="text-4xl font-bold mb-12 text-center">Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <ProfileCard clientInfo={clientInfo} />
-          {/* <UpcomingMatches matches={upcomingMatches} /> */}
-          <Myreservations/>
-          <QuickActions />
-        </div>
+        {loading ? (
+          <div className="flex justify-center items-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#07f468]"></div>
+          </div>
+        ) : error ? (
+          <div className="text-red-400 text-center py-4">{error}</div>
+        ) : userData ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <ProfileCard userData={userData} />
+            <Myreservations userData={userData} />
+            <PlayerRequests userData={userData} />
+          </div>
+        ) : (
+          <div className="text-gray-400 text-center py-4">Failed to load user data.</div>
+        )}
       </div>
     </section>
   );
 };
 
-const ProfileCard = ({ clientInfo }) => {
+const ProfileCard = ({ userData }) => {
+  const [activityData, setActivityData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchActivityHistory = async () => {
+      try {
+        // Temporarily disable activity history fetch since endpoint doesn't exist yet
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching activity history:", err);
+        setLoading(false);
+      }
+    };
+
+    fetchActivityHistory();
+  }, []);
+
+  if (!userData) return null;
+
   return (
     <motion.div 
       className="bg-[#333] rounded-xl p-6 flex flex-col items-center cursor-pointer hover:bg-[#444] transition-colors"
@@ -287,20 +325,33 @@ const ProfileCard = ({ clientInfo }) => {
       transition={{ duration: 0.5 }}
       viewport={{ once: true }}
     >
-      <div className="w-24 h-24 bg-gradient-to-r from-[#07f468] to-[#06d35a] rounded-full flex items-center justify-center mb-4">
-        <User className="w-12 h-12 text-[#1a1a1a]" />
+      <div className="w-24 h-24 bg-gradient-to-r from-[#07f468] to-[#06d35a] rounded-full flex items-center justify-center mb-4 overflow-hidden">
+        {userData.pfp && userData.pfp !== "null" ? (
+          <img 
+            src={userData.pfp} 
+            alt="Profile" 
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <User className="w-12 h-12 text-[#1a1a1a]" />
+        )}
       </div>
-      <h3 className="text-xl font-semibold mb-1">{clientInfo.name}</h3>
-      <p className="text-gray-300 mb-2">{clientInfo.email}</p>
-      <p className="text-gray-300 mb-4">Member since: {clientInfo.memberSince}</p>
+      <h3 className="text-xl font-semibold mb-1">{`${userData.nom || 'N/A'} ${userData.prenom || ''}`}</h3>
+      <p className="text-gray-300 mb-2">{userData.email || 'N/A'}</p>
+      <p className="text-gray-300 mb-4">
+        Member since: {userData.created_at ? new Date(userData.created_at).toLocaleDateString() : 'N/A'}
+      </p>
       <div className="flex items-center mb-4">
-        <span className="mr-2">4.8</span>
+        <span className="mr-2">N/A</span>
         <Star className="w-5 h-5 text-[#07f468]" fill="#07f468" />
       </div>
-      <button className="bg-[#07f468] text-[#1a1a1a] border-none rounded-full justify-center w-full py-2 px-4 text-sm font-bold uppercase tracking-wide 
-        cursor-pointer transition-all duration-300 ease-in-out shadow-[0_4px_6px_rgba(7,_244,_104,_0.1)] hover:bg-[#06d35a] 
-        hover:translate-y-[-2px] hover:shadow-[0_6px_12px_rgba(7,_244,_104,_0.2)] 
-        active:translate-y-0 active:shadow-[0_2px_4px_rgba(7,_244,_104,_0.1)] flex items-center">
+      <button 
+        onClick={() => window.location.href = '/profile'}
+        className="bg-[#07f468] text-[#1a1a1a] border-none rounded-full justify-center w-full py-2 px-4 text-sm font-bold uppercase tracking-wide 
+          cursor-pointer transition-all duration-300 ease-in-out shadow-[0_4px_6px_rgba(7,_244,_104,_0.1)] hover:bg-[#06d35a] 
+          hover:translate-y-[-2px] hover:shadow-[0_6px_12px_rgba(7,_244,_104,_0.2)] 
+          active:translate-y-0 active:shadow-[0_2px_4px_rgba(7,_244,_104,_0.1)] flex items-center"
+      >
         View Profile
         <ArrowRight className="ml-2 w-4 h-4" />
       </button>
@@ -309,49 +360,141 @@ const ProfileCard = ({ clientInfo }) => {
 };
 
 
-const QuickActions = () => {
-  const actions = [
-    { name: "Make a Reservation", icon: Calendar,
-      action: () => {
-      const reservationSection = document.getElementById('reservation-section');
-      if (reservationSection) {
-        reservationSection.scrollIntoView({ behavior: 'smooth' });
-      }
+const PlayerRequests = ({ userData }) => {
+  const [activeTab, setActiveTab] = useState('received');
+  
+  // Get the player data if it exists
+  const player = userData?.player || null;
+  
+  // Get sent and received requests
+  const sentRequests = player?.sentRequests || [];
+  const receivedRequests = player?.receivedRequests || [];
+  
+  // Get the active requests based on the selected tab
+  const activeRequests = activeTab === 'received' ? receivedRequests : sentRequests;
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Invalid Date';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return 'Invalid Date';
     }
-  },
-    { name: "Join a Tournament", icon: Trophy },
-    { name: "Find Players/Teams", icon: Users },
-    { name: "Your Reservations", icon: ArrowRight },
-  ];
+  };
+  
+  const formatTime = (timeString) => {
+    if (!timeString) return 'Not specified';
+    try {
+      // Extract time portion if it's a datetime string
+      const timePart = timeString.includes('T') 
+        ? timeString.split('T')[1]
+        : timeString;
+      
+      // Format time (first 5 chars for HH:MM)
+      return timePart.substring(0, 5);
+    } catch (error) {
+      console.error("Error formatting time:", error);
+      return 'Invalid Time';
+    }
+  };
 
   return (
     <motion.div 
       className="bg-[#333] rounded-xl p-6 flex flex-col cursor-pointer hover:bg-[#444] transition-colors"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.4 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
       viewport={{ once: true }}
     >
-      <h3 className="text-xl text-center font-semibold mb-4">Quick Actions</h3>
-      <div className="space-y-4">
-        {actions.map((action, index) => (
-          <button
-            key={index}
-            className="bg-[#07f468] text-[#1a1a1a] border-none rounded-full justify-center w-full h-12  py-4 px-6 text-sm font-bold uppercase tracking-wide 
-            cursor-pointer transition-all duration-300 ease-in-out shadow-[0_4px_6px_rgba(7,_244,_104,_0.1)] hover:bg-[#06d35a] 
-            hover:translate-y-[-2px] hover:shadow-[0_6px_12px_rgba(7,_244,_104,_0.2)] 
-            active:translate-y-0 active:shadow-[0_2px_4px_rgba(7,_244,_104,_0.1)] flex items-center"
+      <h3 className="text-xl text-center font-semibold mb-4">Player Requests</h3>
+      
+      {!player ? (
+        <div className="flex flex-col items-center py-4">
+          <p className="text-gray-300 text-center mb-4">Create a player profile to manage requests</p>
+          <button 
+            onClick={() => window.location.href = '/players'}
+            className="bg-[#07f468] text-[#1a1a1a] border-none rounded-full py-2 px-4 text-sm font-bold uppercase tracking-wide 
+              cursor-pointer transition-all duration-300 ease-in-out shadow-[0_4px_6px_rgba(7,_244,_104,_0.1)] hover:bg-[#06d35a] 
+              hover:translate-y-[-2px] hover:shadow-[0_6px_12px_rgba(7,_244,_104,_0.2)] 
+              active:translate-y-0 active:shadow-[0_2px_4px_rgba(7,_244,_104,_0.1)] flex items-center"
           >
-            {action.icon != ArrowRight ? 
-            <action.icon className="mr-2 w-4 h-4" />
-            : "" }
-            {action.name}
-            {action.icon == ArrowRight ? 
-            <action.icon className="mr-2 w-4 h-4" />
-            : "" }
+            Create Player Profile
+            <ArrowRight className="ml-2 w-4 h-4" />
           </button>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-center mb-4">
+            <div className="inline-flex rounded-full bg-[#444] p-1">
+              <button
+                className={`px-4 py-1 rounded-full ${
+                  activeTab === 'received' ? 'bg-[#07f468] text-black' : 'text-white'
+                } transition-colors duration-200 text-sm`}
+                onClick={() => setActiveTab('received')}
+              >
+                Received
+              </button>
+              <button
+                className={`px-4 py-1 rounded-full ${
+                  activeTab === 'sent' ? 'bg-[#07f468] text-black' : 'text-white'
+                } transition-colors duration-200 text-sm`}
+                onClick={() => setActiveTab('sent')}
+              >
+                Sent
+              </button>
+            </div>
+          </div>
+          
+          {activeRequests.length === 0 ? (
+            <div className="text-gray-300 text-center py-4">No {activeTab} requests found</div>
+          ) : (
+            <div className="space-y-4">
+              {activeRequests.slice(0, 3).map((request, index) => (
+                <div key={request.id_request || index} className="bg-[#444] rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium truncate">
+                      {activeTab === 'sent' ? 'To: ' : 'From: '}
+                      Player #{activeTab === 'sent' ? request.receiver : request.sender}
+                    </span>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      request.status === "accepted" 
+                        ? "bg-[#07f468] bg-opacity-10 text-[#07f468]" 
+                        : request.status === "pending"
+                        ? "bg-yellow-500 bg-opacity-10 text-yellow-500"
+                        : "bg-red-500 bg-opacity-10 text-red-500"}`}>
+                      {request.status || 'Pending'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-300">
+                    <div className="flex items-center mb-1">
+                      <Calendar className="h-4 w-4 text-[#07f468] mr-2" />
+                      <p>{formatDate(request.match_date)}</p>
+                    </div>
+                    <div className="flex items-center">
+                      <Clock className="h-4 w-4 text-[#07f468] mr-2" />
+                      <p>{formatTime(request.starting_time)}</p>
+                    </div>
+                    {request.message && (
+                      <p className="mt-2 text-xs italic">"{request.message}"</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              {activeRequests.length > 3 && (
+                <div className="text-center mt-2">
+                  <button className="text-[#07f468] hover:underline text-sm">
+                    View all ({activeRequests.length})
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </motion.div>
   );
 };
@@ -538,33 +681,20 @@ function FindPlayersSection() {
   )
 }
 
-const Myreservations = () => {
-  const [reservations, setReservations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const Myreservations = ({ userData }) => {
+  const reservations = userData?.reservations || [];
 
-  useEffect(() => {
-    const fetchReservations = async () => {
-      try {
-        const userId = sessionStorage.getItem("userId");
-        if (!userId) {
-          setError("User ID not found in session storage");
-          setLoading(false);
-          return;
-        }
-        
-        const response = await reservationService.getReservation(userId);
-        setReservations(Array.isArray(response) ? response : [response]);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching reservations:", err);
-        setError("Failed to load reservations");
-        setLoading(false);
-      }
-    };
-
-    fetchReservations();
-  }, []);
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Invalid Date';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return 'Invalid Date';
+    }
+  };
 
   return (
     <motion.div 
@@ -576,38 +706,32 @@ const Myreservations = () => {
     >
       <h3 className="text-xl text-center font-semibold mb-4">My Reservations</h3>
       
-      {loading ? (
-        <div className="flex justify-center items-center h-40">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#07f468]"></div>
-        </div>
-      ) : error ? (
-        <div className="text-red-400 text-center py-4">{error}</div>
-      ) : reservations.length === 0 ? (
-        <div className="text-gray-300 text-center py-4">No reservations found</div>
+      {reservations.length === 0 ? (
+        <div className="text-gray-300 text-center py-4">No upcoming reservations found</div>
       ) : (
         <div className="space-y-4">
           {reservations.slice(0, 3).map((reservation, index) => (
-            <div key={index} className="bg-[#444] rounded-lg p-4">
+            <div key={reservation.id_reservation || index} className="bg-[#444] rounded-lg p-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">{reservation.terrain?.nom || 'Unknown Field'}</span>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                  reservation.status === "confirmed" 
+                <span className="font-medium">
+                  {reservation.terrain?.nom || reservation.Name || 'Unnamed Field'}
+                </span>
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${reservation.etat === "reserver" 
                     ? "bg-[#07f468] bg-opacity-10 text-[#07f468]" 
-                    : reservation.status === "pending"
+                    : reservation.etat === "en attente"
                     ? "bg-yellow-500 bg-opacity-10 text-yellow-500"
-                    : "bg-red-500 bg-opacity-10 text-red-500"
-                }`}>
-                  {reservation.status || 'Pending'}
+                    : "bg-red-500 bg-opacity-10 text-red-500"}`}>
+                  {reservation.etat || 'Pending'}
                 </span>
               </div>
               <div className="text-sm text-gray-300">
                 <div className="flex items-center mb-1">
                   <Calendar className="h-4 w-4 text-[#07f468] mr-2" />
-                  <p>{new Date(reservation.date).toLocaleDateString()}</p>
+                  <p>{formatDate(reservation.date)}</p>
                 </div>
                 <div className="flex items-center">
                   <Clock className="h-4 w-4 text-[#07f468] mr-2" />
-                  <p>{reservation.heure_debut} - {reservation.heure_fin}</p>
+                  <p>{reservation.heure ? reservation.heure.substring(0, 5) : 'Time not specified'}</p>
                 </div>
               </div>
             </div>
