@@ -1,20 +1,42 @@
 import academieEndpoints from '../../endpoint/user/academie';
-import apiClient from '../../userapi';
+import apiGuest from '../../userapi';
 
 const academieService = {
   async getAllAcademies(params = {}) {
     try {
-      const response = await apiClient.get(academieEndpoints.getAllAcademies, { params });
-      return response.data;
+      const response = await apiGuest.get(academieEndpoints.getAllAcademies, { params });
+      return {
+        success: true,
+        data: response.data // This will be the array containing the academies
+      };
     } catch (error) {
       console.error('Error fetching academies:', error);
-      throw error;
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch academies'
+      };
+    }
+  },
+
+  async getAcademie(id) {
+    try {
+      const response = await apiGuest.get(academieEndpoints.getAcademie(id));
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error(`Error fetching academie ${id}:`, error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch academie details'
+      };
     }
   },
 
   async createAcademie(formData) {
     try {
-      const response = await apiClient.post(academieEndpoints.createAcademie, formData, {
+      const response = await apiGuest.post(academieEndpoints.createAcademie, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -28,7 +50,7 @@ const academieService = {
 
   async updateAcademie(id, payload) {
     try {
-      const response = await apiClient.put(academieEndpoints.updateAcademie(id), payload);
+      const response = await apiGuest.put(academieEndpoints.updateAcademie(id), payload);
       return response.data;
     } catch (error) {
       console.error(`Error updating academie ${id}:`, error);
@@ -38,7 +60,7 @@ const academieService = {
 
   async deleteAcademie(id) {
     try {
-      const response = await apiClient.delete(academieEndpoints.deleteAcademie(id));
+      const response = await apiGuest.delete(academieEndpoints.deleteAcademie(id));
       return response.data;
     } catch (error) {
       console.error(`Error deleting academie ${id}:`, error);

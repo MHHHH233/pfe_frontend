@@ -13,7 +13,14 @@ import PopupCard from "../Component/Reservations/Confirmation"
 import FootballAdminDashboard from "../Admin/Admin"
 import FindPlayerTeam from "../Players&Teams/Main"
 import TournamentPage from "../Tournoi/Tournoi"
-
+import AllEvents from "../Pages/AllEvents"
+import ProfilePage from "../Client/Component/ProfilePage"
+import AboutPage from "../Pages/AboutPage"
+import ErrorPage from "../Pages/ErrorPage"
+import FaqPage from "../Pages/FaqPage"
+import PrivacyPolicy from "../Pages/PrivacyPolicy"
+import TermsOfService from "../Pages/TermsOfService"
+import ScrollToTop from "../Component/ScrollToTop"
 
 export const Main = () => {
     // useEffect(( Loading ? <Loader/> : null), [Loading])
@@ -33,9 +40,13 @@ export const Main = () => {
                     <Route path="/sign-in" element={<Login />} />
                     <Route path="/sign-up" element={<SignInForm />} />
                     <Route path="/contactus" element={<ContactUsFullscreen />} />
+                    <Route path="/about" element={<AboutPage />} />
                     <Route path="/players" element={<FindPlayerTeam />} />
                     <Route path="/tournoi" element={<TournamentPage/>} />
-                    
+                    <Route path="/events" element={<AllEvents />} />
+                    <Route path="/faq" element={<FaqPage />} />
+                    <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/privacy" element={<PrivacyPolicy />} />
                     {/* Protected Routes */}
                     <Route 
                         path="/reservation" 
@@ -61,11 +72,25 @@ export const Main = () => {
                             </ProtectedRoute>
                         } 
                     />
+                    <Route 
+                        path="/profile" 
+                        element={
+                            <ProtectedRoute>
+                                <ProfilePage />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    
+                    {/* Error page - This will catch all unmatched routes */}
+                    <Route path="*" element={<ErrorPage />} />
                 </Routes>
             </div>
 
             {/* Only show footer on non-admin and non-client pages */}
             {!isAdminPage && location.pathname !== "/Client" && <Footer/>}
+            
+            {/* Add ScrollToTop component */}
+            {!isAdminPage && <ScrollToTop />}
         </div>
     )
 }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import background from "../img/background1.png";
 import { Icon } from '@iconify/react';
 import { authService } from "../lib/services/authoServices";
@@ -11,7 +11,9 @@ const LoginForm = () => {
     rememberMe: false,
   });
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const location = useLocation();
+  const redirectPath = location.state?.from || "/Client";
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -45,16 +47,33 @@ const LoginForm = () => {
           sessionStorage.setItem("email", userData.email);
           sessionStorage.setItem("type", userData.role);
           sessionStorage.setItem("name", userData.name);
+          
+          // Store academy membership status
+          sessionStorage.setItem("has_academie_membership", response.data.has_academie_membership);
+          
+          // Store academy memberships data if available
+          if (response.data.academie_memberships && response.data.academie_memberships.length > 0) {
+            // Store the full memberships array
+            sessionStorage.setItem("academie_memberships", JSON.stringify(response.data.academie_memberships));
+            
+            // Store the first membership's ID for backward compatibility
+            const firstMembership = response.data.academie_memberships[0];
+            sessionStorage.setItem("academy_member_id", firstMembership.id_member);
+            
+            console.log("Academy membership data stored:", response.data.academie_memberships);
+          }
+          
           // Store userdetails as a JSON string
           sessionStorage.setItem("userdetails", JSON.stringify(userData));
           const pfp = "http://127.0.0.1:8000/" + userData.pfp
           sessionStorage.setItem("pfp", pfp);
 
-          // Navigate based on role
+          // Navigate based on role or redirect path
           if (userData.role === "admin") {
             navigate("/Admin");
           } else {
-            navigate("/Client");
+            // Check if there's a redirect path from the location state
+            navigate(redirectPath);
           }
         } else {
           throw new Error(response.message || 'Login failed');
@@ -144,6 +163,12 @@ const validateFormData = ({ email, password }) => {
             {errors.password && (
               <div className="mt-1 text-red-500 text-sm">
                 {errors.password}
+              </div>
+            )}
+
+            {errors.api && (
+              <div className="mt-1 mb-4 text-red-500 text-sm bg-red-100 border border-red-400 p-2 rounded">
+                {errors.api}
               </div>
             )}
 

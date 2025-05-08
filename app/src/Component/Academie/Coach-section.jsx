@@ -64,6 +64,7 @@ export function CoachesSection() {
 
   return (
     <motion.section
+      id="coachs"
       variants={sectionVariants}
       initial="hidden"
       animate="visible"

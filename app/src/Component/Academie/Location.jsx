@@ -4,7 +4,7 @@ import Separateur from '../../img/curved.png'
 
 const LocationSection = () => {
   return (
-    <section className="bg-[#1a1a1a] py-16 flex flex-col items-center">
+    <section id="local" className="bg-[#1a1a1a] py-16 flex flex-col items-center">
       {/* Title */}
       <h2 className="text-white text-4xl font-semibold mb-12 text-center relative">
         Notre Localisation
@@ -65,21 +65,7 @@ const LocationSection = () => {
           </motion.button>
         </motion.div>
       </div>
-      <div className="w-full">
-      <img 
-  src={Separateur} 
-  alt="Separator" 
-  className="w-full" 
-  style={{ transform: 'scaleX(-1)' }} 
-/>
-<img 
-  src={Separateur} 
-  alt="Separator" 
-  className="w-full" 
-  style={{ transform: 'scaleX(-1)' }} 
-/>
-
-        </div>
+    
     </section>
   );
 };

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import UserIcon from "../Client/Component/Icone";
 import { Menu, Bell, Calendar, LayoutDashboard, X, ChevronRight, User, MapPin, MoreVertical, LogOut } from 'lucide-react';
 import { authService } from "../lib/services/authoServices";
+import reservationService from '../lib/services/user/reservationServices';
 
 export const NavBar = () => {
     const [menuOpen, setMenuOpen] = useState(false);
@@ -36,9 +37,9 @@ export const NavBar = () => {
                 } else if (currentScroll > 50 && currentScroll > lastScroll) {
                     setMenuOpen(false);
                     setNavbarVisible(false);
-                    // Close popups on scroll
-                    setShowNotifications(false);
-                    setShowReservations(false);
+                    // Close popups on scroll - removed to prevent unwanted closings
+                    // setShowNotifications(false);
+                    // setShowReservations(false);
                 }
                 lastScroll = currentScroll;
             }, 50);
@@ -61,7 +62,7 @@ export const NavBar = () => {
         };
     }, [menuOpen]);
 
-    // Enhanced click outside handler
+    // Remove the click handler that might be accidentally closing popups
     useEffect(() => {
         const handleClickOutside = (event) => {
             // Close menu when clicking outside
@@ -69,13 +70,9 @@ export const NavBar = () => {
                 !burgerRef.current.contains(event.target)) {
                 setMenuOpen(false);
             }
-            // Close popups when clicking outside
-            if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
-                setShowNotifications(false);
-            }
-            if (reservationsRef.current && !reservationsRef.current.contains(event.target)) {
-                setShowReservations(false);
-            }
+            
+            // We'll handle popup closing in each popup component instead
+            // This prevents unwanted interactions between popups
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -264,7 +261,8 @@ export const NavBar = () => {
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
                                             className="text-white relative"
-                                            onClick={() => {
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevent event bubbling
                                                 setShowNotifications(!showNotifications);
                                                 setShowReservations(false);
                                             }}
@@ -284,7 +282,8 @@ export const NavBar = () => {
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
                                             className="text-white"
-                                            onClick={() => {
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // Prevent event bubbling
                                                 setShowReservations(!showReservations);
                                                 setShowNotifications(false);
                                             }}
@@ -420,7 +419,8 @@ export const NavBar = () => {
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 className="lg:hidden fixed inset-0 bg-black/50 z-40"
-                                onClick={() => {
+                                onClick={(e) => {
+                                    e.stopPropagation(); // Prevent event bubbling
                                     setShowNotifications(false);
                                     setShowReservations(false);
                                 }}
@@ -442,7 +442,8 @@ export const NavBar = () => {
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     className="text-white relative p-2"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // Prevent event bubbling
                                         setShowNotifications(!showNotifications);
                                         setShowReservations(false);
                                     }}
@@ -458,7 +459,8 @@ export const NavBar = () => {
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     className="text-white p-2"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // Prevent event bubbling
                                         setShowReservations(!showReservations);
                                         setShowNotifications(false);
                                     }}
@@ -472,7 +474,7 @@ export const NavBar = () => {
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 className="text-white p-2"
-                                onClick={() => handleNavigation('/Client')}
+                                onClick={() => handleNavigation('/profile')}
                             >
                                 <User size={24} />
                             </motion.button>
@@ -554,6 +556,161 @@ const LoginButton = ({ to, children, fullWidth, onClick }) => (
 );
 
 const NotificationsPopup = ({ isOpen, onClose }) => {
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const popupContentRef = useRef(null);
+
+    // Fetch notifications when popup opens
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (!isOpen) return;
+            
+            try {
+                setLoading(true);
+                setError(null);
+                
+                // Generate system notifications based on upcoming reservations
+                const upcomingRes = await reservationService.getUpcomingReservations();
+                if (upcomingRes && upcomingRes.status === 'success' && upcomingRes.data) {
+                    const resNotifications = generateNotificationsFromReservations(upcomingRes.data);
+                    setNotifications(resNotifications);
+                } else {
+                    // Fallback to default notifications if API fails
+                    setNotifications(getDefaultNotifications());
+                }
+            } catch (error) {
+                console.error('Error fetching notifications:', error);
+                setError('Failed to load notifications');
+                // Use default notifications on error
+                setNotifications(getDefaultNotifications());
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchNotifications();
+    }, [isOpen]);
+
+    // Generate notifications from reservations
+    const generateNotificationsFromReservations = (reservations) => {
+        const currentDate = new Date();
+        const notifs = [];
+        
+        // Sort reservations by date/time (soonest first)
+        const sortedReservations = [...reservations].sort((a, b) => {
+            const dateA = new Date(`${a.date}T${a.heure}`);
+            const dateB = new Date(`${b.date}T${b.heure}`);
+            return dateA - dateB;
+        });
+        
+        // Process reservations to generate different types of notifications
+        sortedReservations.forEach((res, index) => {
+            const resDate = new Date(`${res.date}T${res.heure}`);
+            const hoursUntil = Math.round((resDate - currentDate) / (1000 * 60 * 60));
+            
+            // Create different notification types based on timing and status
+            if (hoursUntil <= 24 && hoursUntil > 0) {
+                notifs.push({
+                    id: `upcoming-${res.id_reservation}`,
+                    title: "Upcoming Reservation",
+                    message: `Your reservation at Terrain #${res.id_terrain} is coming up in ${hoursUntil} hour${hoursUntil !== 1 ? 's' : ''}.`,
+                    time: "Just now",
+                    isNew: true,
+                    date: new Date()
+                });
+            }
+            
+            if (res.etat === 'en attente') {
+                notifs.push({
+                    id: `pending-${res.id_reservation}`,
+                    title: "Pending Confirmation",
+                    message: `Your reservation #${res.num_res} is pending confirmation. We'll notify you when it's confirmed.`,
+                    time: "2 hours ago",
+                    isNew: index < 2, // First 2 are new
+                    date: new Date(Date.now() - 7200000)
+                });
+            } else if (res.etat === 'reserver') {
+                notifs.push({
+                    id: `confirmed-${res.id_reservation}`,
+                    title: "Reservation Confirmed",
+                    message: `Your reservation for Terrain #${res.id_terrain} on ${new Date(res.date).toLocaleDateString()} has been confirmed!`,
+                    time: "1 day ago",
+                    isNew: index === 0, // Only most recent is new
+                    date: new Date(Date.now() - 86400000)
+                });
+            }
+        });
+        
+        // Add a welcome notification if there aren't enough notifications
+        if (notifs.length < 3) {
+            notifs.push({
+                id: "welcome",
+                title: "Welcome to TerrainFC",
+                message: "Thanks for using our platform. Book your first reservation now!",
+                time: "3 days ago",
+                isNew: false,
+                date: new Date(Date.now() - 259200000)
+            });
+        }
+        
+        // Sort notifications by date (newest first)
+        return notifs.sort((a, b) => b.date - a.date);
+    };
+    
+    // Default notifications as fallback
+    const getDefaultNotifications = () => [
+        {
+            id: 1,
+            title: "Reservation Confirmed",
+            message: "Your upcoming reservation has been confirmed",
+            time: "Just now",
+            isNew: true,
+            date: new Date()
+        },
+        {
+            id: 2,
+            title: "Welcome to TerrainFC",
+            message: "Thanks for joining! Explore our terrains to book your first reservation.",
+            time: "1 hour ago",
+            isNew: true,
+            date: new Date(Date.now() - 3600000)
+        },
+        {
+            id: 3,
+            title: "New Features Available",
+            message: "We've added new features to our platform. Check them out!",
+            time: "2 days ago",
+            isNew: false,
+            date: new Date(Date.now() - 172800000)
+        }
+    ];
+
+    // Handle click inside to prevent closing
+    const handlePopupClick = (e) => {
+        e.stopPropagation();
+    };
+
+    // Format time based on timestamp
+    const formatTimeAgo = (date) => {
+        if (!date) return '';
+        
+        const now = new Date();
+        const diff = now - date;
+        
+        // Convert to appropriate time units
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        
+        if (minutes < 1) return 'Just now';
+        if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+        if (hours < 24) return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+        if (days < 30) return `${days} day${days !== 1 ? 's' : ''} ago`;
+        
+        return date.toLocaleDateString();
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -565,8 +722,79 @@ const NotificationsPopup = ({ isOpen, onClose }) => {
                              lg:right-0 lg:left-auto lg:mt-2 lg:w-80 bg-gray-900 
                              lg:rounded-xl rounded-t-xl shadow-lg border-t lg:border 
                              border-gray-700 overflow-hidden z-50 max-h-[80vh] lg:max-h-[600px]"
+                    ref={popupContentRef}
+                    onClick={handlePopupClick}
                 >
-                    <NotificationsContent />
+                    {/* Header */}
+                    <div className="p-4 border-b border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-medium text-white">Notifications</h3>
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-500 rounded-full text-xs">
+                                {notifications.filter(n => n.isNew).length} new
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Error Message */}
+                    {error && (
+                        <div className="p-3 bg-red-500/10 border-b border-red-500/20">
+                            <p className="text-red-400 text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Loading State */}
+                    {loading ? (
+                        <div className="flex justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+                        </div>
+                    ) : (
+                        /* Notifications List */
+                        <div className="divide-y divide-gray-700 overflow-y-auto max-h-[60vh]">
+                            {notifications.length > 0 ? (
+                                notifications.map((notif) => (
+                                    <motion.div
+                                        key={notif.id}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className={`p-4 hover:bg-gray-800 cursor-pointer transition-all duration-200
+                                            ${notif.isNew ? 'bg-gray-800/50' : ''}`}
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-white">{notif.title}</h4>
+                                                <p className="text-sm text-gray-400 mt-1">{notif.message}</p>
+                                                <span className="text-xs text-gray-500 mt-2 block">{notif.time}</span>
+                                            </div>
+                                            {notif.isNew && (
+                                                <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ))
+                            ) : (
+                                <div className="p-8 text-center">
+                                    <Bell className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+                                    <h3 className="text-lg font-medium text-white mb-2">No Notifications</h3>
+                                    <p className="text-gray-400">You're all caught up!</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="p-4 border-t border-gray-700">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onClose();
+                            }}
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-2 
+                                   bg-gray-700 hover:bg-gray-600 text-white rounded-lg 
+                                   transition-colors duration-200"
+                        >
+                            <span>Mark All as Read</span>
+                        </button>
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
@@ -575,38 +803,80 @@ const NotificationsPopup = ({ isOpen, onClose }) => {
 
 const ReservationsPopup = ({ isOpen, onClose }) => {
     const navigate = useNavigate();
+    const [upcomingReservations, setUpcomingReservations] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const popupContentRef = useRef(null);
     
     // Generate calendar days
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const currentDate = new Date();
-    
-    const reservations = [
-        {
-            id: 1,
-            time: "11:35",
-            endTime: "13:05",
-            terrain: "Terrain A-205",
-            title: "Football Match",
-            coach: "Brooklyn Williamson"
-        },
-        {
-            id: 2,
-            time: "13:15",
-            endTime: "14:45",
-            terrain: "Terrain B-168",
-            title: "Training Session",
-            coach: "Julia Watson"
-        },
-        {
-            id: 3,
-            time: "15:10",
-            endTime: "16:40",
-            terrain: "Terrain F-403",
-            title: "Practice Game",
-            coach: "Jenny Alexander"
-        }
-    ];
+
+    // Add event listener to prevent closing when clicking inside the popup
+    useEffect(() => {
+        // Skip if popup is not open
+        if (!isOpen) return;
+        
+        const handleOutsideClick = (event) => {
+            // Prevent closing when clicking inside the popup
+            if (popupContentRef.current && !popupContentRef.current.contains(event.target)) {
+                onClose();
+            }
+        };
+        
+        // Add the event listener to the document
+        document.addEventListener('mousedown', handleOutsideClick);
+        
+        // Cleanup
+        return () => {
+            document.removeEventListener('mousedown', handleOutsideClick);
+        };
+    }, [isOpen, onClose]);
+
+    // Fetch upcoming reservations when popup opens
+    useEffect(() => {
+        const fetchReservations = async () => {
+            if (!isOpen) return;
+            
+            try {
+                setLoading(true);
+                setError(null);
+                
+                // Get upcoming reservations
+                const response = await reservationService.getUpcomingReservations();
+                if (response && response.data) {
+                    setUpcomingReservations(response.data);
+                }
+            } catch (error) {
+                console.error('Error fetching reservations:', error);
+                setError('Failed to load reservations');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchReservations();
+    }, [isOpen]);
+
+    // Get reservations for a specific date
+    const getReservationsForDate = (date) => {
+        return upcomingReservations.filter(res => {
+            const reservationDate = new Date(res.date);
+            return reservationDate.toDateString() === date.toDateString();
+        });
+    };
+
+    // Handle date selection - prevent event propagation
+    const handleDateSelect = (date, e) => {
+        if (e) e.stopPropagation();
+        setSelectedDate(date);
+    };
+
+    // Handle click inside to prevent closing
+    const handlePopupClick = (e) => {
+        e.stopPropagation();
+    };
 
     return (
         <AnimatePresence>
@@ -619,41 +889,56 @@ const ReservationsPopup = ({ isOpen, onClose }) => {
                              lg:right-0 lg:left-auto lg:mt-2 lg:w-96 bg-gray-900 
                              lg:rounded-xl rounded-t-xl shadow-lg border-t lg:border 
                              border-gray-700 overflow-hidden z-50 max-h-[80vh] lg:max-h-[600px]"
+                    ref={popupContentRef}
+                    onClick={handlePopupClick}
                 >
                     {/* Header with Date */}
                     <div className="p-4 border-b border-gray-700">
                         <div className="flex items-baseline justify-between">
                             <div>
                                 <span className="text-3xl font-bold text-white">
-                                    {currentDate.getDate()}
+                                    {selectedDate.getDate()}
                                 </span>
                                 <span className="ml-2 text-sm text-gray-400">
-                                    {new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', year: 'numeric' }).format(currentDate)}
+                                    {new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', year: 'numeric' }).format(selectedDate)}
                                 </span>
                             </div>
-                            <span className="px-2 py-1 text-xs bg-green-500/20 text-green-500 rounded-full">
-                                Today
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                                selectedDate.toDateString() === currentDate.toDateString()
+                                    ? 'bg-green-500/20 text-green-500'
+                                    : 'bg-gray-500/20 text-gray-400'
+                            }`}>
+                                {selectedDate.toDateString() === currentDate.toDateString() ? 'Today' : 'Selected'}
                             </span>
                         </div>
 
-                        {/* Calendar Strip */}
+                        {/* Calendar Strip - Improved UI */}
                         <div className="mt-4 flex justify-between">
                             {[...Array(7)].map((_, index) => {
-                                const date = new Date();
+                                const date = new Date(currentDate);
                                 date.setDate(currentDate.getDate() - 3 + index);
-                                const isToday = date.getDate() === currentDate.getDate();
+                                const isSelected = date.toDateString() === selectedDate.toDateString();
+                                const isToday = date.toDateString() === currentDate.toDateString();
+                                const hasReservations = getReservationsForDate(date).length > 0;
                                 
                                 return (
                                     <div 
                                         key={index}
-                                        className={`flex flex-col items-center ${
-                                            isToday ? 'text-green-500' : 'text-gray-400'
-                                        }`}
+                                        onClick={(e) => handleDateSelect(date, e)}
+                                        className={`flex flex-col items-center cursor-pointer transition-all duration-200 
+                                            p-1 rounded-lg ${isSelected ? 'bg-gray-800' : 'hover:bg-gray-800/50'}`}
                                     >
-                                        <span className="text-xs">{days[date.getDay()]}</span>
-                                        <span className={`mt-1 w-8 h-8 flex items-center justify-center rounded-full
-                                            ${isToday ? 'bg-green-500 text-white' : 'hover:bg-gray-800'}`}>
+                                        <span className={`text-xs ${isSelected ? 'text-green-500' : 'text-gray-400'}`}>
+                                            {days[date.getDay()]}
+                                        </span>
+                                        <span className={`mt-1 w-8 h-8 flex items-center justify-center rounded-full relative
+                                            ${isSelected ? 'bg-green-500 text-white' : 
+                                              isToday ? 'bg-gray-700 text-white' : 
+                                              'hover:bg-gray-700'}`}>
                                             {date.getDate()}
+                                            {hasReservations && (
+                                                <span className="absolute -bottom-1 w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                                            )}
                                         </span>
                                     </div>
                                 );
@@ -661,58 +946,96 @@ const ReservationsPopup = ({ isOpen, onClose }) => {
                         </div>
                     </div>
 
-                    {/* Schedule List */}
-                    <div className="divide-y divide-gray-700">
-                        {reservations.map((res) => (
-                            <motion.div
-                                key={res.id}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="p-4 hover:bg-gray-800 transition-colors"
-                            >
-                                <div className="flex">
-                                    {/* Time Column */}
-                                    <div className="w-20 text-gray-400">
-                                        <div className="text-sm">{res.time}</div>
-                                        <div className="text-xs opacity-60">{res.endTime}</div>
-                                    </div>
-                                    
-                                    {/* Details Column */}
-                                    <div className="flex-1 ml-4">
-                                        <div className="flex items-start justify-between">
-                                            <div>
-                                                <h4 className="text-white font-medium">{res.title}</h4>
-                                                <div className="flex items-center mt-1 space-x-2 text-sm text-gray-400">
-                                                    <MapPin size={14} />
-                                                    <span>{res.terrain}</span>
-                                                </div>
-                                                <div className="flex items-center mt-1 space-x-2 text-sm text-gray-400">
-                                                    <User size={14} />
-                                                    <span>{res.coach}</span>
+                    {/* Error Message */}
+                    {error && (
+                        <div className="p-4 bg-red-500/10 border-b border-red-500/20">
+                            <p className="text-red-400 text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Loading State */}
+                    {loading ? (
+                        <div className="flex justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+                        </div>
+                    ) : (
+                        /* Reservations List */
+                        <div className="divide-y divide-gray-700 overflow-y-auto max-h-[50vh]">
+                            {getReservationsForDate(selectedDate).length > 0 ? (
+                                getReservationsForDate(selectedDate).map((res) => (
+                                    <motion.div
+                                        key={res.id_reservation}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="p-4 hover:bg-gray-800 transition-colors"
+                                    >
+                                        <div className="flex">
+                                            {/* Time Column */}
+                                            <div className="w-20 text-gray-400">
+                                                <div className="text-sm">{res.heure?.substring(0, 5)}</div>
+                                            </div>
+                                            
+                                            {/* Details Column */}
+                                            <div className="flex-1 ml-4">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <h4 className="text-white font-medium">
+                                                            {res.name || res.Name || `Reservation #${res.num_res}`}
+                                                        </h4>
+                                                        <div className="flex items-center mt-1 space-x-2 text-sm text-gray-400">
+                                                            <MapPin size={14} />
+                                                            <span>Terrain #{res.id_terrain}</span>
+                                                        </div>
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded-full text-xs
+                                                        ${res.etat === 'reserver' 
+                                                            ? 'bg-green-500/20 text-green-500' 
+                                                            : res.etat === 'annuler'
+                                                            ? 'bg-red-500/20 text-red-500'
+                                                            : 'bg-yellow-500/20 text-yellow-500'
+                                                        }`}>
+                                                        {res.etat === 'reserver' ? 'Confirmed' : 
+                                                         res.etat === 'annuler' ? 'Cancelled' : 'Pending'}
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <button className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors">
-                                                <MoreVertical size={16} className="text-gray-400" />
-                                            </button>
                                         </div>
-                                    </div>
+                                    </motion.div>
+                                ))
+                            ) : (
+                                <div className="p-8 text-center">
+                                    <Calendar className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+                                    <h3 className="text-lg font-medium text-white mb-2">No Reservations</h3>
+                                    <p className="text-gray-400 mb-6">No reservations for this date.</p>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onClose();
+                                            navigate('/reservation');
+                                        }}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                                    >
+                                        Book a Reservation
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
                                 </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Footer */}
                     <div className="p-4 border-t border-gray-700">
                         <button
-                            onClick={() => {
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 onClose();
-                                navigate('/reservation');
+                                navigate('/profile');
                             }}
                             className="w-full flex items-center justify-center space-x-2 px-4 py-2 
                                      bg-green-500 hover:bg-green-600 text-white rounded-lg 
                                      transition-colors duration-200"
                         >
-                            <span>Voir toutes les réservations</span>
+                            <span>View All Reservations</span>
                             <ChevronRight size={16} />
                         </button>
                     </div>
@@ -727,127 +1050,5 @@ const IconContainer = ({ children, className }) => (
         {children}
     </div>
 );
-
-// Add these new components for the popup content
-const NotificationsContent = () => {
-    const notifications = [
-        {
-            id: 1,
-            title: "Réservation confirmée",
-            message: "Votre réservation pour le terrain A a été confirmée",
-            time: "Il y a 5 minutes",
-            isNew: true
-        },
-        {
-            id: 2,
-            title: "Nouveau message",
-            message: "Vous avez reçu un nouveau message de l'administrateur",
-            time: "Il y a 1 heure",
-            isNew: true
-        },
-        {
-            id: 3,
-            title: "Rappel",
-            message: "Votre réservation commence dans 1 heure",
-            time: "Il y a 2 heures",
-            isNew: false
-        }
-    ];
-
-    return (
-        <div className="max-h-[60vh] overflow-y-auto">
-            {notifications.map((notif) => (
-                <motion.div
-                    key={notif.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className={`p-4 border-b border-gray-700 hover:bg-gray-800 cursor-pointer
-                        ${notif.isNew ? 'bg-gray-800/50' : ''}`}
-                >
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h4 className="text-sm font-medium text-white">{notif.title}</h4>
-                            <p className="text-sm text-gray-400 mt-1">{notif.message}</p>
-                            <span className="text-xs text-gray-500 mt-2 block">{notif.time}</span>
-                        </div>
-                        {notif.isNew && (
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                        )}
-                    </div>
-                </motion.div>
-            ))}
-        </div>
-    );
-};
-
-const ReservationsContent = ({ onClose }) => {
-    const navigate = useNavigate();
-    const reservations = [
-        {
-            id: 1,
-            terrain: "Terrain A",
-            date: "Aujourd'hui",
-            time: "14:00 - 15:30",
-            status: "confirmed"
-        },
-        {
-            id: 2,
-            terrain: "Terrain B",
-            date: "Demain",
-            time: "10:00 - 11:30",
-            status: "pending"
-        },
-        {
-            id: 3,
-            terrain: "Terrain C",
-            date: "23 Mars",
-            time: "16:00 - 17:30",
-            status: "confirmed"
-        }
-    ];
-
-    return (
-        <>
-            <div className="max-h-[60vh] overflow-y-auto">
-                {reservations.map((res) => (
-                    <motion.div
-                        key={res.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="p-4 border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
-                    >
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h4 className="text-sm font-medium text-white">{res.terrain}</h4>
-                                <p className="text-xs text-gray-400 mt-1">{res.date} • {res.time}</p>
-                            </div>
-                            <span className={`px-2 py-1 rounded-full text-xs
-                                ${res.status === 'confirmed' 
-                                    ? 'bg-green-500/20 text-green-500' 
-                                    : 'bg-yellow-500/20 text-yellow-500'
-                                }`}>
-                                {res.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                            </span>
-                        </div>
-                    </motion.div>
-                ))}
-            </div>
-            <div className="p-4 border-t border-gray-700">
-                <button
-                    onClick={() => {
-                        onClose();
-                        navigate('/reservation');
-                    }}
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 
-                             bg-green-500 hover:bg-green-600 text-white rounded-lg 
-                             transition-colors duration-200"
-                >
-                    <span>Voir toutes les réservations</span>
-                    <ChevronRight size={16} />
-                </button>
-            </div>
-        </>
-    );
-};
 
 export default NavBar;

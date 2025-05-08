@@ -6,7 +6,8 @@ import { CoachesSection } from "../Component/Academie/Coach-section"
 import Tarifs from "../Component/Academie/Tarifs-sec"
 import ProgrammeEntrainement from "../Component/Academie/Programme"
 import LocationComponent from "../Component/Academie/Location"
-import ActivitesAcademie from "../Component/Academie/Activites"
+import EventsSection from "../Component/Events"
+import useScrollToSection from "../lib/hooks/useScrollToSection"
 
 const pageVariants = {
   hidden: { opacity: 0 },
@@ -28,6 +29,9 @@ const sectionVariants = {
 }
 
 export default function AcademyPage() {
+  // Use the custom hook to handle scrolling to sections based on URL hash
+  useScrollToSection();
+  
   return (
     <div className="min-h-screen min-w-screen bg-cover bg-center bg-[#1a1a1a] text-white">
       <motion.div
@@ -37,9 +41,9 @@ export default function AcademyPage() {
         className="max-w-6xl mx-auto px-4 py-12 "
       >
         <Header />
-        <Navigation />
+        {/* <Navigation /> */}
         <AcademyInfo />
-        <ActivitesAcademie/>
+        <EventsSection/>
         <CoachesSection />
       </motion.div>
       <Tarifs/>

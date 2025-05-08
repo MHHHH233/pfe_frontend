@@ -81,7 +81,7 @@ export default function ActivitesAcademie() {
   const regularActivities = activities.slice(1);
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] p-6">   
+    <div id="activités" className="min-h-screen bg-[#1a1a1a] p-6">   
       <div className="relative z-10 max-w-6xl mx-auto">
         <motion.h1
           initial={{ opacity: 0, y: -20 }}

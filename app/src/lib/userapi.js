@@ -35,7 +35,7 @@ apiClient.interceptors.response.use(
       // Clear session storage
       sessionStorage.clear();
       // Redirect to login page
-      window.location.href = '/login';
+      window.location.href = '/sign-in';
     }
     return Promise.reject(error);
   }

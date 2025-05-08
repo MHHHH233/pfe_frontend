@@ -2,16 +2,14 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Info, LogOut, X, Key, Mail, ChevronRight, User2, UserCog } from 'lucide-react'
+import { User, Mail, LogOut, X, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import UserInfoCard from './Userinfos'
 import { authService } from '../../lib/services/authoServices'
 
 const UserIcon = () => {
   const [isOpen, setIsOpen] = useState(false)
   const [userName, setUserName] = useState('')
   const [email, setEmail] = useState('')
-  const [showinfo, setShowinfo] = useState(false)
   const [profilePicture, setProfilePicture] = useState(sessionStorage.getItem('pfp'))
   const navigate = useNavigate()
   const [scrollPosition, setScrollPosition] = useState(0)
@@ -83,16 +81,9 @@ const UserIcon = () => {
     }
   }
 
-  const Infos = () => {
-    setShowinfo(!showinfo)
-    setIsOpen(false)
-  }
-
   const actions = [
-    { text: 'My Info', icon: Info, action: Infos },
-    { text: 'Change Password', icon: Key, action: () => handleNavigate('changepw') },
+    { text: 'My Profile', icon: User, action: () => handleNavigate('profile') },
     { text: 'Contact Us', icon: Mail, action: () => handleNavigate('contactus') },
-    { text: 'Settings', icon: UserCog, action: () => handleNavigate('settings') },
     { text: 'Disconnect', icon: LogOut, action: handleLogout }
   ]
 
@@ -194,8 +185,6 @@ const UserIcon = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {showinfo && <UserInfoCard isOpen={showinfo} setIsOpen={setShowinfo} />}
     </>
   )
 }

@@ -66,7 +66,7 @@ export default function ProgrammeEntrainement() {
   }
 
   return (
-    <div className="relative w-full overflow-hidden bg-[#1a1a1a]">
+    <div id="programmes" className="relative w-full overflow-hidden bg-[#1a1a1a]">
       {/* Video Background */}
       <div className="absolute inset-0 w-screen h-full z-0">
         <video
