@@ -63,6 +63,20 @@ const LoginForm = () => {
             console.log("Academy membership data stored:", response.data.academie_memberships);
           }
           
+          // Store team information
+          sessionStorage.setItem("has_teams", response.data.has_teams || false);
+          
+          if (response.data.has_teams && response.data.teams && response.data.teams.length > 0) {
+            // Store the full teams array
+            sessionStorage.setItem("teams", JSON.stringify(response.data.teams));
+            
+            // Store the first team's ID for easy access
+            const firstTeam = response.data.teams[0];
+            sessionStorage.setItem("id_teams", firstTeam.id_teams);
+            
+            console.log("Team data stored:", response.data.teams);
+          }
+          
           // Store userdetails as a JSON string
           sessionStorage.setItem("userdetails", JSON.stringify(userData));
           const pfp = "http://127.0.0.1:8000/" + userData.pfp

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Star, Filter, X, Calendar, Clock, UserPlus, Users, Trophy, ChevronDown, Play, Pause, ArrowRight, MapPin, Shield, Award } from 'lucide-react';
+import { Search, Star, Filter, X, Calendar, Clock, UserPlus, Users, Trophy, ChevronDown, Play, Pause, ArrowRight, MapPin, Shield, Award, InfoIcon } from 'lucide-react';
 import NavBar from '../Component/NavBar';
 
 // Import services
@@ -66,16 +66,30 @@ const FindPlayerTeam = () => {
     }
   };
   
+  // Reference for top-rated section for search scroll
+  const topRatedRef = useRef(null);
+  
+  // Handle search on enter key
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter' && topRatedRef.current) {
+      topRatedRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+  
   // Fetch players and teams on component mount
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Check if user is already a player or team captain from session storage
+        const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
+        const hasTeams = sessionStorage.getItem('has_teams') === 'true';
+        
         // Fetch players
         const playersResponse = await playersService.getAllPlayers();
         console.log('Players API response:', playersResponse);
         
-        // Check for the specific response format with data property
+        // Handle the new response format with data property
         let playersData = [];
         if (playersResponse && playersResponse.data) {
           playersData = playersResponse.data;
@@ -83,22 +97,37 @@ const FindPlayerTeam = () => {
           playersData = playersResponse;
         }
         
-        // Map API response to expected format if needed
+        // Map API response to the format needed for UI
         const formattedPlayers = Array.isArray(playersData) 
           ? playersData.map(player => {
               if (!player) return null;
+              
+              // Get account ID to potentially fetch profile info like name
+              const accountId = player.id_compte || 0;
+              
+              // Check if this player is the current logged-in user
+              const isCurrentUser = accountId === parseInt(sessionStorage.getItem('userId'), 10);
+              if (isCurrentUser && !isPlayer) {
+                // Update session storage to mark user as a player
+                sessionStorage.setItem('isPlayer', 'true');
+                sessionStorage.setItem('player_id', player.id_player);
+              }
+              
               return {
                 id: player.id_player || 0,
-          // Use placeholder name since actual name might be in a user/compte table
-                name: player.name || `Player ${player.id_player || 'Unknown'}`,
+                id_compte: accountId,
+                name: player.name || `Player ${player.id_player}`,
                 position: player.position || 'Unknown',
                 rating: typeof player.rating === 'number' ? player.rating : 0,
                 matchesPlayed: typeof player.total_matches === 'number' ? player.total_matches : 0,
                 image: player.image || null,
                 starting_time: player.starting_time || null,
                 finishing_time: player.finishing_time || null,
-                id_compte: player.id_compte || null  // Keep this for reference
-          // Add other properties as needed
+                invites_accepted: player.invites_accepted || 0,
+                invites_refused: player.invites_refused || 0,
+                total_invites: player.total_invites || 0,
+                misses: player.misses || 0,
+                isCurrentUser
               };
             }).filter(Boolean) // Remove any null entries
           : [];
@@ -109,7 +138,7 @@ const FindPlayerTeam = () => {
         const teamsResponse = await teamsService.getAllTeams();
         console.log('Teams API response:', teamsResponse);
         
-        // Check for the specific response format with data property
+        // Handle the new response format with data property
         let teamsData = [];
         if (teamsResponse && teamsResponse.data) {
           teamsData = teamsResponse.data;
@@ -121,22 +150,39 @@ const FindPlayerTeam = () => {
         const formattedTeams = Array.isArray(teamsData)
           ? teamsData.map(team => {
               if (!team) return null;
+              
+              // Check if this team belongs to the current user
+              const isUserTeam = team.capitain === parseInt(sessionStorage.getItem('userId'), 10);
+              
+              // If we find the user's team and it's not already marked, update session storage
+              if (isUserTeam && !hasTeams) {
+                sessionStorage.setItem('has_teams', 'true');
+                sessionStorage.setItem('id_teams', team.id_teams);
+                
+                // Store all user teams in session storage
+                const userTeams = formattedTeams.filter(t => t && t.captain === parseInt(sessionStorage.getItem('userId'), 10));
+                sessionStorage.setItem('teams', JSON.stringify(userTeams));
+              }
+              
               return {
                 id: team.id_teams || 0,
-          // Use placeholder name since actual name might be in another table
-                name: team.name || `Team ${team.id_teams || 'Unknown'}`,
+                name: team.name || `Team ${team.id_teams}`,
                 rating: typeof team.rating === 'number' ? team.rating : 0,
                 image: team.image || null,
-                captain: team.capitain || null,  // Maintain original property name from API
+                captain: team.capitain || null,
                 starting_time: team.starting_time || null,
-                finishing_time: team.finishing_time || null
-          // Add other properties as needed
+                finishing_time: team.finishing_time || null,
+                total_matches: team.total_matches || 0,
+                invites_accepted: team.invites_accepted || 0,
+                invites_refused: team.invites_refused || 0,
+                total_invites: team.total_invites || 0,
+                misses: team.misses || 0,
+                isUserTeam
               };
             }).filter(Boolean) // Remove any null entries
           : [];
         
         setTeams(formattedTeams);
-        
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -185,7 +231,9 @@ const FindPlayerTeam = () => {
       })
     : [];
 
-
+  // Get user player status
+  const isUserPlayer = sessionStorage.getItem('isPlayer') === 'true';
+  const hasTeams = sessionStorage.getItem('has_teams') === 'true';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#121212] to-[#1e1e1e] text-white font-sans">      
@@ -201,6 +249,9 @@ const FindPlayerTeam = () => {
             loop 
             muted 
             className="w-full h-full object-cover"
+            playsInline
+            onCanPlay={() => setIsVideoPlaying(true)}
+            onWaiting={() => setIsVideoPlaying(false)}
           >
             <source src="https://res.cloudinary.com/dlt4bs1dn/video/upload/v1680732060/soccer-video_pgfovl.mp4" type="video/mp4" />
             Your browser does not support the video tag.
@@ -210,6 +261,7 @@ const FindPlayerTeam = () => {
           <button 
             onClick={handleVideoToggle}
             className="absolute bottom-8 right-8 z-30 bg-white/10 backdrop-blur-md rounded-full p-3 hover:bg-white/20 transition-all"
+            aria-label={isVideoPlaying ? "Pause video" : "Play video"}
           >
             {isVideoPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
           </button>
@@ -242,6 +294,7 @@ const FindPlayerTeam = () => {
                   className="w-full py-4 pl-12 pr-6 rounded-xl bg-white/10 backdrop-blur-md border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
             />
               </div>
               
@@ -249,7 +302,7 @@ const FindPlayerTeam = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
+                  className={`${activeTab === 'players' ? 'bg-[#07f468] text-black' : 'bg-white/10 backdrop-blur-md text-white'} font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg ${activeTab === 'players' ? 'shadow-[#07f468]/20' : ''}`}
                   onClick={() => setActiveTab('players')}
                 >
                   <Users className="w-5 h-5 mr-2" />
@@ -258,7 +311,7 @@ const FindPlayerTeam = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="bg-white/10 backdrop-blur-md text-white font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-white/20 transition-all border border-white/10"
+                  className={`${activeTab === 'teams' ? 'bg-[#07f468] text-black' : 'bg-white/10 backdrop-blur-md text-white'} font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all border ${activeTab === 'teams' ? 'border-[#07f468]/30' : 'border-white/10'}`}
                   onClick={() => setActiveTab('teams')}
                 >
                   <Trophy className="w-5 h-5 mr-2" />
@@ -282,7 +335,7 @@ const FindPlayerTeam = () => {
       </section>
 
       {/* Top Ratings Section */}
-      <section id="top-rated" className="py-24 bg-[#111]">
+      <section id="top-rated" ref={topRatedRef} className="py-24 bg-[#111]">
         <div className="container mx-auto px-6">
           <div className="mb-16 text-center">
             <h2 className="text-4xl font-bold mb-3 inline-block relative">
@@ -552,24 +605,33 @@ const FindPlayerTeam = () => {
                         alt={player.name || 'Player'}
                         className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 ease-in-out"
                       />
-                      <div className="absolute bottom-4 left-4 z-20 flex items-center">
+                      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
                         <span className="bg-[#07f468] text-black text-sm font-bold px-3 py-1 rounded-full">
-                          {player.position || 'Player'}
+                          {player.position || 'Unknown'}
                         </span>
+                        {player.isCurrentUser && (
+                          <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                            You
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="p-5">
                       <div className="flex justify-between items-center mb-3">
                         <h3 className="text-xl font-bold truncate">{player.name || 'Unknown Player'}</h3>
                         <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
-                          <span className="mr-1 font-medium">{player.rating || '4.5'}</span>
+                          <span className="mr-1 font-medium">{player.rating || '0'}</span>
                           <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
                         </div>
                       </div>
-                      <div className="text-gray-400 text-sm mb-4">
+                      <div className="text-gray-400 text-sm space-y-1 mb-4">
                         <p className="flex items-center">
                           <Trophy className="w-4 h-4 mr-2 text-[#07f468]" />
                           Matches: {player.matchesPlayed || '0'}
+                        </p>
+                        <p className="flex items-center">
+                          <Clock className="w-4 h-4 mr-2 text-[#07f468]" />
+                          Available: {player.starting_time ? player.starting_time.slice(0, 5) : '--:--'} - {player.finishing_time ? player.finishing_time.slice(0, 5) : '--:--'}
                         </p>
                       </div>
                       <button className="w-full py-2.5 mt-2 rounded-lg bg-white/5 text-white text-sm font-medium hover:bg-[#07f468]/80 hover:text-black transition-all duration-300 flex items-center justify-center">
@@ -597,24 +659,33 @@ const FindPlayerTeam = () => {
                         alt={team.name || 'Team'}
                         className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 ease-in-out"
                       />
-                      <div className="absolute bottom-4 left-4 z-20 flex items-center">
+                      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
                         <span className="bg-[#07f468] text-black text-sm font-bold px-3 py-1 rounded-full">
                           Team
                         </span>
+                        {team.isUserTeam && (
+                          <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                            Your Team
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="p-5">
                       <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-xl font-bold truncate">{team.name || 'Unknown Team'}</h3>
+                        <h3 className="text-xl font-bold truncate">{team.name || `Team ${team.id || 'Unknown'}`}</h3>
                         <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
-                          <span className="mr-1 font-medium">{team.rating || '4.5'}</span>
+                          <span className="mr-1 font-medium">{team.rating || '0'}</span>
                           <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
                         </div>
                       </div>
-                      <div className="text-gray-400 text-sm mb-4">
+                      <div className="text-gray-400 text-sm space-y-1 mb-4">
                         <p className="flex items-center">
-                          <Shield className="w-4 h-4 mr-2 text-[#07f468]" />
-                          Team ID: {team.id || 'N/A'}
+                          <Trophy className="w-4 h-4 mr-2 text-[#07f468]" />
+                          Matches: {team.total_matches || '0'}
+                        </p>
+                        <p className="flex items-center">
+                          <Clock className="w-4 h-4 mr-2 text-[#07f468]" />
+                          Available: {team.starting_time ? team.starting_time.slice(0, 5) : '--:--'} - {team.finishing_time ? team.finishing_time.slice(0, 5) : '--:--'}
                         </p>
                       </div>
                       <button className="w-full py-2.5 mt-2 rounded-lg bg-white/5 text-white text-sm font-medium hover:bg-[#07f468]/80 hover:text-black transition-all duration-300 flex items-center justify-center">
@@ -633,12 +704,18 @@ const FindPlayerTeam = () => {
               <Users className="w-12 h-12 mx-auto mb-4 text-gray-500" />
               <p className="text-xl font-medium text-white mb-2">No players found</p>
               <p className="text-base text-gray-400 mb-6 max-w-md mx-auto">We couldn't find any players matching your search criteria. Try adjusting your filters or create a new player profile.</p>
-              <button 
-                className="bg-[#07f468] text-black font-bold py-2.5 px-6 rounded-lg hover:bg-[#06d35a] transition-all"
-                onClick={handleCreatePlayerProfile}
-              >
-                Create Player Profile
-              </button>
+              {!isUserPlayer ? (
+                <button 
+                  className="bg-[#07f468] text-black font-bold py-2.5 px-6 rounded-lg hover:bg-[#06d35a] transition-all"
+                  onClick={handleCreatePlayerProfile}
+                >
+                  Create Player Profile
+                </button>
+              ) : (
+                <div className="text-center bg-blue-500/20 p-4 inline-block rounded-lg border border-blue-500/30">
+                  <p className="text-blue-400">You already have a player profile</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -696,36 +773,48 @@ const FindPlayerTeam = () => {
                 </p>
                 
                 <div className="mt-auto">
-                  <div className="mb-8 space-y-3">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                        <Trophy className="w-4 h-4 text-[#07f468]" />
+                  {!isUserPlayer ? (
+                    <>
+                      <div className="mb-8 space-y-3">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
+                            <Trophy className="w-4 h-4 text-[#07f468]" />
+                          </div>
+                          <p className="text-white">Showcase your skills and achievements</p>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
+                            <Users className="w-4 h-4 text-[#07f468]" />
+                          </div>
+                          <p className="text-white">Get discovered by teams in your area</p>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
+                            <Calendar className="w-4 h-4 text-[#07f468]" />
+                          </div>
+                          <p className="text-white">Manage your availability and matches</p>
+                        </div>
                       </div>
-                      <p className="text-white">Showcase your skills and achievements</p>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                        <Users className="w-4 h-4 text-[#07f468]" />
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}              
+                        whileTap={{ scale: 0.95 }}
+                        className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20 w-full"
+                        onClick={handleCreatePlayerProfile}
+                      >
+                        <UserPlus className="w-5 h-5 mr-2" />
+                        Create Player Profile
+                      </motion.button>
+                    </>
+                  ) : (
+                    <div className="bg-blue-500/20 p-6 rounded-xl border border-blue-500/30 text-center">
+                      <div className="w-16 h-16 mx-auto bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                        <UserPlus className="w-8 h-8 text-blue-400" />
                       </div>
-                      <p className="text-white">Get discovered by teams in your area</p>
+                      <h3 className="text-xl font-medium text-blue-400 mb-2">You're Already a Player</h3>
+                      <p className="text-gray-300">Your player profile is active. You can manage your profile and check invitations in the dashboard.</p>
                     </div>
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                        <Calendar className="w-4 h-4 text-[#07f468]" />
-                      </div>
-                      <p className="text-white">Manage your availability and matches</p>
-                    </div>
-                  </div>
-                  
-                  <motion.button
-              whileHover={{ scale: 1.05 }}              
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20 w-full"
-                    onClick={handleCreatePlayerProfile}
-                  >
-                    <UserPlus className="w-5 h-5 mr-2" />
-                Create Player Profile
-                  </motion.button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -754,36 +843,48 @@ const FindPlayerTeam = () => {
                 </p>
                 
                 <div className="mt-auto">
-                  <div className="mb-8 space-y-3">
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                        <Users className="w-4 h-4 text-[#07f468]" />
+                  {!hasTeams ? (
+                    <>
+                      <div className="mb-8 space-y-3">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
+                            <Users className="w-4 h-4 text-[#07f468]" />
+                          </div>
+                          <p className="text-white">Find and recruit talented players</p>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
+                            <Trophy className="w-4 h-4 text-[#07f468]" />
+                          </div>
+                          <p className="text-white">Organize and participate in tournaments</p>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
+                            <Award className="w-4 h-4 text-[#07f468]" />
+                          </div>
+                          <p className="text-white">Build your team's reputation and ranking</p>
+                        </div>
                       </div>
-                      <p className="text-white">Find and recruit talented players</p>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                        <Trophy className="w-4 h-4 text-[#07f468]" />
+                      
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}              
+                        whileTap={{ scale: 0.95 }}
+                        className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20 w-full"
+                        onClick={handleRegisterTeam}
+                      >
+                        <Trophy className="w-5 h-5 mr-2" />
+                        Register Team
+                      </motion.button>
+                    </>
+                  ) : (
+                    <div className="bg-blue-500/20 p-6 rounded-xl border border-blue-500/30 text-center">
+                      <div className="w-16 h-16 mx-auto bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                        <Shield className="w-8 h-8 text-blue-400" />
                       </div>
-                      <p className="text-white">Organize and participate in tournaments</p>
+                      <h3 className="text-xl font-medium text-blue-400 mb-2">You Already Have a Team</h3>
+                      <p className="text-gray-300">Your team is registered. You can manage your team and check match requests in the dashboard.</p>
                     </div>
-                    <div className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                        <Award className="w-4 h-4 text-[#07f468]" />
-                      </div>
-                      <p className="text-white">Build your team's reputation and ranking</p>
-                    </div>
-                  </div>
-                  
-                  <motion.button
-              whileHover={{ scale: 1.05 }}              
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20 w-full"
-                    onClick={handleRegisterTeam}
-                  >
-                    <Trophy className="w-5 h-5 mr-2" />
-                Register Team
-                  </motion.button>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -834,12 +935,17 @@ const FindPlayerTeam = () => {
                         {selectedPlayer.position || 'Position Not Set'}
                       </span>
                       <div className="flex items-center bg-white/10 px-2 py-1 rounded-full">
-                        <span className="mr-1 font-medium">{selectedPlayer.rating || '4.5'}</span>
+                        <span className="mr-1 font-medium">{selectedPlayer.rating || '0'}</span>
                         <Star className="w-3.5 h-3.5 text-[#07f468]" fill="#07f468" />
                       </div>
+                      {selectedPlayer.isCurrentUser && (
+                        <span className="bg-blue-500/20 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-md">
+                          Your Profile
+                        </span>
+                      )}
                     </div>
                     <h2 className="text-3xl font-bold">{selectedPlayer.name}</h2>
-                    <p className="text-gray-400 mt-1">Member since {new Date().getFullYear()}</p>
+                    <p className="text-gray-400 mt-1">Player ID: {selectedPlayer.id}</p>
                   </div>
                 </div>
                 
@@ -854,30 +960,54 @@ const FindPlayerTeam = () => {
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-gray-400">Matches Played</span>
                           <span className="font-bold">{selectedPlayer.matchesPlayed || '0'}</span>
-              </div>
-                        <div className="w-full bg-white/10 rounded-full h-2.5">
-                          <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
-                               style={{ width: `${Math.min(100, ((selectedPlayer.matchesPlayed || 0) / 50) * 100)}%` }}></div>
-              </div>
-                      </div>
-                      <div className="bg-white/5 p-4 rounded-xl">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-400">Goals Scored</span>
-                          <span className="font-bold">{selectedPlayer.goalsScored || '0'}</span>
                         </div>
                         <div className="w-full bg-white/10 rounded-full h-2.5">
                           <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
-                               style={{ width: `${Math.min(100, ((selectedPlayer.goalsScored || 0) / 30) * 100)}%` }}></div>
+                               style={{ width: `${Math.min(100, ((selectedPlayer.matchesPlayed || 0) / 20) * 100)}%` }}></div>
                         </div>
                       </div>
+                      
                       <div className="bg-white/5 p-4 rounded-xl">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-400">Assists</span>
-                          <span className="font-bold">{selectedPlayer.assists || '0'}</span>
+                          <span className="text-gray-400">Invites Accepted</span>
+                          <span className="font-bold">{selectedPlayer.invites_accepted || '0'}</span>
                         </div>
                         <div className="w-full bg-white/10 rounded-full h-2.5">
                           <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
-                               style={{ width: `${Math.min(100, ((selectedPlayer.assists || 0) / 20) * 100)}%` }}></div>
+                               style={{ width: `${Math.min(100, ((selectedPlayer.invites_accepted || 0) / 10) * 100)}%` }}></div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white/5 p-4 rounded-xl">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-400">Reliability Score</span>
+                          <span className="font-bold">{selectedPlayer.misses === 0 && selectedPlayer.matchesPlayed > 0 ? '100%' : 
+                            selectedPlayer.matchesPlayed > 0 ? 
+                            `${Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100)}%` : 
+                            'N/A'}</span>
+                        </div>
+                        <div className="w-full bg-white/10 rounded-full h-2.5">
+                          <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
+                               style={{ width: selectedPlayer.matchesPlayed > 0 ? 
+                                 `${Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100)}%` : 
+                                 '0%' }}></div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white/5 p-4 rounded-xl">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-400">Response Rate</span>
+                          <span className="font-bold">
+                            {selectedPlayer.total_invites > 0 ? 
+                              `${Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100)}%` : 
+                              'N/A'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-white/10 rounded-full h-2.5">
+                          <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
+                               style={{ width: selectedPlayer.total_invites > 0 ? 
+                                 `${Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100)}%` : 
+                                 '0%' }}></div>
                         </div>
                       </div>
                     </div>
@@ -892,41 +1022,103 @@ const FindPlayerTeam = () => {
                       <p className="text-gray-400 mb-2">Available Times</p>
                       <div className="flex items-center space-x-2">
                         <Clock className="w-5 h-5 text-[#07f468]" />
-                        <span>{selectedPlayer.starting_time || '18:00'} - {selectedPlayer.finishing_time || '22:00'}</span>
+                        <span>
+                          {selectedPlayer.starting_time 
+                            ? selectedPlayer.starting_time.includes('T') 
+                              ? selectedPlayer.starting_time.split('T')[1].substring(0, 5) 
+                              : selectedPlayer.starting_time.substring(0, 5) 
+                            : '18:00'} - 
+                          {selectedPlayer.finishing_time 
+                            ? selectedPlayer.finishing_time.includes('T') 
+                              ? selectedPlayer.finishing_time.split('T')[1].substring(0, 5) 
+                              : selectedPlayer.finishing_time.substring(0, 5) 
+                            : '22:00'}
+                        </span>
                       </div>
                     </div>
                     
                     <h3 className="text-xl font-bold mb-4 flex items-center">
                       <Award className="w-5 h-5 mr-2 text-[#07f468]" />
-                      Achievements
+                      Player Rating Breakdown
                     </h3>
                     <div className="bg-white/5 p-4 rounded-xl">
-                {selectedPlayer.history && selectedPlayer.history.length > 0 ? (
-                        <ul className="space-y-2">
-                    {selectedPlayer.history.map((item, index) => (
-                            <li key={index} className="flex items-start">
-                              <div className="w-2 h-2 mt-1.5 rounded-full bg-[#07f468] mr-2"></div>
-                              <span className="text-sm">{item}</span>
-                            </li>
-                    ))}
-                </ul>
-                ) : (
-                        <p className="text-gray-400">No achievements recorded yet</p>
-                )}
-              </div>
+                      <div className="flex items-center mb-3">
+                        <div className="flex-1">Overall Rating</div>
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star 
+                              key={star} 
+                              className={`w-5 h-5 ${star <= (selectedPlayer.rating || 0) ? 'text-[#07f468]' : 'text-gray-600'}`} 
+                              fill={star <= (selectedPlayer.rating || 0) ? '#07f468' : 'none'} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 mt-4">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Skill Level</span>
+                          <div className="flex items-center">
+                            <div className="w-16 h-2 bg-white/10 rounded-full mr-2 overflow-hidden">
+                              <div className="h-full bg-[#07f468]" style={{ width: `${(selectedPlayer.rating || 0) * 20}%` }}></div>
+                            </div>
+                            <span>{selectedPlayer.rating || 0}/5</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Reliability</span>
+                          <div className="flex items-center">
+                            <div className="w-16 h-2 bg-white/10 rounded-full mr-2 overflow-hidden">
+                              <div className="h-full bg-[#07f468]" 
+                                style={{ width: `${selectedPlayer.matchesPlayed > 0 ? 
+                                  Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100) : 0}%` }}>
+                              </div>
+                            </div>
+                            <span>
+                              {selectedPlayer.matchesPlayed > 0 ? 
+                                Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100) : 0}%
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-400">Responsiveness</span>
+                          <div className="flex items-center">
+                            <div className="w-16 h-2 bg-white/10 rounded-full mr-2 overflow-hidden">
+                              <div className="h-full bg-[#07f468]" 
+                                style={{ width: `${selectedPlayer.total_invites > 0 ? 
+                                  Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100) : 0}%` }}>
+                              </div>
+                            </div>
+                            <span>
+                              {selectedPlayer.total_invites > 0 ? 
+                                Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100) : 0}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="mt-8 flex justify-center md:justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
-                  onClick={() => setShowInviteForm(true)}
-                >
-                    <Calendar className="w-5 h-5 mr-2" />
-                  Invite to Play
-                  </motion.button>
+                  {!selectedPlayer.isCurrentUser ? (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
+                      onClick={() => setShowInviteForm(true)}
+                    >
+                      <Calendar className="w-5 h-5 mr-2" />
+                      Invite to Play
+                    </motion.button>
+                  ) : (
+                    <div className="flex flex-col items-center bg-blue-500/20 p-4 rounded-xl border border-blue-500/30">
+                      <p className="text-blue-400 mb-2">This is your player profile</p>
+                      <p className="text-sm text-gray-400">You can view your matches and requests in the dashboard.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1012,12 +1204,17 @@ const FindPlayerTeam = () => {
                         Team
                       </span>
                       <div className="flex items-center bg-white/10 px-2 py-1 rounded-full">
-                        <span className="mr-1 font-medium">{selectedTeam.rating || '4.5'}</span>
+                        <span className="mr-1 font-medium">{selectedTeam.rating || '0'}</span>
                         <Star className="w-3.5 h-3.5 text-[#07f468]" fill="#07f468" />
                       </div>
+                      {selectedTeam.isUserTeam && (
+                        <span className="bg-blue-500/20 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-md">
+                          Your Team
+                        </span>
+                      )}
                     </div>
-                    <h2 className="text-3xl font-bold">{selectedTeam.name}</h2>
-                    <p className="text-gray-400 mt-1">Founded: {selectedTeam.founded || 'Not specified'}</p>
+                    <h2 className="text-3xl font-bold">{selectedTeam.name || `Team ${selectedTeam.id}`}</h2>
+                    <p className="text-gray-400 mt-1">Team ID: {selectedTeam.id}</p>
                   </div>
                 </div>
                 
@@ -1030,26 +1227,62 @@ const FindPlayerTeam = () => {
                     <div className="space-y-4">
                       <div className="bg-white/5 p-4 rounded-xl">
                         <div className="flex mb-2">
-                          <div className="w-32 text-gray-400">Captain</div>
+                          <div className="w-32 text-gray-400">Captain ID</div>
                           <div className="font-medium">{selectedTeam.captain || 'Not specified'}</div>
-              </div>
+                        </div>
                         <div className="flex mb-2">
-                          <div className="w-32 text-gray-400">Home Stadium</div>
-                          <div className="font-medium">{selectedTeam.homeStadium || 'Not specified'}</div>
-              </div>
+                          <div className="w-32 text-gray-400">Total Matches</div>
+                          <div className="font-medium">{selectedTeam.total_matches || '0'}</div>
+                        </div>
                         <div className="flex mb-2">
-                          <div className="w-32 text-gray-400">League</div>
-                          <div className="font-medium">{selectedTeam.league || 'Not specified'}</div>
+                          <div className="w-32 text-gray-400">Invites Accepted</div>
+                          <div className="font-medium">{selectedTeam.invites_accepted || '0'}</div>
                         </div>
                         <div className="flex">
-                          <div className="w-32 text-gray-400">Team ID</div>
-                          <div className="font-medium">{selectedTeam.id || 'N/A'}</div>
+                          <div className="w-32 text-gray-400">Invites Refused</div>
+                          <div className="font-medium">{selectedTeam.invites_refused || '0'}</div>
                         </div>
                       </div>
                       
                       <div className="bg-white/5 p-4 rounded-xl">
-                        <h4 className="font-medium mb-3">Team Description</h4>
-                        <p className="text-gray-300 text-sm">{selectedTeam.description || 'No team description available.'}</p>
+                        <h4 className="font-medium mb-3">Team Performance</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span>Reliability Score</span>
+                              <span className="font-medium">
+                                {selectedTeam.total_matches > 0 ? 
+                                  `${Math.round(((selectedTeam.total_matches - (selectedTeam.misses || 0)) / selectedTeam.total_matches) * 100)}%` : 
+                                  'N/A'}
+                              </span>
+                            </div>
+                            <div className="w-full bg-white/10 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2 rounded-full" 
+                                  style={{ width: selectedTeam.total_matches > 0 ? 
+                                    `${Math.round(((selectedTeam.total_matches - (selectedTeam.misses || 0)) / selectedTeam.total_matches) * 100)}%` : 
+                                    '0%' }}>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span>Response Rate</span>
+                              <span className="font-medium">
+                                {selectedTeam.total_invites > 0 ? 
+                                  `${Math.round(((selectedTeam.invites_accepted || 0) + (selectedTeam.invites_refused || 0)) / selectedTeam.total_invites * 100)}%` : 
+                                  'N/A'}
+                              </span>
+                            </div>
+                            <div className="w-full bg-white/10 rounded-full h-2">
+                              <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2 rounded-full" 
+                                  style={{ width: selectedTeam.total_invites > 0 ? 
+                                    `${Math.round(((selectedTeam.invites_accepted || 0) + (selectedTeam.invites_refused || 0)) / selectedTeam.total_invites * 100)}%` : 
+                                    '0%' }}>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1063,43 +1296,66 @@ const FindPlayerTeam = () => {
                       <p className="text-gray-400 mb-2">Available Times</p>
                       <div className="flex items-center space-x-2">
                         <Clock className="w-5 h-5 text-[#07f468]" />
-                        <span>{selectedTeam.starting_time || '18:00'} - {selectedTeam.finishing_time || '22:00'}</span>
+                        <span>
+                          {selectedTeam.starting_time 
+                            ? selectedTeam.starting_time.includes('T') 
+                              ? selectedTeam.starting_time.split('T')[1].substring(0, 5) 
+                              : selectedTeam.starting_time.substring(0, 5) 
+                            : '18:00'} - 
+                          {selectedTeam.finishing_time 
+                            ? selectedTeam.finishing_time.includes('T') 
+                              ? selectedTeam.finishing_time.split('T')[1].substring(0, 5) 
+                              : selectedTeam.finishing_time.substring(0, 5) 
+                            : '22:00'}
+                        </span>
                       </div>
                     </div>
                     
                     <h3 className="text-xl font-bold mb-4 flex items-center">
                       <Trophy className="w-5 h-5 mr-2 text-[#07f468]" />
-                      Team Achievements
+                      Team Rating
                     </h3>
                     <div className="bg-white/5 p-4 rounded-xl">
-                {selectedTeam.achievements && selectedTeam.achievements.length > 0 ? (
-                        <ul className="space-y-3">
-                    {selectedTeam.achievements.map((achievement, index) => (
-                      <li key={index} className="flex items-center">
-                              <div className="w-8 h-8 rounded-full bg-[#07f468]/20 flex items-center justify-center mr-3">
-                                <Trophy className="w-4 h-4 text-[#07f468]" />
-                              </div>
-                        <span>{achievement}</span>
-                  </li>
-                    ))}
-                </ul>
-                ) : (
-                        <p className="text-gray-400">No tournament history available</p>
-                )}
-              </div>
+                      <div className="flex items-center mb-6">
+                        <div className="flex-1">Overall Rating</div>
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star 
+                              key={star} 
+                              className={`w-5 h-5 ${star <= (selectedTeam.rating || 0) ? 'text-[#07f468]' : 'text-gray-600'}`} 
+                              fill={star <= (selectedTeam.rating || 0) ? '#07f468' : 'none'} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="p-3 rounded-lg bg-[#07f468]/10 border border-[#07f468]/20">
+                        <p className="text-sm flex items-start">
+                          <InfoIcon className="w-5 h-5 text-[#07f468] mr-2 flex-shrink-0" />
+                          Team rating is calculated based on match performance, sportsmanship, and peer reviews from opponents.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="mt-8 flex justify-center md:justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
-                  onClick={() => setShowInviteForm(true)}
-                >
-                    <Calendar className="w-5 h-5 mr-2" />
-                  Contact Team
-                  </motion.button>
+                  {!selectedTeam.isUserTeam ? (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
+                      onClick={() => setShowInviteForm(true)}
+                    >
+                      <Calendar className="w-5 h-5 mr-2" />
+                      Contact Team
+                    </motion.button>
+                  ) : (
+                    <div className="flex flex-col items-center bg-blue-500/20 p-4 rounded-xl border border-blue-500/30">
+                      <p className="text-blue-400 mb-2">This is your team</p>
+                      <p className="text-sm text-gray-400">You can manage your team from the dashboard</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1166,14 +1422,169 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [availableTeams, setAvailableTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState('');
+  const [loadingTeams, setLoadingTeams] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+
+  // Get tomorrow's date as the default minimum date for the calendar
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowFormatted = tomorrow.toISOString().split('T')[0];
+
+  useEffect(() => {
+    // If the user is sending a request to a player, we need to fetch their teams
+    if (selectedPlayer && !selectedTeam) {
+      fetchUserTeams();
+    }
+
+    // Set default match date to tomorrow
+    setFormData(prev => ({
+      ...prev,
+      match_date: tomorrowFormatted
+    }));
+
+    // If a player or team is selected, set a default time based on their availability
+    if (selectedPlayer) {
+      const defaultTime = selectedPlayer.starting_time ? 
+        selectedPlayer.starting_time.substring(0, 5) : '18:00';
+      setFormData(prev => ({ ...prev, starting_time: defaultTime }));
+    } else if (selectedTeam) {
+      const defaultTime = selectedTeam.starting_time ? 
+        selectedTeam.starting_time.substring(0, 5) : '18:00';
+      setFormData(prev => ({ ...prev, starting_time: defaultTime }));
+    }
+  }, [selectedPlayer, selectedTeam]);
+
+  const fetchUserTeams = async () => {
+    try {
+      setLoadingTeams(true);
+      
+      // First check if we have team info in session storage
+      const hasTeams = sessionStorage.getItem('has_teams') === 'true';
+      const teamsData = sessionStorage.getItem('teams');
+      
+      if (hasTeams && teamsData) {
+        try {
+          const parsedTeams = JSON.parse(teamsData);
+          if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
+            setAvailableTeams(parsedTeams);
+            setSelectedTeamId(parsedTeams[0].id_teams);
+            setLoadingTeams(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error parsing teams data from session storage:', error);
+        }
+      }
+      
+      // If no valid teams in session storage, fetch from API
+      const response = await teamsService.getAllTeams();
+      
+      // Filter teams where the user is the captain
+      let userTeams = [];
+      if (response && response.data) {
+        const userId = parseInt(sessionStorage.getItem('userId'), 10);
+        const playerId = parseInt(sessionStorage.getItem('player_id'), 10);
+        
+        userTeams = response.data.filter(team => 
+          team.capitain === userId || 
+          parseInt(team.capitain, 10) === userId ||
+          team.capitain === playerId ||
+          parseInt(team.capitain, 10) === playerId
+        );
+        
+        // Update session storage with the teams data
+        if (userTeams.length > 0) {
+          sessionStorage.setItem('has_teams', 'true');
+          sessionStorage.setItem('teams', JSON.stringify(userTeams));
+          sessionStorage.setItem('id_teams', userTeams[0].id_teams);
+        }
+      }
+      
+      setAvailableTeams(userTeams);
+      
+      // Set the first team as selected by default if available
+      if (userTeams.length > 0) {
+        setSelectedTeamId(userTeams[0].id_teams);
+      }
+    } catch (error) {
+      console.error('Error fetching user teams:', error);
+      setSubmitError('Failed to load your teams. Please try again later.');
+    } finally {
+      setLoadingTeams(false);
+    }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    // Validate date
+    if (!formData.match_date) {
+      errors.match_date = 'Date is required';
+    } else {
+      const selectedDate = new Date(formData.match_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (selectedDate < today) {
+        errors.match_date = 'Date cannot be in the past';
+      }
+    }
+    
+    // Validate time
+    if (!formData.starting_time) {
+      errors.starting_time = 'Time is required';
+    } else {
+      // Check if time is within available hours
+      if (selectedPlayer) {
+        const playerStartTime = selectedPlayer.starting_time ? 
+          selectedPlayer.starting_time.substring(0, 5) : '00:00';
+        const playerEndTime = selectedPlayer.finishing_time ? 
+          selectedPlayer.finishing_time.substring(0, 5) : '23:59';
+          
+        if (formData.starting_time < playerStartTime || formData.starting_time > playerEndTime) {
+          errors.starting_time = `Time must be between ${playerStartTime} and ${playerEndTime}`;
+        }
+      } else if (selectedTeam) {
+        const teamStartTime = selectedTeam.starting_time ? 
+          selectedTeam.starting_time.substring(0, 5) : '00:00';
+        const teamEndTime = selectedTeam.finishing_time ? 
+          selectedTeam.finishing_time.substring(0, 5) : '23:59';
+          
+        if (formData.starting_time < teamStartTime || formData.starting_time > teamEndTime) {
+          errors.starting_time = `Time must be between ${teamStartTime} and ${teamEndTime}`;
+        }
+      }
+    }
+    
+    // Validate team selection when inviting a player
+    if (selectedPlayer && !selectedTeam && !selectedTeamId) {
+      errors.team = 'Please select a team';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear validation error when field is changed
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+    
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -1185,15 +1596,30 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
         return;
       }
 
+      // Get player_id from session storage
+      const playerId = sessionStorage.getItem('player_id');
+      if (!playerId) {
+        setSubmitError('You need to create a player profile before sending requests.');
+        setIsSubmitting(false);
+        return;
+      }
+
       // Prepare data for API with the correct field names
       const requestData = {
-        sender: parseInt(currentUser.id, 10),
-        receiver: selectedPlayer ? selectedPlayer.id_compte || selectedPlayer.id : (selectedTeam ? selectedTeam.id : null),
+        sender: parseInt(playerId, 10), // Use player_id instead of user ID
+        receiver: selectedPlayer ? 
+          (selectedPlayer.id_player || selectedPlayer.id) : // Use id_player for player requests
+          (selectedTeam ? selectedTeam.id_teams || selectedTeam.id : null),
         match_date: formData.match_date,
         starting_time: formData.starting_time + ':00', // Add seconds to match the required H:i:s format
         message: formData.message || '',
         type: selectedPlayer ? 'PLAYER_REQUEST' : 'TEAM_REQUEST'
       };
+      
+      // If inviting a player, add the team_id
+      if (selectedPlayer && selectedTeamId) {
+        requestData.team_id = parseInt(selectedTeamId, 10);
+      }
 
       console.log('Sending request data:', requestData);
 
@@ -1206,9 +1632,22 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
       }, 2000);
     } catch (error) {
       console.error('Error submitting request:', error);
-      if (error.response && error.response.data && error.response.data.error) {
-        // Display the specific error from the API if available
-        setSubmitError(JSON.stringify(error.response.data.error));
+      if (error.response && error.response.data) {
+        if (error.response.data.error && typeof error.response.data.error === 'object') {
+          // Handle validation errors from the API
+          const apiErrors = error.response.data.error;
+          const formattedErrors = {};
+          
+          Object.keys(apiErrors).forEach(key => {
+            formattedErrors[key] = apiErrors[key][0];
+          });
+          
+          setValidationErrors(formattedErrors);
+        } else if (error.response.data.message) {
+          setSubmitError(error.response.data.message);
+        } else {
+          setSubmitError('Failed to send request. Please check your inputs and try again.');
+        }
       } else {
         setSubmitError('Failed to send request. Please try again later.');
       }
@@ -1219,85 +1658,188 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
 
   if (submitSuccess) {
     return (
-      <div className="text-center py-4">
+      <div className="text-center py-8">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-green-500 bg-opacity-20 border border-green-500 text-white p-4 rounded-lg"
+          className="bg-green-500/20 border border-green-500 text-white p-6 rounded-xl"
         >
-          Request sent successfully!
+          <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+            <Calendar className="w-8 h-8 text-green-500" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">Request Sent Successfully!</h3>
+          <p className="mb-4">Your invitation has been sent. You'll be notified when they respond.</p>
+          <button
+            onClick={onClose}
+            className="bg-white text-green-700 font-semibold py-2 px-6 rounded-lg hover:bg-green-50 transition-colors"
+          >
+            Close
+          </button>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="mb-4">
-        <label htmlFor="match_date" className="block text-sm font-medium text-gray-300 mb-1">
-          Date
-        </label>
-        <div className="relative">
-          <input
-            type="date"
-            id="match_date"
-            name="match_date"
-            value={formData.match_date}
-            onChange={handleChange}
-            required
-            className="w-full py-2 px-4 rounded-lg bg-white bg-opacity-10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-[#07f468]"
-          />
-          <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-300" />
-        </div>
-      </div>
-      <div className="mb-4">
-        <label htmlFor="starting_time" className="block text-sm font-medium text-gray-300 mb-1">
-          Time
-        </label>
-        <div className="relative">
-          <input
-            type="time"
-            id="starting_time"
-            name="starting_time"
-            value={formData.starting_time}
-            onChange={handleChange}
-            required
-            className="w-full py-2 px-4 rounded-lg bg-white bg-opacity-10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-[#07f468]"
-          />
-          <Clock className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-300" />
-        </div>
-      </div>
+    <>
       <div className="mb-6">
-        <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-1">
-          Message (optional)
-        </label>
-        <textarea
-          id="message"
-          name="message"
-          value={formData.message}
-          onChange={handleChange}
-          rows="3"
-          className="w-full py-2 px-4 rounded-lg bg-white bg-opacity-10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-[#07f468]"
-          placeholder="Add a personal message..."
-        ></textarea>
+        <h3 className="text-xl font-bold mb-2 flex items-center">
+          <Calendar className="w-5 h-5 mr-2 text-[#07f468]" />
+          {selectedPlayer 
+            ? `Invite ${selectedPlayer.name} to Play` 
+            : `Contact ${selectedTeam?.name || 'Team'}`
+          }
+        </h3>
+        <p className="text-gray-400 text-sm">
+          {selectedPlayer 
+            ? `Available: ${selectedPlayer.starting_time ? selectedPlayer.starting_time.substring(0, 5) : '--:--'} - ${selectedPlayer.finishing_time ? selectedPlayer.finishing_time.substring(0, 5) : '--:--'}`
+            : selectedTeam 
+              ? `Available: ${selectedTeam.starting_time ? selectedTeam.starting_time.substring(0, 5) : '--:--'} - ${selectedTeam.finishing_time ? selectedTeam.finishing_time.substring(0, 5) : '--:--'}`
+              : 'Select a time for your match'
+          }
+        </p>
       </div>
-      
+
       {submitError && (
-        <div className="mb-4 bg-red-500 bg-opacity-20 border border-red-500 text-white p-3 rounded-lg text-sm">
-          {submitError}
+        <div className="mb-6 bg-red-500/20 border border-red-500 text-white p-4 rounded-lg flex items-start">
+          <X className="w-5 h-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
+          <p>{submitError}</p>
         </div>
       )}
-      
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="bg-[#07f468] text-black font-semibold py-2 px-4 rounded-lg hover:bg-[#06d35a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? 'Sending...' : 'Send Request'}
-        </button>
-      </div>
-    </form>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Team selection is hidden but we still use the selectedTeamId value */}
+        {selectedPlayer && !selectedTeam && loadingTeams && (
+          <div className="mb-4 bg-[#07f468]/10 p-4 rounded-lg border border-[#07f468]/30">
+            <div className="flex items-center">
+              <div className="w-5 h-5 border-2 border-[#07f468] border-t-transparent rounded-full animate-spin mr-2"></div>
+              <p className="text-[#07f468]">Loading your team information...</p>
+            </div>
+          </div>
+        )}
+        
+        {selectedPlayer && !selectedTeam && !loadingTeams && availableTeams.length > 0 && (
+          <div className="mb-4 bg-[#07f468]/10 p-4 rounded-lg border border-[#07f468]/30">
+            <div className="flex items-center">
+              <div className="p-2 bg-[#07f468]/20 rounded-full mr-3">
+                <Trophy className="w-5 h-5 text-[#07f468]" />
+              </div>
+              <div>
+                <h3 className="font-medium text-white">You'll send this invitation as:</h3>
+                <p className="text-sm text-[#07f468]">
+                  {availableTeams.find(team => team.id_teams === parseInt(selectedTeamId))?.name || `Team #${selectedTeamId}`}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {selectedPlayer && !selectedTeam && !loadingTeams && availableTeams.length === 0 && (
+          <div className="mb-4 bg-yellow-500/20 border border-yellow-500/30 text-white p-4 rounded-lg">
+            <p className="text-center">You don't have any teams. Please register a team first.</p>
+          </div>
+        )}
+
+        {/* Date picker */}
+        <div>
+          <label htmlFor="match_date" className="block text-sm font-medium text-gray-300 mb-1">
+            Match Date *
+          </label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="date"
+              id="match_date"
+              name="match_date"
+              value={formData.match_date}
+              onChange={handleChange}
+              min={tomorrowFormatted}
+              required
+              className={`w-full py-3 pl-10 pr-4 rounded-lg bg-white/5 border ${validationErrors.match_date ? 'border-red-500' : 'border-white/10'} text-white focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all`}
+            />
+          </div>
+          {validationErrors.match_date && (
+            <p className="mt-1 text-sm text-red-500">{validationErrors.match_date}</p>
+          )}
+        </div>
+
+        {/* Time picker */}
+        <div>
+          <label htmlFor="starting_time" className="block text-sm font-medium text-gray-300 mb-1">
+            Match Time *
+          </label>
+          <div className="relative">
+            <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="time"
+              id="starting_time"
+              name="starting_time"
+              value={formData.starting_time}
+              onChange={handleChange}
+              required
+              className={`w-full py-3 pl-10 pr-4 rounded-lg bg-white/5 border ${validationErrors.starting_time ? 'border-red-500' : 'border-white/10'} text-white focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all`}
+            />
+          </div>
+          {validationErrors.starting_time && (
+            <p className="mt-1 text-sm text-red-500">{validationErrors.starting_time}</p>
+          )}
+          <p className="mt-1 text-xs text-gray-500">
+            {selectedPlayer 
+              ? `${selectedPlayer.name} is available between ${selectedPlayer.starting_time ? selectedPlayer.starting_time.substring(0, 5) : '--:--'} and ${selectedPlayer.finishing_time ? selectedPlayer.finishing_time.substring(0, 5) : '--:--'}`
+              : selectedTeam 
+                ? `${selectedTeam.name} is available between ${selectedTeam.starting_time ? selectedTeam.starting_time.substring(0, 5) : '--:--'} and ${selectedTeam.finishing_time ? selectedTeam.finishing_time.substring(0, 5) : '--:--'}`
+                : 'Select a time for your match'
+            }
+          </p>
+        </div>
+
+        {/* Message */}
+        <div>
+          <label htmlFor="message" className="block text-sm font-medium text-gray-300 mb-1">
+            Message (optional)
+          </label>
+          <textarea
+            id="message"
+            name="message"
+            value={formData.message}
+            onChange={handleChange}
+            rows="3"
+            className={`w-full py-3 px-4 rounded-lg bg-white/5 border ${validationErrors.message ? 'border-red-500' : 'border-white/10'} text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all`}
+            placeholder="Add a personal message..."
+          ></textarea>
+          {validationErrors.message && (
+            <p className="mt-1 text-sm text-red-500">{validationErrors.message}</p>
+          )}
+        </div>
+        
+        <div className="flex justify-end space-x-3 mt-8">
+          <button
+            type="button"
+            onClick={onClose}
+            className="border border-white/20 text-white py-2.5 px-6 rounded-lg hover:bg-white/5 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting || (selectedPlayer && !selectedTeam && availableTeams.length === 0)}
+            className="bg-[#07f468] text-black font-semibold py-2.5 px-6 rounded-lg hover:bg-[#06d35a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin mr-2"></div>
+                Sending...
+              </>
+            ) : (
+              <>
+                Send Request
+                <Calendar className="w-5 h-5 ml-2" />
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </>
   );
 };
 
@@ -1306,14 +1848,13 @@ const PlayerForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
     position: '',
     starting_time: '',
-    finishing_time: '',
-    bio: '',
-    image: null
+    finishing_time: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [userIdError, setUserIdError] = useState(false);
+  const [existingPlayerError, setExistingPlayerError] = useState(false);
 
   useEffect(() => {
     // Set default times if not already set
@@ -1323,15 +1864,26 @@ const PlayerForm = ({ onClose }) => {
     if (!formData.finishing_time) {
       setFormData(prev => ({ ...prev, finishing_time: '22:00' }));
     }
+    
+    // Check if user is logged in
+    const userId = sessionStorage.getItem('userId') || localStorage.getItem('userId');
+    if (!userId) {
+      setUserIdError(true);
+      return;
+    }
+    
+    // Check if user already has a player profile from session storage
+    const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
+    const playerId = sessionStorage.getItem('player_id');
+    
+    if (isPlayer && playerId) {
+      setExistingPlayerError(true);
+    }
   }, []);
 
   const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === 'image' && files.length > 0) {
-      setFormData(prev => ({ ...prev, image: files[0] }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -1340,21 +1892,20 @@ const PlayerForm = ({ onClose }) => {
     setSubmitError(null);
     setUserIdError(false);
 
+    // Check if user already has a player profile
+    const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
+    if (isPlayer) {
+      setExistingPlayerError(true);
+      setIsSubmitting(false);
+      return;
+    }
+
     // Validate times
     const startTime = formData.starting_time;
     const finishTime = formData.finishing_time;
     
-    // Ensure time is in H:i:s format by adding seconds
-    const formattedStartTime = startTime.includes(':') && startTime.split(':').length === 2 
-      ? `${startTime}:00` 
-      : startTime;
-    
-    const formattedFinishTime = finishTime.includes(':') && finishTime.split(':').length === 2 
-      ? `${finishTime}:00` 
-      : finishTime;
-    
-    // Check if finish time is after start time
-    if (formattedStartTime >= formattedFinishTime) {
+    // Check if finish time is after start time in 24-hour format
+    if (startTime >= finishTime) {
       setSubmitError('Finish time must be after start time');
       setIsSubmitting(false);
       return;
@@ -1371,37 +1922,19 @@ const PlayerForm = ({ onClose }) => {
         return;
       }
 
-      // First check if this user already has a player profile
-      try {
-        // You can add a simple GET request to check if a player with this id_compte exists
-        const existingPlayersResponse = await playersService.getAllPlayers();
-        const allPlayers = Array.isArray(existingPlayersResponse) ? existingPlayersResponse : 
-                          (existingPlayersResponse.data || []);
-        
-        const userAlreadyHasProfile = allPlayers.some(player => 
-          player.id_compte === parseInt(userId) || player.id_compte === userId
-        );
-        
-        if (userAlreadyHasProfile) {
-          setSubmitError('You already have a player profile. You cannot create multiple profiles with the same account.');
-          setIsSubmitting(false);
-          return;
-        }
-      } catch (checkError) {
-        console.error('Error checking existing player:', checkError);
-        // Continue with creation attempt even if check fails
-      }
-
       // Create FormData object for file upload
       const playerFormData = new FormData();
       
       // Add user ID from session as id_compte
       playerFormData.append('id_compte', userId);
       
+      // Format the times to match the expected API format (H:i:s)
+      // No need to include the date part, just send the time in the required format
+      playerFormData.append('starting_time', `${startTime}:00`);
+      playerFormData.append('finishing_time', `${finishTime}:00`);
+      
       // Add player specific fields from Players.php model with correct time format
       playerFormData.append('position', formData.position);
-      playerFormData.append('starting_time', formattedStartTime);
-      playerFormData.append('finishing_time', formattedFinishTime);
       
       // Set initial values for all required fields from Players.php model
       playerFormData.append('total_matches', 0);
@@ -1410,16 +1943,16 @@ const PlayerForm = ({ onClose }) => {
       playerFormData.append('invites_accepted', 0);
       playerFormData.append('invites_refused', 0);
       playerFormData.append('total_invites', 0);
-      
-      // Add additional data that might be useful
-      playerFormData.append('bio', formData.bio || '');
-      
-      if (formData.image) {
-        playerFormData.append('image', formData.image);
-      }
 
       // Create player profile
-      await playersService.createPlayer(playerFormData);
+      const response = await playersService.createPlayer(playerFormData);
+      
+      // Update session storage
+      if (response && response.data) {
+        const playerId = response.data.id_player;
+        sessionStorage.setItem('isPlayer', 'true');
+        sessionStorage.setItem('player_id', playerId);
+      }
 
       setSubmitSuccess(true);
       setTimeout(() => {
@@ -1436,12 +1969,22 @@ const PlayerForm = ({ onClose }) => {
         
         if (errorData.details && errorData.details.id_compte && 
             errorData.details.id_compte.includes("The id compte has already been taken.")) {
-          setSubmitError("You already have a player profile. You cannot create multiple profiles with the same account.");
+          setExistingPlayerError(true);
         } else if (errorData.details && 
                   (errorData.details.starting_time || errorData.details.finishing_time)) {
-          setSubmitError("Please ensure your available times are in the correct format and that finish time is after start time.");
+          setSubmitError("Please ensure your available times are in the correct format (HH:MM:SS) and that finish time is after start time.");
+        } else if (errorData.error && typeof errorData.error === 'object') {
+          // Handle the specific error format shown in the user query
+          let errorMessage = "Validation error: ";
+          if (errorData.error.starting_time) {
+            errorMessage += errorData.error.starting_time[0] + " ";
+          }
+          if (errorData.error.finishing_time) {
+            errorMessage += errorData.error.finishing_time[0];
+          }
+          setSubmitError(errorMessage);
         } else {
-          setSubmitError(errorData.error || errorData.message || 'Failed to create player profile. Please try again later.');
+          setSubmitError(errorData.error ? String(errorData.error) : (errorData.message || 'Failed to create player profile. Please try again later.'));
         }
       } else {
       setSubmitError('Failed to create player profile. Please try again later.');
@@ -1459,9 +2002,6 @@ const PlayerForm = ({ onClose }) => {
           animate={{ scale: 1, opacity: 1 }}
           className="bg-green-500/20 border border-green-500 text-white p-6 rounded-lg"
         >
-          <div className="w-16 h-16 mx-auto bg-green-500/20 rounded-full flex items-center justify-center mb-4">
-            <Trophy className="w-8 h-8 text-green-500" />
-          </div>
           <h3 className="text-xl font-bold mb-2">Player Profile Created!</h3>
           <p>Your player profile has been created successfully. You can now be discovered by teams and receive invites to play.</p>
         </motion.div>
@@ -1566,38 +2106,6 @@ const PlayerForm = ({ onClose }) => {
               <p className="text-xs text-gray-400 mt-1">Must be later than start time</p>
             </div>
           </div>
-          
-          <div>
-        <label htmlFor="image" className="block text-sm font-medium text-gray-300 mb-1">
-          Profile Image
-        </label>
-            <div className="relative">
-        <input
-          type="file"
-          id="image"
-          name="image"
-          accept="image/*"
-          onChange={handleChange}
-                className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-        />
-      </div>
-            <p className="text-xs text-gray-400 mt-1">Recommended size: 300x300 pixels</p>
-          </div>
-          
-          <div>
-        <label htmlFor="bio" className="block text-sm font-medium text-gray-300 mb-1">
-          Bio
-        </label>
-        <textarea
-          id="bio"
-          name="bio"
-          value={formData.bio}
-          onChange={handleChange}
-              rows="4"
-              className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-              placeholder="Tell us about yourself, your experience, preferred play style, etc."
-        ></textarea>
-          </div>
       </div>
       
       {submitError && (
@@ -1640,18 +2148,16 @@ const PlayerForm = ({ onClose }) => {
 // TeamForm component
 const TeamForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
-    name: '',
+    team_name: '',
     starting_time: '',
-    finishing_time: '',
-    image: null,
-    homeStadium: '',
-    league: '',
-    description: ''
+    finishing_time: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [userIdError, setUserIdError] = useState(false);
+  const [existingTeamError, setExistingTeamError] = useState(false);
+  const [captainInfo, setCaptainInfo] = useState(null);
 
   useEffect(() => {
     // Set default times if not already set
@@ -1661,15 +2167,61 @@ const TeamForm = ({ onClose }) => {
     if (!formData.finishing_time) {
       setFormData(prev => ({ ...prev, finishing_time: '22:00' }));
     }
+
+    // Check if user is a player
+    const playerId = sessionStorage.getItem('player_id');
+    const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
+    
+    if (!playerId || !isPlayer) {
+      setUserIdError(true);
+      setSubmitError('You must create a player profile before registering a team.');
+      return;
+    }
+    
+    // Get captain info from session storage
+    const userId = sessionStorage.getItem('userId');
+    const captainName = sessionStorage.getItem('nom') || sessionStorage.getItem('name') || 'Unknown';
+    const captainEmail = sessionStorage.getItem('email') || 'No email available';
+
+    if (userId) {
+      setCaptainInfo({
+        id: playerId, // Use player_id instead of user ID
+        name: captainName,
+        email: captainEmail
+      });
+    } else {
+      setUserIdError(true);
+      return;
+    }
+    
+    // Check if user already has a team
+    const hasTeams = sessionStorage.getItem('has_teams') === 'true';
+    const teamId = sessionStorage.getItem('id_teams');
+    
+    if (hasTeams && teamId) {
+      setExistingTeamError(true);
+      // Try to get team details from session storage
+      try {
+        const teamsData = sessionStorage.getItem('teams');
+        if (teamsData) {
+          const teams = JSON.parse(teamsData);
+          if (teams && teams.length > 0) {
+            setCaptainInfo(prev => ({
+              ...prev,
+              teamId: teams[0].id_teams,
+              teamName: teams[0].name || `Team ${teams[0].id_teams}`
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing teams data from session storage:', error);
+      }
+    }
   }, []);
 
   const handleChange = (e) => {
-    const { name, value, files } = e.target;
-    if (name === 'image' && files.length > 0) {
-      setFormData(prev => ({ ...prev, image: files[0] }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -1677,9 +2229,17 @@ const TeamForm = ({ onClose }) => {
     setIsSubmitting(true);
     setSubmitError(null);
     setUserIdError(false);
+    
+    // Check if user already has a team
+    const hasTeams = sessionStorage.getItem('has_teams') === 'true';
+    if (hasTeams) {
+      setExistingTeamError(true);
+      setIsSubmitting(false);
+      return;
+    }
 
     // Validate team name
-    if (!formData.name || formData.name.trim() === '') {
+    if (!formData.team_name || formData.team_name.trim() === '') {
       setSubmitError('Team name is required');
       setIsSubmitting(false);
       return;
@@ -1689,61 +2249,68 @@ const TeamForm = ({ onClose }) => {
     const startTime = formData.starting_time;
     const finishTime = formData.finishing_time;
     
-    // Ensure time is in H:i:s format by adding seconds
-    const formattedStartTime = startTime.includes(':') && startTime.split(':').length === 2 
-      ? `${startTime}:00` 
-      : startTime;
-    
-    const formattedFinishTime = finishTime.includes(':') && finishTime.split(':').length === 2 
-      ? `${finishTime}:00` 
-      : finishTime;
-    
-    // Check if finish time is after start time
-    if (formattedStartTime >= formattedFinishTime) {
+    // Check if finish time is after start time in 24-hour format
+    if (startTime >= finishTime) {
       setSubmitError('Finish time must be after start time');
       setIsSubmitting(false);
       return;
     }
 
     try {
-      // Get user ID from session storage (the team captain)
-      const userId = sessionStorage.getItem('userId') || localStorage.getItem('userId');
+      // Get player ID from session storage (the team captain)
+      const playerId = sessionStorage.getItem('player_id');
       
-      if (!userId) {
-        setUserIdError(true);
-        setSubmitError('You must be logged in to register a team. Please log in and try again.');
+      if (!playerId) {
+        setSubmitError('You must create a player profile before registering a team. Please create your player profile first.');
         setIsSubmitting(false);
         return;
       }
 
-      // Create FormData object for file upload
-      const teamFormData = new FormData();
+      // Format the current date in YYYY-MM-DD format
+      const today = new Date().toISOString().split('T')[0];
 
-      // Add required fields from Teams.php model
-      teamFormData.append('name', formData.name);
-      teamFormData.append('capitain', userId); // Set current user as captain
-      teamFormData.append('starting_time', formattedStartTime);
-      teamFormData.append('finishing_time', formattedFinishTime);
-      
-      // Set initial values for all required fields from Teams.php model
-      teamFormData.append('total_matches', 0);
-      teamFormData.append('rating', 0);
-      teamFormData.append('misses', 0);
-      teamFormData.append('invites_accepted', 0);
-      teamFormData.append('invites_refused', 0);
-      teamFormData.append('total_invites', 0);
-      
-      // Add additional data
-      teamFormData.append('homeStadium', formData.homeStadium || '');
-      teamFormData.append('league', formData.league || '');
-      teamFormData.append('description', formData.description || '');
-      
-      if (formData.image) {
-        teamFormData.append('logo', formData.image); // Note: backend expects 'logo', not 'image'
-      }
+      // Create the payload as required by the API
+      const teamData = {
+        capitain: parseInt(playerId, 10), // Use player_id instead of user ID
+        name: formData.team_name.trim(), // Add team name to the payload
+        // Format the times to match the expected API format as full dates
+        starting_time: `${today} ${startTime}:00`,
+        finishing_time: `${today} ${finishTime}:00`,
+        total_matches: 0,
+        rating: 0,
+        misses: 0,
+        invites_accepted: 0,
+        invites_refused: 0,
+        total_invites: 0
+      };
+
+      console.log('Sending team data:', teamData);
 
       // Create team
-      await teamsService.createTeam(teamFormData);
+      const response = await teamsService.createTeam(teamData);
+      console.log('Team creation response:', response);
+
+      // Store team information in session storage
+      if (response && response.data) {
+        const teamId = response.data.id_teams;
+        
+        if (teamId) {
+          // Store team ID in session storage
+          sessionStorage.setItem("id_teams", teamId);
+          
+          // Update has_teams flag
+          sessionStorage.setItem("has_teams", "true");
+          
+          // Store team object in session storage
+          const teamObj = response.data;
+          // Make sure the team name is included in the stored data
+          teamObj.name = formData.team_name.trim();
+          const teamsArray = [teamObj];
+          sessionStorage.setItem("teams", JSON.stringify(teamsArray));
+          
+          console.log("Team data stored in session storage:", teamId);
+        }
+      }
 
       setSubmitSuccess(true);
       setTimeout(() => {
@@ -1754,22 +2321,64 @@ const TeamForm = ({ onClose }) => {
     } catch (error) {
       console.error('Error creating team:', error);
       
-      // Handle the specific validation errors from the backend
+      // Check for specific error message about captain already having a team
       if (error.response && error.response.data) {
         const errorData = error.response.data;
         
-        if (errorData.errors && errorData.errors.name) {
-          setSubmitError("Team name already exists. Please choose a different name.");
+        // Check for the specific error message about captain
+        if (errorData.error === true && errorData.message === "This player is already a captain of another team") {
+          setExistingTeamError(true);
+          // Update session storage to reflect that user has teams
+          sessionStorage.setItem('has_teams', 'true');
+          
+          // Try to fetch the team details
+          try {
+            const teamsResponse = await teamsService.getAllTeams();
+            if (teamsResponse && teamsResponse.data) {
+              const userId = parseInt(sessionStorage.getItem('userId'), 10);
+              const userTeams = teamsResponse.data.filter(team => 
+                team.capitain === userId || parseInt(team.capitain, 10) === userId
+              );
+              
+              if (userTeams.length > 0) {
+                const teamId = userTeams[0].id_teams;
+                sessionStorage.setItem('id_teams', teamId);
+                
+                // Store team object in session storage
+                sessionStorage.setItem('teams', JSON.stringify(userTeams));
+                
+                // Update captain info with team details
+                setCaptainInfo(prev => ({
+                  ...prev,
+                  teamId: userTeams[0].id_teams,
+                  teamName: userTeams[0].name || `Team ${userTeams[0].id_teams}`
+                }));
+              }
+            }
+          } catch (teamError) {
+            console.error('Error fetching team details:', teamError);
+          }
         } else if (errorData.details && 
                   (errorData.details.starting_time || errorData.details.finishing_time)) {
-          setSubmitError("Please ensure your available times are in the correct format and that finish time is after start time.");
-        } else if (errorData.errors && errorData.errors.logo) {
-          setSubmitError("Logo image is invalid. Please use JPEG, PNG, or GIF format under 2MB.");
+          setSubmitError("Please ensure your available times are in the correct format (HH:MM:SS) and that finish time is after start time.");
+        } else if (errorData.error && typeof errorData.error === 'object') {
+          // Handle the specific error format shown in the user query
+          let errorMessage = "Validation error: ";
+          if (errorData.error.capitain) {
+            errorMessage += errorData.error.capitain[0] + " ";
+          }
+          if (errorData.error.starting_time) {
+            errorMessage += errorData.error.starting_time[0] + " ";
+          }
+          if (errorData.error.finishing_time) {
+            errorMessage += errorData.error.finishing_time[0];
+          }
+          setSubmitError(errorMessage);
         } else {
-          setSubmitError(errorData.error || errorData.message || 'Failed to register team. Please try again later.');
+          setSubmitError(errorData.message || (errorData.error ? String(errorData.error) : 'Failed to register team. Please try again later.'));
         }
       } else {
-      setSubmitError('Failed to register team. Please try again later.');
+        setSubmitError('Failed to register team. Please try again later.');
       }
     } finally {
       setIsSubmitting(false);
@@ -1789,6 +2398,50 @@ const TeamForm = ({ onClose }) => {
           </div>
           <h3 className="text-xl font-bold mb-2">Team Created Successfully!</h3>
           <p>Your team has been registered. You can now invite players and arrange matches with other teams.</p>
+        </motion.div>
+      </div>
+    );
+  }
+  
+  if (existingTeamError) {
+    return (
+      <div className="text-center py-4">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-yellow-500/20 border border-yellow-500 text-white p-6 rounded-lg"
+        >
+          <div className="w-16 h-16 mx-auto bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
+            <InfoIcon className="w-8 h-8 text-yellow-500" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">Team Already Exists</h3>
+          <p className="mb-4">You are already the captain of a team. Each user can only be the captain of one team at a time.</p>
+          
+          {captainInfo && captainInfo.teamId && (
+            <div className="bg-yellow-500/10 p-4 rounded-lg mb-4 text-left">
+              <h4 className="font-medium mb-2 flex items-center">
+                <Trophy className="w-4 h-4 mr-2 text-yellow-400" />
+                Your Team Details
+              </h4>
+              <p className="text-sm mb-1"><span className="text-yellow-300">Team ID:</span> {captainInfo.teamId}</p>
+              <p className="text-sm"><span className="text-yellow-300">Team Name:</span> {captainInfo.teamName || 'Unknown'}</p>
+            </div>
+          )}
+          
+          <div className="flex justify-center space-x-3">
+            <button
+              onClick={onClose}
+              className="bg-white text-yellow-700 font-semibold py-2 px-6 rounded-lg hover:bg-yellow-50 transition-colors"
+            >
+              Close
+            </button>
+            <button
+              onClick={() => window.location.href = '/Client'}
+              className="bg-yellow-500 text-black font-semibold py-2 px-6 rounded-lg hover:bg-yellow-400 transition-colors"
+            >
+              Go to Dashboard
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -1830,23 +2483,39 @@ const TeamForm = ({ onClose }) => {
         </button>
       </div>
     
-    <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit}>
         <div className="space-y-6">
+          {/* Captain Information */}
+          <div className="bg-white/5 p-4 rounded-lg mb-4">
+            <h3 className="text-lg font-medium mb-3 flex items-center">
+              <Shield className="w-5 h-5 mr-2 text-[#07f468]" />
+              Team Captain Information
+            </h3>
+            {captainInfo && (
+              <div className="text-sm text-gray-300">
+                <p className="mb-1"><span className="text-gray-400">Captain ID:</span> {captainInfo.id}</p>
+                <p className="mb-1"><span className="text-gray-400">Name:</span> {captainInfo.name}</p>
+                <p><span className="text-gray-400">Email:</span> {captainInfo.email}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Add Team Name field */}
           <div>
-        <label htmlFor="team-name" className="block text-sm font-medium text-gray-300 mb-1">
-          Team Name *
-        </label>
-        <input
-          type="text"
-          id="team-name"
-          name="name"
-          value={formData.name}
-          onChange={handleChange}
-          required
-              className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
+            <label htmlFor="team_name" className="block text-sm font-medium text-gray-300 mb-1">
+              Team Name *
+            </label>
+            <input
+              type="text"
+              id="team_name"
+              name="team_name"
+              value={formData.team_name}
+              onChange={handleChange}
+              required
               placeholder="Enter your team name"
-        />
-      </div>
+              className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
+            />
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1865,7 +2534,7 @@ const TeamForm = ({ onClose }) => {
                   className="w-full py-3 pl-10 pr-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-1">Time will be stored in 24-hour format (HH:MM:SS)</p>
+              <p className="text-xs text-gray-400 mt-1">When you're typically available to play</p>
             </div>
             <div>
               <label htmlFor="finishing_time" className="block text-sm font-medium text-gray-300 mb-1">
@@ -1888,73 +2557,12 @@ const TeamForm = ({ onClose }) => {
             </div>
           </div>
           
-          <div>
-        <label htmlFor="team-image" className="block text-sm font-medium text-gray-300 mb-1">
-          Team Logo
-        </label>
-            <div className="relative">
-        <input
-          type="file"
-          id="team-image"
-          name="image"
-          accept="image/*"
-          onChange={handleChange}
-                className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-        />
-      </div>
-            <p className="text-xs text-gray-400 mt-1">Recommended size: 300x300 pixels</p>
-      </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-        <label htmlFor="homeStadium" className="block text-sm font-medium text-gray-300 mb-1">
-          Home Stadium
-        </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-        <input
-          type="text"
-          id="homeStadium"
-          name="homeStadium"
-          value={formData.homeStadium}
-          onChange={handleChange}
-                  className="w-full py-3 pl-10 pr-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-                  placeholder="Where does your team play?"
-        />
-      </div>
-            </div>
-            <div>
-        <label htmlFor="league" className="block text-sm font-medium text-gray-300 mb-1">
-          League
-        </label>
-              <div className="relative">
-                <Trophy className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-        <input
-          type="text"
-          id="league"
-          name="league"
-          value={formData.league}
-          onChange={handleChange}
-                  className="w-full py-3 pl-10 pr-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-                  placeholder="Team's league or division"
-        />
-      </div>
-            </div>
-          </div>
-          
-          <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-300 mb-1">
-          Team Description
-        </label>
-        <textarea
-          id="description"
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-              rows="4"
-              className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-              placeholder="Tell us about your team, your achievements, playing style, etc."
-        ></textarea>
+          {/* Explanation section */}
+          <div className="bg-[#07f468]/10 p-4 rounded-lg text-sm text-gray-300 border border-[#07f468]/20">
+            <p className="flex items-start">
+              <InfoIcon className="w-5 h-5 text-[#07f468] mr-2 flex-shrink-0 mt-0.5" />
+              Upon registration, your team will be initialized with default values for matches, rating, and other statistics. You can customize your team further after registration.
+            </p>
           </div>
       </div>
       

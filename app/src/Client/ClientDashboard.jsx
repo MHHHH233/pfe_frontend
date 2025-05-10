@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
-import { Bell, Menu, User, Calendar, Trophy, Search, ChevronDown, ArrowRight, ChevronRight, Users, Star, Clock, MapPin, Shield, Mail, MailX, Phone, AlertCircle } from 'lucide-react'
+import { Bell, Menu, User, Calendar, Trophy, Search, ChevronDown, ArrowRight, ChevronRight, Users, Star, Clock, MapPin, Shield, Mail, MailX, Phone, AlertCircle, X, InfoIcon, ChevronLeft } from 'lucide-react'
 import LogoLight from "../img/logoLight.png"
 import { Navigate, Route, useNavigate } from "react-router-dom"
 import tournament1 from "../img/tournament1.webp"
@@ -10,6 +10,10 @@ import tournament2 from "../img/tournament2.webp"
 import tournament7 from "../img/tournament7.webp"
 import reservationService from "../lib/services/admin/reservationServices"
 import userService from '../lib/services/user/userServices'
+import tournoiService from '../lib/services/user/tournoiService'
+import playersService from '../lib/services/user/playersService'
+import teamsService from '../lib/services/user/teamsService'
+import tournoiTeamsService from '../lib/services/user/tournoiTeamsService'
 
 
 export default function EnhancedClientDashboard() {
@@ -122,6 +126,7 @@ function Header({ opacity, translateY, isMenuOpen, setIsMenuOpen }) {
                         src= {sessionStorage.getItem("pfp")}
                         alt="Profile"
                       />
+                      
                     </button>
                   </div>
                 </div>
@@ -287,6 +292,282 @@ function HeroSection() {
   )
 }
 
+function TournamentsSection() {
+  const Navigate = useNavigate();
+  const [tournaments, setTournaments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedTournament, setSelectedTournament] = useState(null);
+
+  // Helper to determine tournament status
+  const getTournamentStatus = (tournament) => {
+    if (!tournament.date_debut) return 'TBA';
+    
+    const now = new Date();
+    const startDate = new Date(tournament.date_debut);
+    const endDate = tournament.date_fin ? new Date(tournament.date_fin) : null;
+    
+    if (endDate && now > endDate) return 'Completed';
+    if (now >= startDate) return 'In Progress';
+    return 'Upcoming';
+  };
+
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      try {
+        const response = await tournoiService.getAllTournois();
+        // The API response has data in response.data
+        setTournaments(response.data || []);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error fetching tournaments:", err);
+        setError("Failed to load tournaments");
+        setLoading(false);
+      }
+    };
+
+    fetchTournaments();
+    
+    // Cleanup function to ensure scrolling is restored when component unmounts
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+
+  const openTournamentDetails = (tournament) => {
+    setSelectedTournament(tournament);
+    // Prevent scrolling when popup is open
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeTournamentDetails = () => {
+    setSelectedTournament(null);
+    // Re-enable scrolling
+    document.body.style.overflow = 'auto';
+  };
+
+  return (
+    <section id="tournaments" className="py-24 bg-gradient-to-b from-[#111] to-[#0a0a0a] relative">
+      {/* Top gradient border */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent opacity-70"></div>
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div
+          className="text-center mb-16"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          viewport={{ once: true }}
+        >
+          <motion.h2 
+            className="text-4xl font-bold mb-3 inline-block relative text-white"
+            initial={{ opacity: 0, y: -20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+          >
+            Upcoming Tournaments
+            <motion.span
+              className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-[#07F468] to-[#34d399] rounded-full"
+              initial={{ width: 0 }}
+              whileInView={{ width: "100%" }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              viewport={{ once: true }}
+            ></motion.span>
+          </motion.h2>
+          
+          <motion.p
+            className="text-gray-300 text-lg max-w-2xl mx-auto"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            viewport={{ once: true }}
+          >
+            Join competitive tournaments and showcase your skills on the field
+          </motion.p>
+        </motion.div>
+        
+        {loading ? (
+          <motion.div 
+            className="flex flex-col justify-center items-center h-48 gap-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full border-2 border-gray-800"></div>
+              <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-t-2 border-l-2 border-[#07F468] animate-spin"></div>
+            </div>
+            <p className="text-gray-400">Loading tournaments...</p>
+          </motion.div>
+        ) : error ? (
+          <motion.div 
+            className="text-red-400 text-center py-6 px-4 bg-red-400/10 border border-red-400/20 rounded-lg max-w-md mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+          >
+            <div className="mb-3 flex justify-center">
+              <AlertCircle className="h-8 w-8 text-red-400" />
+            </div>
+            <p>{error}</p>
+            {/* Fallback to static data */}
+            <button 
+              onClick={() => {
+                setError(null);
+                // Display fallback data
+                setTournaments([
+                  {
+                    id_tournoi: 1,
+                    name: "Summer League Tournament",
+                    capacite: 16,
+                    date_debut: "2024-07-15",
+                    date_fin: "2024-07-22",
+                    type: "5v5",
+                    description: "Annual summer football tournament featuring the best teams from around the region. Come and showcase your skills!",
+                    image: tournament1
+                  },
+                  {
+                    id_tournoi: 2,
+                    name: "Winter Cup",
+                    capacite: 32,
+                    date_debut: "2024-12-01",
+                    date_fin: "2024-12-15",
+                    type: "7v7",
+                    description: "The premier winter football competition with teams competing for the prestigious Winter Cup trophy.",
+                    image: tournament2
+                  },
+                  {
+                    id_tournoi: 3,
+                    name: "Youth Championship",
+                    capacite: 24,
+                    date_debut: "2024-08-05",
+                    date_fin: "2024-08-12",
+                    type: "5v5",
+                    description: "A tournament dedicated to young players under 18, offering a platform to showcase emerging talent.",
+                    image: tournament7
+                  }
+                ]);
+              }}
+              className="mt-4 text-white bg-red-500/30 hover:bg-red-500/50 px-4 py-2 rounded-md text-sm"
+            >
+              Load Demo Data
+            </button>
+          </motion.div>
+        ) : tournaments.length === 0 ? (
+          <motion.div 
+            className="text-gray-400 text-center py-6 px-4 bg-gray-800/30 border border-gray-700 rounded-lg max-w-md mx-auto"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+          >
+            <div className="mb-3 flex justify-center">
+              <Trophy className="h-8 w-8 text-gray-400" />
+            </div>
+            <p>No tournaments available at the moment.</p>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {tournaments.slice(0, 3).map((tournament, index) => {
+              const status = getTournamentStatus(tournament);
+              
+              return (
+                <motion.div 
+                  key={tournament.id_tournoi || index}
+                  className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-[#07F468]/10 border border-gray-800 hover:border-[#07F468]/30 group cursor-pointer"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                  whileHover={{ y: -5 }}
+                  onClick={() => openTournamentDetails(tournament)}
+                >
+                  <div className="relative overflow-hidden h-52">
+                    <img 
+                      src={tournament.image || (index === 0 ? tournament1 : index === 1 ? tournament2 : tournament7)} 
+                      alt={tournament.name} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                    />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent opacity-80"></div>
+                    
+                    {/* Top accent line */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  </div>
+                  
+                  <div className="p-6">
+                    <h3 className="text-xl font-semibold mb-3 text-white">{tournament.name}</h3>
+                    
+                    <div className="space-y-2 mb-5">
+                      <div className="flex items-center text-sm text-gray-300">
+                        <Users className="h-4 w-4 text-[#07F468] mr-2 flex-shrink-0" />
+                        <p>{tournament.capacite || 'N/A'} Teams</p>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-300">
+                        <Calendar className="h-4 w-4 text-[#07F468] mr-2 flex-shrink-0" />
+                        <p>Starts on {tournament.date_debut ? new Date(tournament.date_debut).toLocaleDateString() : 'TBA'}</p>
+                      </div>
+                      <div className="flex items-center text-sm text-gray-300">
+                        <Trophy className="h-4 w-4 text-[#07F468] mr-2 flex-shrink-0" />
+                        <p>Prize Pool: {tournament.award || tournament.frais_entree || 'TBA'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                        status === 'In Progress'
+                          ? "bg-[#07F468]/10 text-[#07F468] border border-[#07F468]/30" 
+                          : status === 'Completed' 
+                          ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                          : status === 'Upcoming'
+                          ? "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                          : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
+                      }`}>
+                        {status}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+        
+        <motion.div 
+          className="mt-16 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          viewport={{ once: true }}
+        >
+          <motion.button
+            className="bg-[#07F468] hover:bg-[#06d35a] text-[#1a1a1a] font-bold py-3.5 px-8 rounded-full text-base transition-all duration-300 flex items-center mx-auto shadow-lg hover:shadow-[#07F468]/20 relative overflow-hidden group"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => Navigate("/tournoi")}
+          >
+            <span className="relative z-10">See More Tournaments</span>
+            <ChevronRight className="ml-2 h-5 w-5 relative z-10 group-hover:translate-x-1 transition-transform duration-300" />
+            
+            {/* Shine effect */}
+            <div className="absolute top-0 -left-[100%] w-[250%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:left-[100%] transition-all duration-700 ease-in-out z-0"></div>
+          </motion.button>
+        </motion.div>
+
+        {/* Popup for tournament details */}
+        {selectedTournament && (
+          <TournamentDetailsPopup
+            tournament={selectedTournament}
+            onClose={closeTournamentDetails}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
 const OverviewSection = () => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -428,7 +709,7 @@ const ProfileCard = ({ userData }) => {
           <div className="absolute inset-0 bg-gradient-to-r from-[#07f468] to-[#34d399] opacity-70 rounded-full"></div>
           {userData.pfp && userData.pfp !== "null" ? (
             <img 
-              src={userData.pfp} 
+              src={sessionStorage.getItem("pfp")} 
               alt="Profile" 
               className="w-full h-full object-cover relative z-10"
             />
@@ -451,7 +732,7 @@ const ProfileCard = ({ userData }) => {
         </p>
         
         <div className="flex items-center mb-6 bg-[#07f468]/10 px-3 py-1 rounded-full">
-          <span className="mr-2 text-white">N/A</span>
+          <span className="mr-2 text-white">{userData.player?.rating || 'N/A'}</span>
           <Star className="w-5 h-5 text-[#07f468]" fill="#07f468" />
         </div>
         
@@ -478,8 +759,8 @@ const PlayerRequests = ({ userData }) => {
   const player = userData?.player || null;
   
   // Get sent and received requests
-  const sentRequests = player?.sentRequests || [];
-  const receivedRequests = player?.receivedRequests || [];
+  const sentRequests = player?.sent_requests || player?.sentRequests || [];
+  const receivedRequests = player?.received_requests || player?.receivedRequests || [];
   
   // Get the active requests based on the selected tab
   const activeRequests = activeTab === 'received' ? receivedRequests : sentRequests;
@@ -526,7 +807,7 @@ const PlayerRequests = ({ userData }) => {
       <div className="p-6">
         <h3 className="text-xl font-semibold mb-6 text-center flex items-center justify-center">
           <Users className="w-5 h-5 mr-2 text-[#07f468]" />
-          Player Requests
+          Player Profile
         </h3>
         
         {!player ? (
@@ -547,7 +828,58 @@ const PlayerRequests = ({ userData }) => {
           </div>
         ) : (
           <>
-            <div className="flex justify-center mb-6">
+            {/* Player Stats Overview */}
+            <div className="mb-6">
+              <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800 mb-4">
+                <div className="flex items-center mb-3">
+                  <div className="bg-[#07f468]/10 p-2 rounded-full mr-3">
+                    <User className="h-5 w-5 text-[#07f468]" />
+                  </div>
+                  <div>
+                    <h4 className="text-white font-medium">Position: {player.position || 'Not set'}</h4>
+                    <div className="flex items-center mt-1">
+                      <Star className="h-4 w-4 text-[#07f468] mr-1" fill="#07f468" />
+                      <span className="text-gray-300 text-sm">{player.rating || '0'}/5 Rating</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Stats Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-[#252525] p-3 rounded-lg">
+                    <p className="text-gray-400 text-xs mb-1">Total Matches</p>
+                    <p className="text-white font-semibold">{player.total_matches || 0}</p>
+                  </div>
+                  <div className="bg-[#252525] p-3 rounded-lg">
+                    <p className="text-gray-400 text-xs mb-1">Invites</p>
+                    <p className="text-white font-semibold">
+                      <span className="text-[#07f468]">{player.invites_accepted || 0}</span> / 
+                      <span className="text-red-400">{player.invites_refused || 0}</span>
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Time availability */}
+                <div className="mt-3 bg-[#252525] p-3 rounded-lg">
+                  <p className="text-gray-400 text-xs mb-1">Availability</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Clock className="h-3 w-3 text-[#07f468] mr-1" />
+                      <span className="text-white text-sm">{player.starting_time?.substring(0, 5) || '00:00'}</span>
+                    </div>
+                    <span className="text-gray-500">to</span>
+                    <div className="flex items-center">
+                      <Clock className="h-3 w-3 text-[#07f468] mr-1" />
+                      <span className="text-white text-sm">{player.finishing_time?.substring(0, 5) || '00:00'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Requests Tabs */}
+            <h4 className="font-medium text-white mb-3">Match Requests</h4>
+            <div className="flex justify-center mb-4">
               <div className="inline-flex rounded-full bg-[#1a1a1a] p-1">
                 <button
                   className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${
@@ -576,7 +908,7 @@ const PlayerRequests = ({ userData }) => {
               {activeRequests.length === 0 ? (
                 <motion.div 
                   key="empty"
-                  className="text-gray-400 text-center py-6"
+                  className="text-gray-400 text-center py-4"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -655,41 +987,68 @@ const PlayerRequests = ({ userData }) => {
   );
 };
 
-function TournamentsSection() {
+function FindPlayersSection() {
   const Navigate = useNavigate();
-  const tournaments = [
-    {
-      name: "Summer League Tournament",
-      teams: 16,
-      startDate: "July 15, 2024",
-      status: "Registration Open",
-      prize: "$10,000",
-      image: tournament1
-    },
-    {
-      name: "Winter Cup",
-      teams: 32,
-      startDate: "December 1, 2024",
-      status: "Coming Soon",
-      prize: "$15,000",
-      image: tournament2
-    },
-    {
-      name: "Youth Championship",
-      teams: 24,
-      startDate: "August 5, 2024",
-      status: "Registration Open",
-      prize: "$5,000",
-      image: tournament7
-    }
-  ]
+  const [players, setPlayers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(true);
+  const [loadingTeams, setLoadingTeams] = useState(true);
+  const [errorPlayers, setErrorPlayers] = useState(null);
+  const [errorTeams, setErrorTeams] = useState(null);
+
+  useEffect(() => {
+    const fetchPlayers = async () => {
+      try {
+        const response = await playersService.getAllPlayers({ limit: 5, sort: 'rating' });
+        // Players data comes in response.data
+        setPlayers(response.data || []);
+        setLoadingPlayers(false);
+      } catch (err) {
+        console.error("Error fetching players:", err);
+        setErrorPlayers("Failed to load players");
+        setLoadingPlayers(false);
+        // Set fallback data
+        setPlayers([
+          { id_player: 1, id_compte: 1, position: 'Forward', rating: 4.8, pfp: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
+          { id_player: 2, id_compte: 2, position: 'Midfielder', rating: 4.7, pfp: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
+          { id_player: 3, id_compte: 3, position: 'Defender', rating: 4.9, pfp: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
+        ]);
+      }
+    };
+
+    const fetchTeams = async () => {
+      try {
+        const response = await teamsService.getAllTeams({ limit: 5, sort: 'rating' });
+        // Teams data comes in response.data
+        setTeams(response.data || []);
+        setLoadingTeams(false);
+      } catch (err) {
+        console.error("Error fetching teams:", err);
+        setErrorTeams("Failed to load teams");
+        setLoadingTeams(false);
+        // Set fallback data
+        setTeams([
+          { id_teams: 1, capitain: 1, rating: 4.9, logo: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
+          { id_teams: 2, capitain: 2, rating: 4.8, logo: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
+          { id_teams: 3, capitain: 3, rating: 4.7, logo: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
+        ]);
+      }
+    };
+
+    fetchPlayers();
+    fetchTeams();
+  }, []);
+
+  // Default placeholder images
+  const defaultPlayerImg = 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg';
+  const defaultTeamLogo = 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg';
 
   return (
-    <section id="tournaments" className="py-24 bg-gradient-to-b from-[#111] to-[#0a0a0a] relative">
+    <section id="find-players" className="py-24 bg-gradient-to-b from-[#111] to-[#0a0a0a] relative">
       {/* Top gradient border */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent opacity-70"></div>
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="container mx-auto px-4">
         <motion.div
           className="text-center mb-16"
           initial={{ opacity: 0 }}
@@ -704,7 +1063,7 @@ function TournamentsSection() {
             transition={{ duration: 0.5 }}
             viewport={{ once: true }}
           >
-            Upcoming Tournaments
+            Top Rated
             <motion.span
               className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-[#07F468] to-[#34d399] rounded-full"
               initial={{ width: 0 }}
@@ -721,183 +1080,154 @@ function TournamentsSection() {
             transition={{ duration: 0.5, delay: 0.3 }}
             viewport={{ once: true }}
           >
-            Join competitive tournaments and showcase your skills on the field
+            Connect with the highest-rated players and teams in your area
           </motion.p>
         </motion.div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {tournaments.map((tournament, index) => (
-            <motion.div 
-              key={index}
-              className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-[#07F468]/10 border border-gray-800 hover:border-[#07F468]/30 group"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              viewport={{ once: true }}
-              whileHover={{ y: -5 }}
-            >
-              <div className="relative overflow-hidden h-52">
-                <img 
-                  src={tournament.image} 
-                  alt={tournament.name} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                />
-                {/* Gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent opacity-80"></div>
-                
-                {/* Top accent line */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              </div>
-              
-              <div className="p-6">
-                <h3 className="text-xl font-semibold mb-3 text-white">{tournament.name}</h3>
-                
-                <div className="space-y-2 mb-5">
-                  <div className="flex items-center text-sm text-gray-300">
-                    <Users className="h-4 w-4 text-[#07F468] mr-2 flex-shrink-0" />
-                    <p>{tournament.teams} Teams</p>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-300">
-                    <Calendar className="h-4 w-4 text-[#07F468] mr-2 flex-shrink-0" />
-                    <p>Starts on {tournament.startDate}</p>
-                  </div>
-                  <div className="flex items-center text-sm text-gray-300">
-                    <Trophy className="h-4 w-4 text-[#07F468] mr-2 flex-shrink-0" />
-                    <p>Prize Pool: {tournament.prize}</p>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          <motion.div 
+            className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-lg border border-gray-800 hover:border-[#07F468]/30 transition-all duration-300 p-6"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-2xl font-semibold mb-6 flex items-center">
+              <Users className="w-6 h-6 mr-2 text-[#07f468]" />
+              Top Players
+            </h3>
+            
+            {loadingPlayers ? (
+              <div className="flex justify-center items-center h-48">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-800"></div>
+                  <div className="absolute top-0 left-0 w-10 h-10 rounded-full border-t-2 border-l-2 border-[#07F468] animate-spin"></div>
                 </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                    tournament.status === "Registration Open" 
-                      ? "bg-[#07F468]/10 text-[#07F468] border border-[#07F468]/30" 
-                      : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
-                  }`}>
-                    {tournament.status}
-                  </span>
-                  <motion.button 
-                    className="bg-transparent text-[#07F468] border border-[#07F468] hover:bg-[#07F468]/10 font-bold py-2 px-4 rounded-full text-sm transition-all duration-300 flex items-center"
-                    whileHover={{ scale: 1.05, x: 3 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => Navigate("/tournoi")}
+              </div>
+            ) : players.length === 0 ? (
+              <div className="text-gray-400 text-center py-8">
+                <User className="w-10 h-10 mx-auto mb-3 text-gray-500" />
+                <p>No players found</p>
+              </div>
+            ) : (
+              <ul className="space-y-4">
+                {players.slice(0, 5).map((player) => (
+                  <motion.li 
+                    key={player.id_player} 
+                    className="flex items-center justify-between bg-[#252525] hover:bg-[#2a2a2a] p-3 rounded-lg transition-colors"
+                    initial={{ opacity: 0, x: -10 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                    viewport={{ once: true }}
+                    whileHover={{ x: 5 }}
                   >
-                    View Details
-                    <ChevronRight className="ml-1 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                  </motion.button>
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-[#07f468]/30">
+                        {player.pfp ? (
+                          <img src={player.pfp} alt={`Player ${player.id_player}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-[#333] flex items-center justify-center">
+                            <User className="w-5 h-5 text-[#07f468]" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="ml-3">
+                        <span className="font-medium text-white">Player #{player.id_player}</span>
+                        {player.position && (
+                          <p className="text-xs text-gray-400">{player.position}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
+                      <span className="mr-1 text-white text-sm">{player.rating || 'N/A'}</span>
+                      <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
+                    </div>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+          </motion.div>
+          
+          <motion.div 
+            className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-lg border border-gray-800 hover:border-[#07F468]/30 transition-all duration-300 p-6"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-2xl font-semibold mb-6 flex items-center">
+              <Trophy className="w-6 h-6 mr-2 text-[#07f468]" />
+              Top Teams
+            </h3>
+            
+            {loadingTeams ? (
+              <div className="flex justify-center items-center h-48">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-800"></div>
+                  <div className="absolute top-0 left-0 w-10 h-10 rounded-full border-t-2 border-l-2 border-[#07F468] animate-spin"></div>
                 </div>
               </div>
-            </motion.div>
-          ))}
+            ) : teams.length === 0 ? (
+              <div className="text-gray-400 text-center py-8">
+                <Users className="w-10 h-10 mx-auto mb-3 text-gray-500" />
+                <p>No teams found</p>
+              </div>
+            ) : (
+              <ul className="space-y-4">
+                {teams.slice(0, 5).map((team) => (
+                  <motion.li 
+                    key={team.id_teams} 
+                    className="flex items-center justify-between bg-[#252525] hover:bg-[#2a2a2a] p-3 rounded-lg transition-colors"
+                    initial={{ opacity: 0, x: -10 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3 }}
+                    viewport={{ once: true }}
+                    whileHover={{ x: 5 }}
+                  >
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-[#07f468]/30">
+                        {team.logo ? (
+                          <img src={team.logo} alt={`Team ${team.id_teams}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-[#333] flex items-center justify-center">
+                            <Users className="w-5 h-5 text-[#07f468]" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="ml-3 font-medium text-white">Team #{team.id_teams}</span>
+                    </div>
+                    <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
+                      <span className="mr-1 text-white text-sm">{team.rating || '0'}</span>
+                      <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
+                    </div>
+                  </motion.li>
+                ))}
+              </ul>
+            )}
+          </motion.div>
         </div>
         
-        <motion.div 
-          className="mt-16 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-          viewport={{ once: true }}
-        >
+        <div className="mt-12 text-center">
           <motion.button
-            className="bg-[#07F468] hover:bg-[#06d35a] text-[#1a1a1a] font-bold py-3.5 px-8 rounded-full text-base transition-all duration-300 flex items-center mx-auto shadow-lg hover:shadow-[#07F468]/20 relative overflow-hidden group"
+            className="bg-[#07f468] hover:bg-[#06d35a] text-[#1a1a1a] font-bold py-3 px-6 rounded-full text-lg transition-all duration-300 flex items-center mx-auto shadow-lg hover:shadow-[#07F468]/20 relative overflow-hidden group"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            viewport={{ once: true }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => Navigate("/tournoi")}
+            onClick={() => Navigate("/players")}
           >
-            <span className="relative z-10">See More Tournaments</span>
+            <span className="relative z-10">View All Players / Teams</span>
             <ChevronRight className="ml-2 h-5 w-5 relative z-10 group-hover:translate-x-1 transition-transform duration-300" />
             
             {/* Shine effect */}
             <div className="absolute top-0 -left-[100%] w-[250%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:left-[100%] transition-all duration-700 ease-in-out z-0"></div>
           </motion.button>
-        </motion.div>
+        </div>
       </div>
     </section>
-  )
-}
-
-
-function FindPlayersSection() {
-  const Navigate=useNavigate();
-  const players = [
-    { id: 1, name: 'John Doe', position: 'Forward', rating: 4.8, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 2, name: 'Jane Smith', position: 'Midfielder', rating: 4.7, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 3, name: 'Mike Johnson', position: 'Defender', rating: 4.9, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 4, name: 'Sarah Williams', position: 'Goalkeeper', rating: 4.6, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 5, name: 'David Brown', position: 'Forward', rating: 4.5, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-  ];
-  
-  const teams = [
-    { id: 1, name: 'Thunderbolts FC', rating: 4.9, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 2, name: 'Royal Eagles', rating: 4.8, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 3, name: 'Crimson Warriors', rating: 4.7, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 4, name: 'Emerald United', rating: 4.6, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-    { id: 5, name: 'Silver Wolves', rating: 4.5, image: 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg' },
-  ];  
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filterPosition, setFilterPosition] = useState('');
-    const [activeTab, setActiveTab] = useState('players');
-    const [selectedPlayer, setSelectedPlayer] = useState(null);
-    const [selectedTeam, setSelectedTeam] = useState(null);
-  return (
-   <section className="py-24 bg-[#1a1a1a]">
-           <div className="container mx-auto px-4">
-             <h2 className="text-4xl font-bold mb-12 text-center">Top Rated</h2>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-               <div className="bg-[#333] rounded-2xl p-8 shadow-lg">
-                 <h3 className="text-2xl font-semibold mb-6 flex items-center">
-                   <Users className="w-6 h-6 mr-2 text-[#07f468]" />
-                   Top Players
-                 </h3>
-                 <ul className="space-y-4">
-                   {players.slice(0, 5).map((player) => (
-                     <li key={player.id} className="flex items-center justify-between">
-                       <div className="flex items-center">
-                         <img src={player.image} alt={player.name} className="w-10 h-10 rounded-full mr-3 object-cover" />
-                         <span className="font-medium">{player.name}</span>
-                       </div>
-                       <div className="flex items-center">
-                         <span className="mr-2">{player.rating}</span>
-                         <Star className="w-5 h-5 text-[#07f468]" fill="#07f468" />
-                       </div>
-                     </li>
-                   ))}
-                 </ul>
-               </div>
-               <div className="bg-[#333] rounded-2xl p-8 shadow-lg">
-                 <h3 className="text-2xl font-semibold mb-6 flex items-center">
-                   <Trophy className="w-6 h-6 mr-2 text-[#07f468]" />
-                   Top Teams
-                 </h3>
-                 <ul className="space-y-4">
-                   {teams.slice(0, 5).map((team) => (
-                     <li key={team.id} className="flex items-center justify-between">
-                       <div className="flex items-center">
-                         <img src={team.image} alt={team.name} className="w-10 h-10 rounded-full mr-3 object-cover" />
-                         <span className="font-medium">{team.name}</span>
-                       </div>
-                       <div className="flex items-center">
-                         <span className="mr-2">{team.rating}</span>
-                         <Star className="w-5 h-5 text-[#07f468]" fill="#07f468" />
-                       </div>
-                     </li>
-                   ))}
-                 </ul>
-               </div>
-             </div>
-           </div>
-           <div className="mt-12 text-center">
-          <motion.button
-            className="bg-[#07f468] hover:bg-[#06d35a] text-[#1a1a1a] font-bold py-3 px-6 rounded-full text-lg transition-colors duration-200 flex items-center mx-auto"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={()=>Navigate("/players")}
-          >
-            View All Players / Teams
-            <ChevronRight className="ml-2 h-5 w-5" />
-          </motion.button>
-        </div>
-         </section>
-  )
+  );
 }
 
 const Myreservations = ({ userData }) => {
@@ -1123,5 +1453,420 @@ function Footer() {
       </div>
     </footer>
   )
+}
+
+// Add at the end of the file, right before the last export statement
+function TournamentDetailsPopup({ tournament, onClose }) {
+  const [registering, setRegistering] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [userTeams, setUserTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
+  // Check if user has teams from session storage
+  const hasTeams = sessionStorage.getItem("has_teams") === "true";
+  const userTeamId = sessionStorage.getItem("id_teams");
+  
+  // Helper to determine tournament status
+  const getTournamentStatus = (tournament) => {
+    if (!tournament.date_debut) return 'TBA';
+    
+    const now = new Date();
+    const startDate = new Date(tournament.date_debut);
+    const endDate = tournament.date_fin ? new Date(tournament.date_fin) : null;
+    
+    if (endDate && now > endDate) return 'Completed';
+    if (now >= startDate) return 'In Progress';
+    return 'Upcoming';
+  };
+  
+  // Formatted status for display
+  const tournamentStatus = getTournamentStatus(tournament);
+  
+  // Ensure scrolling is restored when component unmounts
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+  
+  useEffect(() => {
+    // Fetch user's teams when registering
+    if (registering) {
+      const fetchUserTeams = async () => {
+        try {
+          setLoading(true);
+          
+          // If we already have team info from session storage, use that directly
+          if (hasTeams && userTeamId) {
+            const teamsData = sessionStorage.getItem("teams");
+            if (teamsData) {
+              try {
+                const parsedTeams = JSON.parse(teamsData);
+                if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
+                  setUserTeams(parsedTeams);
+                  setSelectedTeamId(parseInt(userTeamId));
+                  setLoading(false);
+                  return;
+                }
+              } catch (error) {
+                console.error("Error parsing teams data from session storage:", error);
+                // Continue to API call if parsing fails
+              }
+            }
+          }
+          
+          // Otherwise fetch teams from API
+          const response = await teamsService.getAllTeams();
+          
+          // Filter teams where the user is the captain
+          let userTeams = [];
+          if (response && response.data) {
+            const userId = parseInt(sessionStorage.getItem('userId'), 10);
+            const playerId = parseInt(sessionStorage.getItem('player_id'), 10);
+            
+            userTeams = response.data.filter(team => 
+              team.capitain === playerId || 
+              parseInt(team.capitain, 10) === playerId
+            );
+            
+            // Update session storage with the teams data
+            if (userTeams.length > 0) {
+              sessionStorage.setItem('has_teams', 'true');
+              sessionStorage.setItem('teams', JSON.stringify(userTeams));
+              sessionStorage.setItem('id_teams', userTeams[0].id_teams);
+            } else {
+              // Clear any invalid team data
+              sessionStorage.removeItem('has_teams');
+              sessionStorage.removeItem('id_teams');
+            }
+          }
+          
+          setUserTeams(userTeams);
+          
+          // If user has teams, select the first one by default
+          if (userTeams.length > 0) {
+            setSelectedTeamId(userTeams[0].id_teams);
+          }
+          setLoading(false);
+        } catch (err) {
+          console.error("Error fetching user teams:", err);
+          setLoading(false);
+          // Ensure scrolling is restored on error
+          document.body.style.overflow = 'auto';
+        }
+      };
+      
+      fetchUserTeams();
+    }
+  }, [registering, hasTeams, userTeamId]);
+  
+  const handleRegister = async () => {
+    // If there's only one team, use it automatically
+    if (userTeams.length === 1 && !selectedTeamId) {
+      setSelectedTeamId(userTeams[0].id_teams);
+    }
+    
+    if (!selectedTeamId) {
+      setRegistrationStatus({
+        success: false,
+        message: 'Please select a team to register'
+      });
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setRegistrationStatus(null);
+      
+      // Find the selected team object to get the team name
+      const selectedTeam = userTeams.find(team => team.id_teams === selectedTeamId);
+      const teamName = selectedTeam?.name || `Team #${selectedTeamId}`;
+      
+      const payload = {
+        id_tournoi: tournament.id_tournoi,
+        id_teams: selectedTeamId,
+        team_name: teamName
+      };
+      
+      const response = await tournoiTeamsService.registerForTournament(payload);
+      
+      setRegistrationStatus({
+        success: true,
+        message: 'Team registered successfully for the tournament!'
+      });
+      setLoading(false);
+      
+      // Reset registration form after 3 seconds and close popup
+      setTimeout(() => {
+        document.body.style.overflow = 'auto'; // Ensure scrolling is restored before closing
+        onClose();
+      }, 3000);
+      
+    } catch (err) {
+      console.error("Error registering for tournament:", err);
+      setRegistrationStatus({
+        success: false,
+        message: err.response?.data?.message || err.response?.data?.error || 'Failed to register. Please try again.'
+      });
+      setLoading(false);
+      // Ensure scrolling is still possible when there's an error
+      document.body.style.overflow = 'auto';
+    }
+  };
+  
+  const handleClose = () => {
+    document.body.style.overflow = 'auto'; // Ensure scrolling is restored
+    onClose();
+  };
+  
+  if (!tournament) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+      onClick={handleClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-3xl bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] rounded-2xl overflow-hidden shadow-2xl my-8"
+      >
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent z-10"></div>
+        
+        {/* Close button */}
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 p-2 rounded-full bg-[#222]/80 text-gray-400 hover:text-white hover:bg-[#333]/80 transition-colors z-20"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        
+        {/* Tournament Image with Gradient Overlay */}
+        <div className="relative h-60 overflow-hidden">
+          <img
+            src={tournament.image || (tournament.id_tournoi % 3 === 0 ? tournament1 : tournament.id_tournoi % 3 === 1 ? tournament2 : tournament7)}
+            alt={tournament.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a]/70 to-transparent"></div>
+          
+          <div className="absolute bottom-6 left-6 right-6">
+            <h2 className="text-3xl font-bold text-white mb-2">{tournament.name}</h2>
+            <div className="flex items-center">
+              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+                tournamentStatus === 'In Progress'
+                  ? "bg-[#07F468]/10 text-[#07F468] border border-[#07F468]/30" 
+                  : tournamentStatus === 'Completed' 
+                  ? "bg-red-500/10 text-red-400 border border-red-500/30"
+                  : tournamentStatus === 'Upcoming'
+                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                  : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
+              }`}>
+                {tournamentStatus}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        {!registering ? (
+          <div className="p-6">
+            {/* Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="space-y-5">
+                <div className="flex items-start">
+                  <Calendar className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-gray-300 font-medium mb-1">Tournament Date</h3>
+                    <p className="text-white">
+                      {tournament.date_debut ? new Date(tournament.date_debut).toLocaleDateString() : 'TBA'} 
+                      {tournament.date_fin && ` - ${new Date(tournament.date_fin).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <Users className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-gray-300 font-medium mb-1">Team Capacity</h3>
+                    <p className="text-white">{tournament.capacite || 'TBA'} Teams</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <Trophy className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-gray-300 font-medium mb-1">Prize Pool</h3>
+                    <p className="text-white">{tournament.award || tournament.frais_entree || 'TBA'}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-5">
+                <div className="flex items-start">
+                  <MapPin className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-gray-300 font-medium mb-1">Location</h3>
+                    <p className="text-white">{tournament.location || 'TBA'}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <User className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-gray-300 font-medium mb-1">Format</h3>
+                    <p className="text-white">{tournament.type || 'TBA'}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <InfoIcon className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-gray-300 font-medium mb-1">Entry Fee</h3>
+                    <p className="text-white">{tournament.frais_entree || 'Free Entry'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Description */}
+            <div className="border-t border-gray-800 pt-6 mt-6">
+              <h3 className="text-lg font-semibold text-white mb-3">About the Tournament</h3>
+              <p className="text-gray-300 leading-relaxed">
+                {tournament.description || 'No description available for this tournament.'}
+              </p>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+              <button
+                onClick={handleClose}
+                className="py-2.5 px-5 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-colors text-sm font-medium flex items-center justify-center"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Back
+              </button>
+              
+              {tournamentStatus !== 'Completed' && (
+                <button
+                  onClick={() => setRegistering(true)}
+                  disabled={tournamentStatus === 'Completed'}
+                  className="py-2.5 px-5 bg-[#07F468] hover:bg-[#06d35a] text-[#0a0a0a] font-bold rounded-full transition-colors text-sm flex-1 flex items-center justify-center"
+                >
+                  Register Team
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="p-6">
+            <h3 className="text-xl font-semibold text-white mb-4">Register for {tournament.name}</h3>
+            
+            {registrationStatus && (
+              <div className={`mb-6 p-4 rounded-lg ${
+                registrationStatus.success 
+                  ? "bg-[#07F468]/10 border border-[#07F468]/30 text-[#07F468]" 
+                  : "bg-red-500/10 border border-red-500/30 text-red-400"
+              }`}>
+                {registrationStatus.message}
+              </div>
+            )}
+            
+            {loading ? (
+              <div className="py-10 flex justify-center items-center">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-full border-2 border-gray-800"></div>
+                  <div className="absolute top-0 left-0 w-10 h-10 rounded-full border-t-2 border-l-2 border-[#07F468] animate-spin"></div>
+                </div>
+              </div>
+            ) : userTeams.length > 0 ? (
+              <>
+                {userTeams.length > 1 ? (
+                  <div className="mb-6">
+                    <label className="block text-gray-300 mb-2">Select Team</label>
+                    <select 
+                      value={selectedTeamId || ''}
+                      onChange={(e) => setSelectedTeamId(e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full bg-[#222] border border-gray-700 rounded-lg p-3 text-white focus:border-[#07F468] focus:ring-1 focus:ring-[#07F468] outline-none"
+                    >
+                      <option value="">Select a team</option>
+                      {userTeams.map(team => (
+                        <option key={team.id_teams} value={team.id_teams}>
+                          Team #{team.id_teams}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="mb-6 bg-[#07F468]/10 p-4 rounded-lg border border-[#07F468]/30">
+                    <div className="flex items-center">
+                      <div className="p-2 bg-[#07F468]/20 rounded-full mr-3">
+                        <Trophy className="w-5 h-5 text-[#07F468]" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-white">You'll register with your team:</h3>
+                        <p className="text-gray-300 text-sm">Team #{userTeams[0].id_teams}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={() => {
+                      setRegistering(false);
+                      setRegistrationStatus(null);
+                    }}
+                    className="py-2.5 px-5 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-colors text-sm font-medium flex items-center justify-center"
+                  >
+                    <ChevronLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </button>
+                  
+                  <button
+                    onClick={handleRegister}
+                    disabled={!selectedTeamId || loading}
+                    className={`py-2.5 px-5 bg-[#07F468] ${!selectedTeamId || loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#06d35a]'} text-[#0a0a0a] font-bold rounded-full transition-colors text-sm flex-1 flex items-center justify-center`}
+                  >
+                    Confirm Registration
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <div className="bg-[#222] p-6 rounded-lg mb-6">
+                  <Users className="h-12 w-12 text-[#07F468]/50 mx-auto mb-4" />
+                  <h4 className="text-white text-lg mb-2">No Teams Available</h4>
+                  <p className="text-gray-400 mb-4">You need to create a team before you can register for tournaments.</p>
+                  
+                  <button
+                    onClick={() => {
+                      document.body.style.overflow = 'auto'; // Ensure scrolling is restored
+                      window.location.href = '/players';
+                    }}
+                    className="bg-[#07F468] hover:bg-[#06d35a] text-[#0a0a0a] py-2.5 px-5 rounded-full text-sm font-bold inline-flex items-center"
+                  >
+                    Create Team
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </button>
+                </div>
+                
+                <button
+                  onClick={() => {
+                    setRegistering(false);
+                    setRegistrationStatus(null);
+                  }}
+                  className="py-2.5 px-5 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-colors text-sm font-medium inline-flex items-center"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Back to Details
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 

@@ -60,6 +60,22 @@ const playerRequestsService = {
       console.error(`Error updating player request status ${id}:`, error);
       throw error;
     }
+  },
+  
+  async getPlayerRequests() {
+    try {
+      // This should fetch both sent and received requests for the authenticated user
+      const response = await apiClient.get(playerRequestsEndpoints.getAllPlayerRequests, { 
+        params: { 
+          player: true, // Add a parameter to indicate we want the current player's requests
+          include: 'sender,receiver' // Optional: Include related data
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching player requests:', error);
+      throw error;
+    }
   }
 };
 

@@ -1,4 +1,4 @@
-import playersEndpoints from '../../endpoint/admin/players';
+import playersEndpoints from '../../endpoint/user/players';
 import apiClient from '../../userapi';
 
 const playersService = {
@@ -14,6 +14,10 @@ const playersService = {
 
   async getPlayer(id, params = {}) {
     try {
+      if (!id) {
+        throw new Error('Player ID is required');
+      }
+      
       const response = await apiClient.get(playersEndpoints.getPlayer(id), { params });
       return response.data;
     } catch (error) {
@@ -34,6 +38,10 @@ const playersService = {
 
   async updatePlayer(id, payload) {
     try {
+      if (!id) {
+        throw new Error('Player ID is required');
+      }
+      
       const response = await apiClient.put(playersEndpoints.updatePlayer(id), payload);
       return response.data;
     } catch (error) {
@@ -44,6 +52,10 @@ const playersService = {
 
   async deletePlayer(id) {
     try {
+      if (!id) {
+        throw new Error('Player ID is required');
+      }
+      
       const response = await apiClient.delete(playersEndpoints.deletePlayer(id));
       return response.data;
     } catch (error) {
