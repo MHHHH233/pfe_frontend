@@ -228,7 +228,7 @@ const Terrains = () => {
       type: terrain.type,
       prix: terrain.prix,
       image: terrain.image_path,
-      imagePreview: terrain.image_path ? `http://127.0.0.1:8000/${terrain.image_path}` : null
+      imagePreview: terrain.image_path ? `${terrain.image_path}` : null
     });
     setShowEditModal(true);
   };
@@ -534,7 +534,7 @@ const Terrains = () => {
               }}
             >
               <img
-                src={terrain.image ? `http://127.0.0.1:8000/${terrain.image}` : ''}
+                src={terrain.image ? `${terrain.image}` : ''}
                 alt={terrain.nom_terrain}
                 className={`${
                   viewMode === 'list' ? 'w-48 h-48' : 'w-full h-56'
@@ -682,7 +682,7 @@ const Terrains = () => {
                     {(formData.imagePreview || formData.image) && (
                       <div className="relative w-16 h-16">
                         <img
-                          src={formData.imagePreview || (formData.image ? `http://127.0.0.1:8000/${formData.image}` : '')}
+                          src={formData.imagePreview || (formData.image ? `${formData.image}` : '')}
                           alt="Preview"
                           className="w-full h-full object-cover rounded-lg"
                           onError={(e) => {
@@ -790,7 +790,7 @@ const Terrains = () => {
           <motion.div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <motion.div className="relative max-w-4xl w-full mx-4">
               <img
-                src={selectedImage ? `http://127.0.0.1:8000/${selectedImage}` : ''}
+                src={selectedImage ? `${selectedImage}` : ''}
                 alt="Terrain Preview"
                 className="w-full h-auto rounded-lg shadow-2xl"
                 onError={(e) => {

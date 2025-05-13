@@ -17,10 +17,12 @@ import {
     Trophy
 } from "lucide-react";
 import LogoGreen from '../img/logoGreen.PNG';
+import { useSocialMedia } from "../contexts/SocialMediaContext";
 
 export const Footer = () => {
     const [email, setEmail] = useState('');
     const [subscribed, setSubscribed] = useState(false);
+    const { socialMedia, isLoading } = useSocialMedia();
 
     const handleSubscribe = (e) => {
         e.preventDefault();
@@ -34,6 +36,35 @@ export const Footer = () => {
     };
 
     const currentYear = new Date().getFullYear();
+    
+    // Social media links - use API data if available, otherwise fallback to defaults
+    const socialLinks = [
+        { 
+            icon: Facebook, 
+            href: socialMedia?.facebook || "https://facebook.com", 
+            color: "hover:text-blue-500" 
+        },
+        { 
+            icon: Instagram, 
+            href: socialMedia?.instagram || "https://instagram.com", 
+            color: "hover:text-pink-500" 
+        },
+        { 
+            icon: Twitter, 
+            href: socialMedia?.x || "https://twitter.com", 
+            color: "hover:text-blue-400" 
+        },
+        { 
+            icon: Linkedin, 
+            href: "https://linkedin.com", 
+            color: "hover:text-blue-600" 
+        },
+        { 
+            icon: Youtube, 
+            href: "https://youtube.com", 
+            color: "hover:text-red-600" 
+        }
+    ];
 
     return (
         <footer className="bg-gradient-to-b from-[#111] to-[#0a0a0a] py-12 md:py-20 px-4 sm:px-6 lg:px-8 text-white relative">
@@ -71,13 +102,7 @@ export const Footer = () => {
                             de classe mondiale.
                         </p>
                         <div className="flex space-x-4 pt-2 justify-center sm:justify-start">
-                            {[
-                                { icon: Facebook, href: "https://facebook.com", color: "hover:text-blue-500" },
-                                { icon: Instagram, href: "https://instagram.com", color: "hover:text-pink-500" },
-                                { icon: Twitter, href: "https://twitter.com", color: "hover:text-blue-400" },
-                                { icon: Linkedin, href: "https://linkedin.com", color: "hover:text-blue-600" },
-                                { icon: Youtube, href: "https://youtube.com", color: "hover:text-red-600" }
-                            ].map((social, index) => (
+                            {socialLinks.map((social, index) => (
                                 <a
                                     key={index}
                                     href={social.href}
@@ -168,19 +193,26 @@ export const Footer = () => {
                         <ul className="space-y-4 text-gray-300">
                             <li className="flex items-center gap-3 hover:text-green-400 transition-colors group cursor-pointer justify-center sm:justify-start">
                                 <Mail className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                <a href="mailto:contact@terranafc.com" className="hover:underline">
-                                    contact@terranafc.com
+                                <a href={`mailto:${socialMedia?.email || "contact@terranafc.com"}`} className="hover:underline">
+                                    {socialMedia?.email || "contact@terranafc.com"}
                                 </a>
                             </li>
                             <li className="flex items-center gap-3 hover:text-green-400 transition-colors group cursor-pointer justify-center sm:justify-start">
                                 <Phone className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                <a href="tel:+212612345678" className="hover:underline">
-                                    +212 6 12 34 56 78
+                                <a href={`tel:${socialMedia?.telephone || "+212612345678"}`} className="hover:underline">
+                                    {socialMedia?.telephone || "+212 6 12 34 56 78"}
                                 </a>
                             </li>
                             <li className="flex items-center gap-3 hover:text-green-400 transition-colors group cursor-pointer justify-center sm:justify-start">
                                 <MapPin className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                <span>Fès, Maroc</span>
+                                <a 
+                                    href={socialMedia?.localisation || "https://maps.google.com"} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="hover:underline"
+                                >
+                                    {socialMedia?.address || "Fès, Maroc"}
+                                </a>
                             </li>
                         </ul>
                     </div>

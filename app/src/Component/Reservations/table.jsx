@@ -1,9 +1,13 @@
-import React, { useEffect, useState, useCallback, memo } from "react";
+import React, { useEffect, useState, useCallback, memo, useRef } from "react";
 import { motion } from "framer-motion";
 import FormResev from "./form";
 import { useLocation, useNavigate } from "react-router-dom";
 import adminReservationService from "../../lib/services/admin/reservationServices";
 import userReservationService from "../../lib/services/user/reservationServices";
+
+// Create a cache for reservation data
+const reservationsCache = new Map();
+const CACHE_DURATION_MS = 60000; // Cache data for 1 minute
 
 // Memoize the table cell to prevent unnecessary re-renders
 const TableCell = memo(({ reservation, heure, colIndex, handleClick, isPast }) => {
@@ -106,41 +110,90 @@ export default function Tableau({ terrain }) {
   const [selectedTerrain, setSelectedTerrain] = useState(terrain?.id_terrain || null);
   const [terrainDetails, setTerrainDetails] = useState(terrain || null);
   
-  // Debug useEffect - MOVED HERE before any conditional returns
-  useEffect(() => {
-    if (reservations && reservations.length > 0) {
-      console.log("Current reservations in state:", reservations);
-      console.log("Reservations with 'en attente' status:", 
-        reservations.filter(res => res.etat === "en attente"));
-    }
-  }, [reservations]);
+  // Add a debouncing mechanism to prevent multiple rapid API calls
+  const debounceTimeoutRef = useRef(null);
+  const isInitialMount = useRef(true);
+  const lastTerrainId = useRef(null);
   
+  // Only fetch reservations when terrain actually changes
+  useEffect(() => {
+    // Skip on initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    if (!terrainDetails) {
+      return;
+    }
+    
+    // Skip if it's the same terrain we already fetched for
+    if (lastTerrainId.current === terrainDetails.id_terrain) {
+      console.log("Skipping reservation fetch - same terrain:", terrainDetails.id_terrain);
+      return;
+    }
+    
+    // Update last terrain id
+    lastTerrainId.current = terrainDetails.id_terrain;
+    
+    // Clear any pending debounce
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    // Debounce the fetchReservations call
+    debounceTimeoutRef.current = setTimeout(() => {
+      fetchReservations();
+      debounceTimeoutRef.current = null;
+    }, 300);
+    
+    // Cleanup
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [terrainDetails]);
+
   // Use useCallback to prevent recreation of this function on every render
   const fetchReservations = useCallback(async () => {
     if (!terrainDetails) return;
     
+    // Check cache first
+    const cacheKey = `terrain_${terrainDetails.id_terrain}`;
+    const cachedData = reservationsCache.get(cacheKey);
+    
+    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_DURATION_MS)) {
+      console.log("Using cached reservation data for terrain:", terrainDetails.id_terrain);
+      setReservations(cachedData.data);
+      setError(null);
+      return;
+    }
+    
+    console.log("Fetching fresh reservation data for terrain:", terrainDetails.id_terrain);
     setLoading(true);
     try {
       // Check if user is admin - ensure consistent check throughout the app
       const isAdmin = sessionStorage.getItem("type") === "admin";
-      console.log("User role in Tableau:", isAdmin ? "admin" : "user");
       
       const reservationService = isAdmin 
         ? adminReservationService 
         : userReservationService;
         
-      const response = await reservationService.getAllReservations();
-      console.log("Reservation API response:", response);
+      const response = await reservationService.getAllReservations({
+        per_page: 100 // Request all reservations
+      });
       
       if (response.status === "success" && Array.isArray(response.data)) {
         // Map the data with proper structure depending on role
         const mappedReservations = response.data.map(res => {
-          // Handle different data structures for admin vs user APIs
+          // For admin API response, terrain and client are nested objects
+          // For user API response, terrain and client data are flattened
           return {
             id_reservation: res.id_reservation,
             num_res: res.num_res || "",
             id_client: res.client?.id_client || res.id_client,
-            id_terrain: res.terrain?.id_terrain || res.id_terrain,
+            id_terrain: parseInt(res.terrain?.id_terrain || res.id_terrain),
             date: res.date,
             heure: res.heure,
             etat: res.etat || "en attente",
@@ -153,7 +206,7 @@ export default function Tableau({ terrain }) {
               email: ""
             },
             terrain: res.terrain || {
-              id_terrain: res.id_terrain,
+              id_terrain: parseInt(res.id_terrain),
               nom: res.nom_terrain || `Terrain ${res.id_terrain}`,
               type: res.type || "",
               prix: res.prix || 0
@@ -161,21 +214,30 @@ export default function Tableau({ terrain }) {
           };
         });
 
+        // Store in cache with timestamp
+        reservationsCache.set(cacheKey, {
+          data: mappedReservations,
+          timestamp: Date.now()
+        });
+        
         setReservations(mappedReservations);
         setError(null); // Clear any existing errors
-        console.log("Mapped reservations:", mappedReservations);
+        
+        // Handle pagination if available in the response
+        if (response.pagination) {
+          // Store pagination info if needed in the future
+          console.log("Pagination info:", response.pagination);
+        }
       } else if (response.status === "error" && response.message === "No reservations found.") {
         // If no reservations found, set empty array and clear error
         setReservations([]);
         setError(null); // Clear any existing errors
-        console.log("No reservations found, setting empty array");
       } else {
         // Only set error for actual error cases
         setError("Failed to fetch reservations");
         setUseMockData(true);
       }
     } catch (error) {
-      console.error("Error fetching reservations:", error);
       setError("Error fetching reservations");
       setUseMockData(true);
     } finally {
@@ -196,7 +258,6 @@ export default function Tableau({ terrain }) {
     if (terrain) {
       setSelectedTerrain(terrain.id_terrain);
       setTerrainDetails(terrain);
-      console.log("Terrain updated in Tableau:", terrain);
     }
   }, [terrain]);
 
@@ -208,13 +269,12 @@ export default function Tableau({ terrain }) {
     date.setDate(date.getDate() + dayIndex);
     const dateString = formatDateForAPI(date);
     
-    console.log("Filtering reservations for day:", dateString, "terrain:", terrainDetails.id_terrain);
+    const currentTerrainId = parseInt(terrainDetails.id_terrain);
     
     return reservations.filter(res => {
-      if (res.date !== dateString) return false;
-      // Add more logging to debug the filtering
-      console.log(`Comparing: res.id_terrain=${res.id_terrain}, terrainDetails.id_terrain=${terrainDetails.id_terrain}`);
-      return res.id_terrain === terrainDetails.id_terrain;
+      const resTerrainId = parseInt(res.id_terrain);
+      const matches = res.date === dateString && resTerrainId === currentTerrainId;
+      return matches;
     });
   }, [reservations, terrainDetails]);
 
@@ -246,17 +306,57 @@ export default function Tableau({ terrain }) {
     if(location.pathname === "/Admin"){
       sessionStorage.setItem("selectedHour", heure);
       sessionStorage.setItem("selectedTime", dateString);
-      sessionStorage.setItem("selectedTerrain", terrainDetails?.id_terrain || '');
+      
+      // Ensure terrain ID is stored as a number
+      const terrainId = parseInt(terrainDetails?.id_terrain || '0');
+      sessionStorage.setItem("selectedTerrain", terrainId);
+      
       // Trigger the popup in Admin component
       sessionStorage.setItem("showReservationPopup", "true");
       
       // Dispatch a custom event to notify the Admin component
       const event = new CustomEvent('reservationCellClicked', {
-        detail: { hour: heure, date: dateString, terrain: terrainDetails?.id_terrain || '' }
+        detail: { 
+          hour: heure, 
+          date: dateString, 
+          terrain: {
+            id_terrain: terrainId,
+            nom_terrain: terrainDetails?.nom_terrain || `Terrain ${terrainId}`
+          }
+        }
       });
       document.dispatchEvent(event);
     }
   };
+
+  // Add event listeners for reservation status updates
+  useEffect(() => {
+    // Event listener for when a reservation is completed
+    const handleReservationComplete = () => {
+      fetchReservations();
+    };
+    
+    // Listen for reservation success events
+    document.addEventListener('reservationSuccess', handleReservationComplete);
+    document.addEventListener('reservationCancelled', handleReservationComplete);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('reservationSuccess', handleReservationComplete);
+      document.removeEventListener('reservationCancelled', handleReservationComplete);
+    };
+  }, [fetchReservations]);
+
+  // Add a polling mechanism to refresh data every 5 minutes
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      if (terrainDetails) {
+        fetchReservations();
+      }
+    }, 300000); // 5 minutes
+    
+    return () => clearInterval(refreshInterval);
+  }, [fetchReservations, terrainDetails]);
 
   // Show loading state only on initial load
   if (loading && !reservations.length) {
@@ -300,17 +400,6 @@ export default function Tableau({ terrain }) {
               {terrainDetails ? terrainDetails.nom_terrain : "Aucun terrain sélectionné"}
             </span>
           </h2>
-          
-          {/* Only keep the refresh button */}
-          <button 
-            onClick={fetchReservations}
-            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors"
-            title="Refresh data"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
         </div>
         
         {!terrainDetails ? (
@@ -342,11 +431,6 @@ export default function Tableau({ terrain }) {
               </thead>
               <tbody>
                 {Heures.map((heure, rowIndex) => {
-                  // Add this debug log
-                  console.log(`Rendering row for ${heure}:`, Array(7).fill(null).map((_, colIndex) => 
-                    getReservationsForDay(colIndex).find(res => res.heure.startsWith(heure))
-                  ));
-                  
                   return (
                     <tr key={rowIndex} className="hover:bg-gray-700/30 transition-colors duration-150">
                       <td className="border border-gray-700 p-1 sm:p-2 text-center font-medium text-gray-200">

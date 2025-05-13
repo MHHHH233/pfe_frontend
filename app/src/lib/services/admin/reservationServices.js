@@ -3,7 +3,12 @@ import apiClient from '../../userapi'
 const reservationService = {
   async getAllReservations(params = {}) {
     try {
-      const response = await apiClient.get(reservationEndpoints.getAllReservations, params);
+      const queryParams = {
+        ...params,
+        per_page: params.per_page || 100
+      };
+      
+      const response = await apiClient.get(reservationEndpoints.getAllReservations, { params: queryParams });
       return response.data;
     } catch (error) {
       console.error('Error fetching reservations:', error);

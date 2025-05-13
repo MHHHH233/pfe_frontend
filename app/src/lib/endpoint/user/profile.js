@@ -7,6 +7,9 @@ const profileEndpoints = {
   // Update user's profile
   updateProfile: `${BASE_URL}/updateProfile`,
   
+  // Upload profile picture
+  updateProfilePicture: `${BASE_URL}/updateProfilePicture`,
+  
   // Change user's password
   changePassword: `${BASE_URL}/changePassword`,
   
@@ -17,7 +20,8 @@ const profileEndpoints = {
   reportBug: `${BASE_URL}/reportBug`,
   
   // Reset password (admin only)
-  resetPassword: (id) => `${BASE_URL}/comptes/${id}/reset-password`
+  resetPassword: (id) => `${BASE_URL}/comptes/${id}/reset-password`,
+  deleteAccount: (id) => `${BASE_URL}/comptes/${id}/deleteAccount`
 };
 
 export default profileEndpoints; 

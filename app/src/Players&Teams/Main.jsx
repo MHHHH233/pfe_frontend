@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Star, Filter, X, Calendar, Clock, UserPlus, Users, Trophy, ChevronDown, Play, Pause, ArrowRight, MapPin, Shield, Award, InfoIcon } from 'lucide-react';
 import NavBar from '../Component/NavBar';
-
+import { useNavigate } from 'react-router-dom';
 // Import services
 import teamsService from '../lib/services/user/teamsService';
 import playersService from '../lib/services/user/playersService';
@@ -102,6 +102,9 @@ const FindPlayerTeam = () => {
           ? playersData.map(player => {
               if (!player) return null;
               
+              // Extract user details from compte property
+              const userInfo = player.compte || {};
+              
               // Get account ID to potentially fetch profile info like name
               const accountId = player.id_compte || 0;
               
@@ -110,17 +113,17 @@ const FindPlayerTeam = () => {
               if (isCurrentUser && !isPlayer) {
                 // Update session storage to mark user as a player
                 sessionStorage.setItem('isPlayer', 'true');
-                sessionStorage.setItem('player_id', player.id_player);
+                sessionStorage.setItem('player_id', player.id);
               }
               
               return {
-                id: player.id_player || 0,
+                id: player.id || 0,
                 id_compte: accountId,
-                name: player.name || `Player ${player.id_player}`,
+                name: userInfo.full_name || userInfo.nom || `Player ${player.id}`,
                 position: player.position || 'Unknown',
                 rating: typeof player.rating === 'number' ? player.rating : 0,
                 matchesPlayed: typeof player.total_matches === 'number' ? player.total_matches : 0,
-                image: player.image || null,
+                image: userInfo.pfp || null,
                 starting_time: player.starting_time || null,
                 finishing_time: player.finishing_time || null,
                 invites_accepted: player.invites_accepted || 0,
@@ -151,25 +154,38 @@ const FindPlayerTeam = () => {
           ? teamsData.map(team => {
               if (!team) return null;
               
-              // Check if this team belongs to the current user
-              const isUserTeam = team.capitain === parseInt(sessionStorage.getItem('userId'), 10);
+              // Get player_id from session storage
+              const playerId = parseInt(sessionStorage.getItem('player_id'), 10);
+              
+              // Check if this team belongs to the current user using player_id
+              const isUserTeam = playerId && (team.capitain === playerId || parseInt(team.capitain, 10) === playerId);
               
               // If we find the user's team and it's not already marked, update session storage
               if (isUserTeam && !hasTeams) {
                 sessionStorage.setItem('has_teams', 'true');
                 sessionStorage.setItem('id_teams', team.id_teams);
                 
-                // Store all user teams in session storage
-                const userTeams = formattedTeams.filter(t => t && t.captain === parseInt(sessionStorage.getItem('userId'), 10));
-                sessionStorage.setItem('teams', JSON.stringify(userTeams));
+                // Store this team in session storage
+                // We can't reference formattedTeams here as it's still being built
+                const userTeam = {
+                  id_teams: team.id_teams,
+                  name: team.team_name || `Team ${team.id_teams}`,
+                  capitain: team.capitain
+                };
+                sessionStorage.setItem('teams', JSON.stringify([userTeam]));
               }
+              
+              // Get captain details if available
+              const captainDetails = team.captain_details || {};
               
               return {
                 id: team.id_teams || 0,
-                name: team.name || `Team ${team.id_teams}`,
+                name: team.team_name || `Team ${team.id_teams}`,
                 rating: typeof team.rating === 'number' ? team.rating : 0,
-                image: team.image || null,
-                captain: team.capitain || null,
+                image: null, // Team images not available in the API response
+                captain: team.capitain || null, // Store the captain ID from 'capitain' field
+                captainName: captainDetails.name || 'Unknown', // Store the captain name from captain_details
+                members_count: team.members_count || 0,
                 starting_time: team.starting_time || null,
                 finishing_time: team.finishing_time || null,
                 total_matches: team.total_matches || 0,
@@ -234,7 +250,7 @@ const FindPlayerTeam = () => {
   // Get user player status
   const isUserPlayer = sessionStorage.getItem('isPlayer') === 'true';
   const hasTeams = sessionStorage.getItem('has_teams') === 'true';
-
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#121212] to-[#1e1e1e] text-white font-sans">      
       {/* Hero Section with Video Background */}
@@ -253,7 +269,7 @@ const FindPlayerTeam = () => {
             onCanPlay={() => setIsVideoPlaying(true)}
             onWaiting={() => setIsVideoPlaying(false)}
           >
-            <source src="https://res.cloudinary.com/dlt4bs1dn/video/upload/v1680732060/soccer-video_pgfovl.mp4" type="video/mp4" />
+            <source src="http://127.0.0.1:8000/2249402-uhd_3840_2160_24fps.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
           
@@ -397,7 +413,9 @@ const FindPlayerTeam = () => {
                         <div className="relative mr-4">
                           <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#07f468] to-[#9EF01A] blur-[1px]"></div>
                           <img 
-                            src={player.image || 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'} 
+                            src={player.image ? 
+                              (player.image.startsWith('http') ? player.image : `${process.env.REACT_APP_API_URL}/${player.image}`) : 
+                              'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'} 
                             alt={player.name || 'Player'} 
                             className="w-12 h-12 rounded-full relative border-2 border-[#07f468] object-cover" 
                           />
@@ -419,7 +437,7 @@ const FindPlayerTeam = () => {
               </ul>
               <button
                 className="mt-8 w-full py-3 rounded-xl border border-[#07f468]/30 text-[#07f468] flex items-center justify-center hover:bg-[#07f468]/10 transition-all"
-                onClick={() => setActiveTab('players')}
+                onClick={() => navigate('/all-players')}
               >
                 View All Players
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -457,7 +475,9 @@ const FindPlayerTeam = () => {
                         <div className="relative mr-4">
                           <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#07f468] to-[#9EF01A] blur-[1px]"></div>
                           <img 
-                            src={team.image || 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'} 
+                            src={team.image ? 
+                              (team.image.startsWith('http') ? team.image : `${process.env.REACT_APP_API_URL}/${team.image}`) : 
+                              'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'} 
                             alt={team.name || 'Team'} 
                             className="w-12 h-12 rounded-full relative border-2 border-[#07f468] object-cover" 
                           />
@@ -476,7 +496,7 @@ const FindPlayerTeam = () => {
               </ul>
               <button
                 className="mt-8 w-full py-3 rounded-xl border border-[#07f468]/30 text-[#07f468] flex items-center justify-center hover:bg-[#07f468]/10 transition-all"
-                onClick={() => setActiveTab('teams')}
+                onClick={() => navigate('/all-teams')}
               >
                 View All Teams
                 <ArrowRight className="w-4 h-4 ml-2" />
@@ -587,114 +607,168 @@ const FindPlayerTeam = () => {
           {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {activeTab === 'players'
-                ? (Array.isArray(filteredPlayers) ? filteredPlayers : []).map((player, index) => (
-                  <motion.div
-                      key={player.id || `player-grid-${index}`}
-                    className="bg-gradient-to-br from-[#222] to-[#1a1a1a] rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-white/5 group"
-                    onClick={() => setSelectedPlayer(player)}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ y: -5, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className="h-44 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent z-10"></div>
-                    <img
-                        src={player.image || 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
-                        alt={player.name || 'Player'}
-                        className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 ease-in-out"
-                      />
-                      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
-                        <span className="bg-[#07f468] text-black text-sm font-bold px-3 py-1 rounded-full">
-                          {player.position || 'Unknown'}
-                        </span>
-                        {player.isCurrentUser && (
-                          <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            You
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="p-5">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-xl font-bold truncate">{player.name || 'Unknown Player'}</h3>
-                        <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
-                          <span className="mr-1 font-medium">{player.rating || '0'}</span>
-                          <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
+                ? (Array.isArray(filteredPlayers) ? filteredPlayers : []).map((player, index) => {
+                    // Add null check before rendering
+                    if (!player) return null;
+                    
+                    return (
+                      <motion.div
+                          key={player.id || `player-grid-${index}`}
+                        className="bg-gradient-to-br from-[#222] to-[#1a1a1a] rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-white/5 group"
+                        onClick={() => setSelectedPlayer(player)}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        whileHover={{ y: -5, scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <div className="h-44 relative overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent z-10"></div>
+                        <img
+                            src={player.image ? 
+                              (player.image.startsWith('http') ? player.image : `${process.env.REACT_APP_API_URL}/${player.image}`) : 
+                              'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
+                            alt={player.name || 'Player'}
+                            className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 ease-in-out"
+                          />
+                          <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+                            <span className="bg-[#07f468] text-black text-sm font-bold px-3 py-1 rounded-full">
+                              {player.position || 'Unknown'}
+                            </span>
+                            {player && player.isCurrentUser && (
+                              <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                You
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-gray-400 text-sm space-y-1 mb-4">
-                        <p className="flex items-center">
-                          <Trophy className="w-4 h-4 mr-2 text-[#07f468]" />
-                          Matches: {player.matchesPlayed || '0'}
-                        </p>
-                        <p className="flex items-center">
-                          <Clock className="w-4 h-4 mr-2 text-[#07f468]" />
-                          Available: {player.starting_time ? player.starting_time.slice(0, 5) : '--:--'} - {player.finishing_time ? player.finishing_time.slice(0, 5) : '--:--'}
-                        </p>
-                      </div>
-                      <button className="w-full py-2.5 mt-2 rounded-lg bg-white/5 text-white text-sm font-medium hover:bg-[#07f468]/80 hover:text-black transition-all duration-300 flex items-center justify-center">
-                        View Profile
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))
-                : (Array.isArray(filteredTeams) ? filteredTeams : []).map((team, index) => (
-                  <motion.div
-                      key={team.id || `team-grid-${index}`}
-                    className="bg-gradient-to-br from-[#222] to-[#1a1a1a] rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-white/5 group"
-                    onClick={() => setSelectedTeam(team)}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    whileHover={{ y: -5, scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className="h-44 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent z-10"></div>
-                    <img
-                        src={team.image || 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
-                        alt={team.name || 'Team'}
-                        className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 ease-in-out"
-                      />
-                      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
-                        <span className="bg-[#07f468] text-black text-sm font-bold px-3 py-1 rounded-full">
-                          Team
-                        </span>
-                        {team.isUserTeam && (
-                          <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                            Your Team
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="p-5">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-xl font-bold truncate">{team.name || `Team ${team.id || 'Unknown'}`}</h3>
-                        <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
-                          <span className="mr-1 font-medium">{team.rating || '0'}</span>
-                          <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
+                        <div className="p-5">
+                          <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-xl font-bold truncate">{player.name || 'Unknown Player'}</h3>
+                            <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
+                              <span className="mr-1 font-medium">{player.rating || '0'}</span>
+                              <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
+                            </div>
+                          </div>
+                          <div className="text-gray-400 text-sm space-y-1 mb-4">
+                            <p className="flex items-center">
+                              <Trophy className="w-4 h-4 mr-2 text-[#07f468]" />
+                              Matches: {player.matchesPlayed || '0'}
+                            </p>
+                            <p className="flex items-center">
+                              <Clock className="w-4 h-4 mr-2 text-[#07f468]" />
+                              Available: {player.starting_time ? player.starting_time.slice(0, 5) : '--:--'} - {player.finishing_time ? player.finishing_time.slice(0, 5) : '--:--'}
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button className="flex-1 py-2.5 rounded-lg bg-white/5 text-white text-sm font-medium hover:bg-white/10 transition-all duration-300 flex items-center justify-center"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPlayer(player);
+                              }}
+                            >
+                              View Profile
+                            </button>
+                            <button 
+                              className="flex-1 py-2.5 rounded-lg bg-[#07f468] text-black text-sm font-medium hover:bg-[#07f468]/80 transition-all duration-300 flex items-center justify-center"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPlayer(player);
+                                setShowInviteForm(true);
+                              }}
+                              disabled={player.isCurrentUser}
+                            >
+                              {player.isCurrentUser ? "You" : "Invite"}
+                              {!player.isCurrentUser && <UserPlus className="w-4 h-4 ml-2" />}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-gray-400 text-sm space-y-1 mb-4">
-                        <p className="flex items-center">
-                          <Trophy className="w-4 h-4 mr-2 text-[#07f468]" />
-                          Matches: {team.total_matches || '0'}
-                        </p>
-                        <p className="flex items-center">
-                          <Clock className="w-4 h-4 mr-2 text-[#07f468]" />
-                          Available: {team.starting_time ? team.starting_time.slice(0, 5) : '--:--'} - {team.finishing_time ? team.finishing_time.slice(0, 5) : '--:--'}
-                        </p>
-                      </div>
-                      <button className="w-full py-2.5 mt-2 rounded-lg bg-white/5 text-white text-sm font-medium hover:bg-[#07f468]/80 hover:text-black transition-all duration-300 flex items-center justify-center">
-                        View Team
-                        <ArrowRight className="w-4 h-4 ml-2" />
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                      </motion.div>
+                    );
+                  })
+                : (Array.isArray(filteredTeams) ? filteredTeams : []).map((team, index) => {
+                    // Add null check before rendering
+                    if (!team) return null;
+                    
+                    return (
+                      <motion.div
+                          key={team.id || `team-grid-${index}`}
+                        className="bg-gradient-to-br from-[#222] to-[#1a1a1a] rounded-xl overflow-hidden hover:shadow-xl transition-all duration-300 border border-white/5 group"
+                        onClick={() => setSelectedTeam(team)}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        whileHover={{ y: -5, scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <div className="h-44 relative overflow-hidden">
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] to-transparent z-10"></div>
+                        <img
+                            src={team.image ? 
+                              (team.image.startsWith('http') ? team.image : `${process.env.REACT_APP_API_URL}/${team.image}`) : 
+                              'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
+                            alt={team.name || 'Team'}
+                            className="w-full h-full object-cover object-center group-hover:scale-110 transition-all duration-700 ease-in-out"
+                          />
+                          <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+                            <span className="bg-[#07f468] text-black text-sm font-bold px-3 py-1 rounded-full">
+                              Team
+                            </span>
+                            {team && team.isUserTeam && (
+                              <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                Your Team
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-5">
+                          <div className="flex justify-between items-center mb-3">
+                            <h3 className="text-xl font-bold truncate">{team.name || `Team ${team.id || 'Unknown'}`}</h3>
+                            <div className="flex items-center bg-[#07f468]/10 px-2 py-1 rounded-full">
+                              <span className="mr-1 font-medium">{team.rating || '0'}</span>
+                              <Star className="w-4 h-4 text-[#07f468]" fill="#07f468" />
+                            </div>
+                          </div>
+                          <div className="text-gray-400 text-sm space-y-1 mb-4">
+                            <p className="flex items-center">
+                              <Users className="w-4 h-4 mr-2 text-[#07f468]" />
+                              Members: {team.members_count || '0'}
+                            </p>
+                            <p className="flex items-center">
+                              <Trophy className="w-4 h-4 mr-2 text-[#07f468]" />
+                              Matches: {team.total_matches || '0'}
+                            </p>
+                            <p className="flex items-center text-xs truncate">
+                              <Shield className="w-4 h-4 mr-2 text-[#07f468]" />
+                              Captain: {team.captainName || 'Unknown'}
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button className="flex-1 py-2.5 rounded-lg bg-white/5 text-white text-sm font-medium hover:bg-white/10 transition-all duration-300 flex items-center justify-center"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTeam(team);
+                              }}
+                            >
+                              View Team
+                            </button>
+                            <button 
+                              className="flex-1 py-2.5 rounded-lg bg-[#07f468] text-black text-sm font-medium hover:bg-[#07f468]/80 transition-all duration-300 flex items-center justify-center"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTeam(team);
+                                setShowInviteForm(true);
+                              }}
+                              disabled={team.isUserTeam}
+                            >
+                              {team.isUserTeam ? "Yours" : "Contact"}
+                              {!team.isUserTeam && <Calendar className="w-4 h-4 ml-2" />}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
           </div>
           )}
 
@@ -924,7 +998,9 @@ const FindPlayerTeam = () => {
                   <div className="relative">
                     <div className="absolute -inset-1 bg-gradient-to-r from-[#07f468] to-[#9EF01A] rounded-full blur-sm opacity-70"></div>
                   <img
-                    src={selectedPlayer.image || 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
+                    src={selectedPlayer.image ? 
+                          (selectedPlayer.image.startsWith('http') ? selectedPlayer.image : `${process.env.REACT_APP_API_URL}/${selectedPlayer.image}`) : 
+                          'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
                     alt={selectedPlayer.name}
                       className="relative w-32 h-32 rounded-full border-4 border-[#1a1a1a] object-cover"
                     />
@@ -938,7 +1014,7 @@ const FindPlayerTeam = () => {
                         <span className="mr-1 font-medium">{selectedPlayer.rating || '0'}</span>
                         <Star className="w-3.5 h-3.5 text-[#07f468]" fill="#07f468" />
                       </div>
-                      {selectedPlayer.isCurrentUser && (
+                      {selectedPlayer && selectedPlayer.isCurrentUser && (
                         <span className="bg-blue-500/20 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-md">
                           Your Profile
                         </span>
@@ -958,56 +1034,19 @@ const FindPlayerTeam = () => {
                     <div className="space-y-4">
                       <div className="bg-white/5 p-4 rounded-xl">
                         <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-400">Position</span>
+                          <span className="font-bold">{selectedPlayer.position || 'Not specified'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white/5 p-4 rounded-xl">
+                        <div className="flex justify-between items-center mb-2">
                           <span className="text-gray-400">Matches Played</span>
                           <span className="font-bold">{selectedPlayer.matchesPlayed || '0'}</span>
                         </div>
                         <div className="w-full bg-white/10 rounded-full h-2.5">
                           <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
                                style={{ width: `${Math.min(100, ((selectedPlayer.matchesPlayed || 0) / 20) * 100)}%` }}></div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white/5 p-4 rounded-xl">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-400">Invites Accepted</span>
-                          <span className="font-bold">{selectedPlayer.invites_accepted || '0'}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2.5">
-                          <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
-                               style={{ width: `${Math.min(100, ((selectedPlayer.invites_accepted || 0) / 10) * 100)}%` }}></div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white/5 p-4 rounded-xl">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-400">Reliability Score</span>
-                          <span className="font-bold">{selectedPlayer.misses === 0 && selectedPlayer.matchesPlayed > 0 ? '100%' : 
-                            selectedPlayer.matchesPlayed > 0 ? 
-                            `${Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100)}%` : 
-                            'N/A'}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2.5">
-                          <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
-                               style={{ width: selectedPlayer.matchesPlayed > 0 ? 
-                                 `${Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100)}%` : 
-                                 '0%' }}></div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white/5 p-4 rounded-xl">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-400">Response Rate</span>
-                          <span className="font-bold">
-                            {selectedPlayer.total_invites > 0 ? 
-                              `${Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100)}%` : 
-                              'N/A'}
-                          </span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2.5">
-                          <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2.5 rounded-full" 
-                               style={{ width: selectedPlayer.total_invites > 0 ? 
-                                 `${Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100)}%` : 
-                                 '0%' }}></div>
                         </div>
                       </div>
                     </div>
@@ -1024,22 +1063,18 @@ const FindPlayerTeam = () => {
                         <Clock className="w-5 h-5 text-[#07f468]" />
                         <span>
                           {selectedPlayer.starting_time 
-                            ? selectedPlayer.starting_time.includes('T') 
-                              ? selectedPlayer.starting_time.split('T')[1].substring(0, 5) 
-                              : selectedPlayer.starting_time.substring(0, 5) 
-                            : '18:00'} - 
+                            ? selectedPlayer.starting_time.substring(0, 5)
+                            : '--:--'} - 
                           {selectedPlayer.finishing_time 
-                            ? selectedPlayer.finishing_time.includes('T') 
-                              ? selectedPlayer.finishing_time.split('T')[1].substring(0, 5) 
-                              : selectedPlayer.finishing_time.substring(0, 5) 
-                            : '22:00'}
+                            ? selectedPlayer.finishing_time.substring(0, 5)
+                            : '--:--'}
                         </span>
                       </div>
                     </div>
                     
                     <h3 className="text-xl font-bold mb-4 flex items-center">
                       <Award className="w-5 h-5 mr-2 text-[#07f468]" />
-                      Player Rating Breakdown
+                      Player Rating
                     </h3>
                     <div className="bg-white/5 p-4 rounded-xl">
                       <div className="flex items-center mb-3">
@@ -1054,48 +1089,133 @@ const FindPlayerTeam = () => {
                           ))}
                         </div>
                       </div>
-                      
-                      <div className="space-y-2 mt-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Skill Level</span>
-                          <div className="flex items-center">
-                            <div className="w-16 h-2 bg-white/10 rounded-full mr-2 overflow-hidden">
-                              <div className="h-full bg-[#07f468]" style={{ width: `${(selectedPlayer.rating || 0) * 20}%` }}></div>
-                            </div>
-                            <span>{selectedPlayer.rating || 0}/5</span>
-                          </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-8 flex justify-center md:justify-end">
+                  {selectedPlayer && (selectedPlayer.isCurrentUser === false || selectedPlayer.isCurrentUser === undefined) ? (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
+                      onClick={() => setSelectedPlayer(null)}
+                    >
+                      <X className="w-5 h-5 mr-2" />
+                      Close
+                    </motion.button>
+                  ) : (
+                    <div className="flex flex-col items-center bg-blue-500/20 p-4 rounded-xl border border-blue-500/30">
+                      <p className="text-blue-400 mb-2">This is your player profile</p>
+                      <p className="text-sm text-gray-400">You can view your matches and requests in the dashboard.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Team Profile Modal */}
+      <AnimatePresence>
+        {selectedTeam && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedTeam(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              className="bg-gradient-to-br from-[#1a1a1a] to-[#111] rounded-2xl max-w-4xl w-full mx-4 overflow-hidden border border-white/5 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative h-40 bg-gradient-to-r from-[#07f468]/80 to-[#9EF01A]/80 overflow-hidden">
+                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1517466787929-bc90951d0974')] bg-cover bg-center opacity-30 mix-blend-overlay"></div>
+                <button
+                  className="absolute top-4 right-4 text-white bg-black/30 hover:bg-black/50 p-2 rounded-full transition-colors"
+                  onClick={() => setSelectedTeam(null)}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="px-8 pb-8">
+                <div className="flex flex-col md:flex-row items-start -mt-16 mb-8 gap-6">
+                  <div className="relative">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-[#07f468] to-[#9EF01A] rounded-full blur-sm opacity-70"></div>
+                  <img
+                    src={selectedTeam.image ? 
+                          (selectedTeam.image.startsWith('http') ? selectedTeam.image : `${process.env.REACT_APP_API_URL}/${selectedTeam.image}`) : 
+                          'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
+                    alt={selectedTeam.name}
+                      className="relative w-32 h-32 rounded-full border-4 border-[#1a1a1a] object-cover"
+                    />
+                  </div>
+                  <div className="pt-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="bg-[#07f468]/20 text-[#07f468] text-xs font-semibold px-2.5 py-1 rounded-md">
+                        Team
+                      </span>
+                      <div className="flex items-center bg-white/10 px-2 py-1 rounded-full">
+                        <span className="mr-1 font-medium">{selectedTeam.rating || '0'}</span>
+                        <Star className="w-3.5 h-3.5 text-[#07f468]" fill="#07f468" />
+                      </div>
+                      {selectedTeam && selectedTeam.isUserTeam && (
+                        <span className="bg-blue-500/20 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-md">
+                          Your Team
+                        </span>
+                      )}
+                    </div>
+                    <h2 className="text-3xl font-bold">{selectedTeam.name || `Team ${selectedTeam.id}`}</h2>
+                    <p className="text-gray-400 mt-1">Team ID: {selectedTeam.id}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <h3 className="text-xl font-bold mb-4 flex items-center">
+                      <Users className="w-5 h-5 mr-2 text-[#07f468]" />
+                      Team Info
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="bg-white/5 p-4 rounded-xl">
+                        <div className="flex mb-2">
+                          <div className="w-32 text-gray-400">Captain</div>
+                          <div className="font-medium">{selectedTeam.captainName || 'Unknown'}</div>
                         </div>
-                        
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Reliability</span>
-                          <div className="flex items-center">
-                            <div className="w-16 h-2 bg-white/10 rounded-full mr-2 overflow-hidden">
-                              <div className="h-full bg-[#07f468]" 
-                                style={{ width: `${selectedPlayer.matchesPlayed > 0 ? 
-                                  Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100) : 0}%` }}>
-                              </div>
-                            </div>
-                            <span>
-                              {selectedPlayer.matchesPlayed > 0 ? 
-                                Math.round(((selectedPlayer.matchesPlayed - (selectedPlayer.misses || 0)) / selectedPlayer.matchesPlayed) * 100) : 0}%
-                            </span>
-                          </div>
+                        <div className="flex mb-2">
+                          <div className="w-32 text-gray-400">Total Matches</div>
+                          <div className="font-medium">{selectedTeam.total_matches || '0'}</div>
                         </div>
-                        
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-400">Responsiveness</span>
-                          <div className="flex items-center">
-                            <div className="w-16 h-2 bg-white/10 rounded-full mr-2 overflow-hidden">
-                              <div className="h-full bg-[#07f468]" 
-                                style={{ width: `${selectedPlayer.total_invites > 0 ? 
-                                  Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100) : 0}%` }}>
-                              </div>
-                            </div>
-                            <span>
-                              {selectedPlayer.total_invites > 0 ? 
-                                Math.round(((selectedPlayer.invites_accepted || 0) + (selectedPlayer.invites_refused || 0)) / selectedPlayer.total_invites * 100) : 0}%
-                            </span>
-                          </div>
+                        <div className="flex">
+                          <div className="w-32 text-gray-400">Members</div>
+                          <div className="font-medium">{selectedTeam.members_count || '0'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-xl font-bold mb-4 flex items-center">
+                      <Trophy className="w-5 h-5 mr-2 text-[#07f468]" />
+                      Team Rating
+                    </h3>
+                    <div className="bg-white/5 p-4 rounded-xl">
+                      <div className="flex items-center mb-6">
+                        <div className="flex-1">Overall Rating</div>
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star 
+                              key={star} 
+                              className={`w-5 h-5 ${star <= (selectedTeam.rating || 0) ? 'text-[#07f468]' : 'text-gray-600'}`} 
+                              fill={star <= (selectedTeam.rating || 0) ? '#07f468' : 'none'} 
+                            />
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -1103,20 +1223,20 @@ const FindPlayerTeam = () => {
                 </div>
                 
                 <div className="mt-8 flex justify-center md:justify-end">
-                  {!selectedPlayer.isCurrentUser ? (
+                  {selectedTeam && (selectedTeam.isUserTeam === false || selectedTeam.isUserTeam === undefined) ? (
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
-                      onClick={() => setShowInviteForm(true)}
+                      onClick={() => setSelectedTeam(null)}
                     >
-                      <Calendar className="w-5 h-5 mr-2" />
-                      Invite to Play
+                      <X className="w-5 h-5 mr-2" />
+                      Close
                     </motion.button>
                   ) : (
                     <div className="flex flex-col items-center bg-blue-500/20 p-4 rounded-xl border border-blue-500/30">
-                      <p className="text-blue-400 mb-2">This is your player profile</p>
-                      <p className="text-sm text-gray-400">You can view your matches and requests in the dashboard.</p>
+                      <p className="text-blue-400 mb-2">This is your team</p>
+                      <p className="text-sm text-gray-400">You can manage your team from the dashboard</p>
                     </div>
                   )}
                 </div>
@@ -1155,209 +1275,8 @@ const FindPlayerTeam = () => {
                 selectedTeam={selectedTeam} 
                 currentUser={currentUser}
                 onClose={() => setShowInviteForm(false)}
+                handleCreatePlayerProfile={() => setShowPlayerForm(true)}
               />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Team Profile Modal */}
-      <AnimatePresence>
-        {selectedTeam && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setSelectedTeam(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 30 }}
-              className="bg-gradient-to-br from-[#1a1a1a] to-[#111] rounded-2xl max-w-4xl w-full mx-4 overflow-hidden border border-white/5 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="relative h-40 bg-gradient-to-r from-[#07f468]/80 to-[#9EF01A]/80 overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1517466787929-bc90951d0974')] bg-cover bg-center opacity-30 mix-blend-overlay"></div>
-                <button
-                  className="absolute top-4 right-4 text-white bg-black/30 hover:bg-black/50 p-2 rounded-full transition-colors"
-                  onClick={() => setSelectedTeam(null)}
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="px-8 pb-8">
-                <div className="flex flex-col md:flex-row items-start -mt-16 mb-8 gap-6">
-                  <div className="relative">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-[#07f468] to-[#9EF01A] rounded-full blur-sm opacity-70"></div>
-                  <img
-                    src={selectedTeam.image || 'https://discuss.cakewalk.com/uploads/monthly_2024_03/imported-photo-22646.thumb.jpeg.34bfea5fe763a56356574f4c413f0f17.jpeg'}
-                    alt={selectedTeam.name}
-                      className="relative w-32 h-32 rounded-full border-4 border-[#1a1a1a] object-cover"
-                    />
-                  </div>
-                  <div className="pt-4">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="bg-[#07f468]/20 text-[#07f468] text-xs font-semibold px-2.5 py-1 rounded-md">
-                        Team
-                      </span>
-                      <div className="flex items-center bg-white/10 px-2 py-1 rounded-full">
-                        <span className="mr-1 font-medium">{selectedTeam.rating || '0'}</span>
-                        <Star className="w-3.5 h-3.5 text-[#07f468]" fill="#07f468" />
-                      </div>
-                      {selectedTeam.isUserTeam && (
-                        <span className="bg-blue-500/20 text-blue-400 text-xs font-semibold px-2.5 py-1 rounded-md">
-                          Your Team
-                        </span>
-                      )}
-                    </div>
-                    <h2 className="text-3xl font-bold">{selectedTeam.name || `Team ${selectedTeam.id}`}</h2>
-                    <p className="text-gray-400 mt-1">Team ID: {selectedTeam.id}</p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div>
-                    <h3 className="text-xl font-bold mb-4 flex items-center">
-                      <Users className="w-5 h-5 mr-2 text-[#07f468]" />
-                      Team Info
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="bg-white/5 p-4 rounded-xl">
-                        <div className="flex mb-2">
-                          <div className="w-32 text-gray-400">Captain ID</div>
-                          <div className="font-medium">{selectedTeam.captain || 'Not specified'}</div>
-                        </div>
-                        <div className="flex mb-2">
-                          <div className="w-32 text-gray-400">Total Matches</div>
-                          <div className="font-medium">{selectedTeam.total_matches || '0'}</div>
-                        </div>
-                        <div className="flex mb-2">
-                          <div className="w-32 text-gray-400">Invites Accepted</div>
-                          <div className="font-medium">{selectedTeam.invites_accepted || '0'}</div>
-                        </div>
-                        <div className="flex">
-                          <div className="w-32 text-gray-400">Invites Refused</div>
-                          <div className="font-medium">{selectedTeam.invites_refused || '0'}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-white/5 p-4 rounded-xl">
-                        <h4 className="font-medium mb-3">Team Performance</h4>
-                        <div className="space-y-3">
-                          <div>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span>Reliability Score</span>
-                              <span className="font-medium">
-                                {selectedTeam.total_matches > 0 ? 
-                                  `${Math.round(((selectedTeam.total_matches - (selectedTeam.misses || 0)) / selectedTeam.total_matches) * 100)}%` : 
-                                  'N/A'}
-                              </span>
-                            </div>
-                            <div className="w-full bg-white/10 rounded-full h-2">
-                              <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2 rounded-full" 
-                                  style={{ width: selectedTeam.total_matches > 0 ? 
-                                    `${Math.round(((selectedTeam.total_matches - (selectedTeam.misses || 0)) / selectedTeam.total_matches) * 100)}%` : 
-                                    '0%' }}>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span>Response Rate</span>
-                              <span className="font-medium">
-                                {selectedTeam.total_invites > 0 ? 
-                                  `${Math.round(((selectedTeam.invites_accepted || 0) + (selectedTeam.invites_refused || 0)) / selectedTeam.total_invites * 100)}%` : 
-                                  'N/A'}
-                              </span>
-                            </div>
-                            <div className="w-full bg-white/10 rounded-full h-2">
-                              <div className="bg-gradient-to-r from-[#07f468] to-[#9EF01A] h-2 rounded-full" 
-                                  style={{ width: selectedTeam.total_invites > 0 ? 
-                                    `${Math.round(((selectedTeam.invites_accepted || 0) + (selectedTeam.invites_refused || 0)) / selectedTeam.total_invites * 100)}%` : 
-                                    '0%' }}>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-xl font-bold mb-4 flex items-center">
-                      <Calendar className="w-5 h-5 mr-2 text-[#07f468]" />
-                      Availability
-                    </h3>
-                    <div className="bg-white/5 p-4 rounded-xl mb-6">
-                      <p className="text-gray-400 mb-2">Available Times</p>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-5 h-5 text-[#07f468]" />
-                        <span>
-                          {selectedTeam.starting_time 
-                            ? selectedTeam.starting_time.includes('T') 
-                              ? selectedTeam.starting_time.split('T')[1].substring(0, 5) 
-                              : selectedTeam.starting_time.substring(0, 5) 
-                            : '18:00'} - 
-                          {selectedTeam.finishing_time 
-                            ? selectedTeam.finishing_time.includes('T') 
-                              ? selectedTeam.finishing_time.split('T')[1].substring(0, 5) 
-                              : selectedTeam.finishing_time.substring(0, 5) 
-                            : '22:00'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <h3 className="text-xl font-bold mb-4 flex items-center">
-                      <Trophy className="w-5 h-5 mr-2 text-[#07f468]" />
-                      Team Rating
-                    </h3>
-                    <div className="bg-white/5 p-4 rounded-xl">
-                      <div className="flex items-center mb-6">
-                        <div className="flex-1">Overall Rating</div>
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star 
-                              key={star} 
-                              className={`w-5 h-5 ${star <= (selectedTeam.rating || 0) ? 'text-[#07f468]' : 'text-gray-600'}`} 
-                              fill={star <= (selectedTeam.rating || 0) ? '#07f468' : 'none'} 
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="p-3 rounded-lg bg-[#07f468]/10 border border-[#07f468]/20">
-                        <p className="text-sm flex items-start">
-                          <InfoIcon className="w-5 h-5 text-[#07f468] mr-2 flex-shrink-0" />
-                          Team rating is calculated based on match performance, sportsmanship, and peer reviews from opponents.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-8 flex justify-center md:justify-end">
-                  {!selectedTeam.isUserTeam ? (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20"
-                      onClick={() => setShowInviteForm(true)}
-                    >
-                      <Calendar className="w-5 h-5 mr-2" />
-                      Contact Team
-                    </motion.button>
-                  ) : (
-                    <div className="flex flex-col items-center bg-blue-500/20 p-4 rounded-xl border border-blue-500/30">
-                      <p className="text-blue-400 mb-2">This is your team</p>
-                      <p className="text-sm text-gray-400">You can manage your team from the dashboard</p>
-                    </div>
-                  )}
-                </div>
-              </div>
             </motion.div>
           </motion.div>
         )}
@@ -1413,7 +1332,7 @@ const FindPlayerTeam = () => {
 };
 
 // InviteForm component
-const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
+const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose, handleCreatePlayerProfile }) => {
   const [formData, setFormData] = useState({
     match_date: '',
     starting_time: '',
@@ -1426,6 +1345,7 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [isPlayerCreated, setIsPlayerCreated] = useState(false);
 
   // Get tomorrow's date as the default minimum date for the calendar
   const tomorrow = new Date();
@@ -1433,6 +1353,12 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
   const tomorrowFormatted = tomorrow.toISOString().split('T')[0];
 
   useEffect(() => {
+    // Check if user has a player profile
+    const playerId = sessionStorage.getItem('player_id');
+    if (playerId) {
+      setIsPlayerCreated(true);
+    }
+
     // If the user is sending a request to a player, we need to fetch their teams
     if (selectedPlayer && !selectedTeam) {
       fetchUserTeams();
@@ -1484,15 +1410,24 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
       // Filter teams where the user is the captain
       let userTeams = [];
       if (response && response.data) {
-        const userId = parseInt(sessionStorage.getItem('userId'), 10);
         const playerId = parseInt(sessionStorage.getItem('player_id'), 10);
         
-        userTeams = response.data.filter(team => 
-          team.capitain === userId || 
-          parseInt(team.capitain, 10) === userId ||
-          team.capitain === playerId ||
-          parseInt(team.capitain, 10) === playerId
-        );
+        // Prioritize filtering by player_id
+        if (playerId) {
+          userTeams = response.data.filter(team => 
+            team.capitain === playerId || 
+            parseInt(team.capitain, 10) === playerId
+          );
+        }
+        
+        // If no teams found by player_id, try with userId as fallback (legacy support)
+        if (userTeams.length === 0) {
+          const userId = parseInt(sessionStorage.getItem('userId'), 10);
+          userTeams = response.data.filter(team => 
+            team.capitain === userId || 
+            parseInt(team.capitain, 10) === userId
+          );
+        }
         
         // Update session storage with the teams data
         if (userTeams.length > 0) {
@@ -1510,7 +1445,11 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
       }
     } catch (error) {
       console.error('Error fetching user teams:', error);
-      setSubmitError('Failed to load your teams. Please try again later.');
+      // Use validationErrors state instead of submitError to avoid redeclaration
+      setValidationErrors(prev => ({
+        ...prev,
+        teams: 'Failed to load your teams. Please try again later.'
+      }));
     } finally {
       setLoadingTeams(false);
     }
@@ -1559,7 +1498,7 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
     }
     
     // Validate team selection when inviting a player
-    if (selectedPlayer && !selectedTeam && !selectedTeamId) {
+    if (selectedPlayer && !selectedTeam && !selectedTeamId && isPlayerCreated) {
       errors.team = 'Please select a team';
     }
     
@@ -1606,14 +1545,12 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
 
       // Prepare data for API with the correct field names
       const requestData = {
-        sender: parseInt(playerId, 10), // Use player_id instead of user ID
-        receiver: selectedPlayer ? 
-          (selectedPlayer.id_player || selectedPlayer.id) : // Use id_player for player requests
-          (selectedTeam ? selectedTeam.id_teams || selectedTeam.id : null),
+        sender: parseInt(playerId, 10),
+        receiver: selectedPlayer ? selectedPlayer.id : (selectedTeam ? selectedTeam.id : null),
         match_date: formData.match_date,
         starting_time: formData.starting_time + ':00', // Add seconds to match the required H:i:s format
-        message: formData.message || '',
-        type: selectedPlayer ? 'PLAYER_REQUEST' : 'TEAM_REQUEST'
+        message: formData.message || (selectedPlayer ? 'Would you like to play a match?' : 'Would your team like to play a match?'),
+        request_type: selectedPlayer ? 'match' : 'team_match'
       };
       
       // If inviting a player, add the team_id
@@ -1679,6 +1616,33 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
       </div>
     );
   }
+  
+  if (!isPlayerCreated) {
+    return (
+      <div className="text-center py-8">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-yellow-500/20 border border-yellow-500 text-white p-6 rounded-xl"
+        >
+          <div className="w-16 h-16 mx-auto bg-yellow-500/20 rounded-full flex items-center justify-center mb-4">
+            <Users className="w-8 h-8 text-yellow-500" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">Player Profile Required</h3>
+          <p className="mb-4">You need to create a player profile before sending invites.</p>
+          <button 
+            onClick={() => {
+              onClose(); // First close the invite form
+              handleCreatePlayerProfile(); // Then show the player form
+            }}
+            className="bg-white text-yellow-700 font-semibold py-2 px-6 rounded-lg hover:bg-yellow-50 transition-colors inline-block"
+          >
+            Create Player Profile
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1719,18 +1683,32 @@ const InviteForm = ({ selectedPlayer, selectedTeam, currentUser, onClose }) => {
         )}
         
         {selectedPlayer && !selectedTeam && !loadingTeams && availableTeams.length > 0 && (
-          <div className="mb-4 bg-[#07f468]/10 p-4 rounded-lg border border-[#07f468]/30">
-            <div className="flex items-center">
-              <div className="p-2 bg-[#07f468]/20 rounded-full mr-3">
-                <Trophy className="w-5 h-5 text-[#07f468]" />
-              </div>
-              <div>
-                <h3 className="font-medium text-white">You'll send this invitation as:</h3>
-                <p className="text-sm text-[#07f468]">
-                  {availableTeams.find(team => team.id_teams === parseInt(selectedTeamId))?.name || `Team #${selectedTeamId}`}
-                </p>
-              </div>
-            </div>
+          <div>
+            <label htmlFor="team_id" className="block text-sm font-medium text-gray-300 mb-1">
+              Select Your Team *
+            </label>
+            <select
+              id="team_id"
+              name="team_id"
+              value={selectedTeamId}
+              onChange={(e) => setSelectedTeamId(e.target.value)}
+              required
+              className={`w-full py-3 px-4 rounded-lg bg-white/5 border ${validationErrors.team ? 'border-red-500' : 'border-white/10'} text-white focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all`}
+            >
+              <option value="" className="bg-[#222]">Select a team</option>
+              {availableTeams.map(team => (
+                <option 
+                  key={team.id_teams} 
+                  value={team.id_teams} 
+                  className="bg-[#222]"
+                >
+                  {team.team_name || `Team ${team.id_teams}`}
+                </option>
+              ))}
+            </select>
+            {validationErrors.team && (
+              <p className="mt-1 text-sm text-red-500">{validationErrors.team}</p>
+            )}
           </div>
         )}
         
@@ -1922,34 +1900,30 @@ const PlayerForm = ({ onClose }) => {
         return;
       }
 
-      // Create FormData object for file upload
-      const playerFormData = new FormData();
-      
-      // Add user ID from session as id_compte
-      playerFormData.append('id_compte', userId);
-      
-      // Format the times to match the expected API format (H:i:s)
-      // No need to include the date part, just send the time in the required format
-      playerFormData.append('starting_time', `${startTime}:00`);
-      playerFormData.append('finishing_time', `${finishTime}:00`);
-      
-      // Add player specific fields from Players.php model with correct time format
-      playerFormData.append('position', formData.position);
-      
-      // Set initial values for all required fields from Players.php model
-      playerFormData.append('total_matches', 0);
-      playerFormData.append('rating', 0);
-      playerFormData.append('misses', 0);
-      playerFormData.append('invites_accepted', 0);
-      playerFormData.append('invites_refused', 0);
-      playerFormData.append('total_invites', 0);
+      // Create payload for API
+      const playerData = {
+        id_compte: parseInt(userId, 10),
+        position: formData.position,
+        // Format the times to match the expected API format (H:i:s)
+        // Make sure to add seconds to comply with the H:i:s format
+        starting_time: `${startTime}:00`,
+        finishing_time: `${finishTime}:00`,
+        total_matches: 0,
+        rating: 0,
+        misses: 0,
+        invites_accepted: 0,
+        invites_refused: 0,
+        total_invites: 0
+      };
+
+      console.log('Sending player data:', playerData);
 
       // Create player profile
-      const response = await playersService.createPlayer(playerFormData);
+      const response = await playersService.createPlayer(playerData);
       
       // Update session storage
       if (response && response.data) {
-        const playerId = response.data.id_player;
+        const playerId = response.data.id;
         sessionStorage.setItem('isPlayer', 'true');
         sessionStorage.setItem('player_id', playerId);
       }
@@ -1970,24 +1944,24 @@ const PlayerForm = ({ onClose }) => {
         if (errorData.details && errorData.details.id_compte && 
             errorData.details.id_compte.includes("The id compte has already been taken.")) {
           setExistingPlayerError(true);
-        } else if (errorData.details && 
-                  (errorData.details.starting_time || errorData.details.finishing_time)) {
-          setSubmitError("Please ensure your available times are in the correct format (HH:MM:SS) and that finish time is after start time.");
         } else if (errorData.error && typeof errorData.error === 'object') {
-          // Handle the specific error format shown in the user query
-          let errorMessage = "Validation error: ";
+          // Handle validation errors for time format
+          let errorMessage = "";
+          
           if (errorData.error.starting_time) {
             errorMessage += errorData.error.starting_time[0] + " ";
           }
+          
           if (errorData.error.finishing_time) {
             errorMessage += errorData.error.finishing_time[0];
           }
-          setSubmitError(errorMessage);
+          
+          setSubmitError(errorMessage || 'Please ensure your available times are in the correct format (H:i:s)');
         } else {
           setSubmitError(errorData.error ? String(errorData.error) : (errorData.message || 'Failed to create player profile. Please try again later.'));
         }
       } else {
-      setSubmitError('Failed to create player profile. Please try again later.');
+        setSubmitError('Failed to create player profile. Please try again later.');
       }
     } finally {
       setIsSubmitting(false);
@@ -2036,7 +2010,7 @@ const PlayerForm = ({ onClose }) => {
   return (
     <>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Create Player Profile</h2>
+        <h2 className="text-2xl font-bold">Register</h2>
         <button
           onClick={onClose}
           className="text-gray-400 hover:text-white"
@@ -2148,7 +2122,6 @@ const PlayerForm = ({ onClose }) => {
 // TeamForm component
 const TeamForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
-    team_name: '',
     starting_time: '',
     finishing_time: ''
   });
@@ -2168,28 +2141,10 @@ const TeamForm = ({ onClose }) => {
       setFormData(prev => ({ ...prev, finishing_time: '22:00' }));
     }
 
-    // Check if user is a player
-    const playerId = sessionStorage.getItem('player_id');
-    const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
-    
-    if (!playerId || !isPlayer) {
-      setUserIdError(true);
-      setSubmitError('You must create a player profile before registering a team.');
-      return;
-    }
-    
-    // Get captain info from session storage
+    // Check if user is logged in
     const userId = sessionStorage.getItem('userId');
-    const captainName = sessionStorage.getItem('nom') || sessionStorage.getItem('name') || 'Unknown';
-    const captainEmail = sessionStorage.getItem('email') || 'No email available';
-
-    if (userId) {
-      setCaptainInfo({
-        id: playerId, // Use player_id instead of user ID
-        name: captainName,
-        email: captainEmail
-      });
-    } else {
+    
+    if (!userId) {
       setUserIdError(true);
       return;
     }
@@ -2238,13 +2193,6 @@ const TeamForm = ({ onClose }) => {
       return;
     }
 
-    // Validate team name
-    if (!formData.team_name || formData.team_name.trim() === '') {
-      setSubmitError('Team name is required');
-      setIsSubmitting(false);
-      return;
-    }
-
     // Validate times
     const startTime = formData.starting_time;
     const finishTime = formData.finishing_time;
@@ -2257,25 +2205,21 @@ const TeamForm = ({ onClose }) => {
     }
 
     try {
-      // Get player ID from session storage (the team captain)
-      const playerId = sessionStorage.getItem('player_id');
+      // Get user ID from session storage (the team captain)
+      const userId = sessionStorage.getItem('userId') || localStorage.getItem('userId');
       
-      if (!playerId) {
-        setSubmitError('You must create a player profile before registering a team. Please create your player profile first.');
+      if (!userId) {
+        setSubmitError('You must be logged in to register a team. Please log in and try again.');
         setIsSubmitting(false);
         return;
       }
 
-      // Format the current date in YYYY-MM-DD format
-      const today = new Date().toISOString().split('T')[0];
-
       // Create the payload as required by the API
       const teamData = {
-        capitain: parseInt(playerId, 10), // Use player_id instead of user ID
-        name: formData.team_name.trim(), // Add team name to the payload
-        // Format the times to match the expected API format as full dates
-        starting_time: `${today} ${startTime}:00`,
-        finishing_time: `${today} ${finishTime}:00`,
+        capitain: parseInt(userId, 10), // Use userId from session storage
+        // Format the times to match the expected API format (H:i:s)
+        starting_time: `${startTime}:00`,
+        finishing_time: `${finishTime}:00`,
         total_matches: 0,
         rating: 0,
         misses: 0,
@@ -2303,8 +2247,6 @@ const TeamForm = ({ onClose }) => {
           
           // Store team object in session storage
           const teamObj = response.data;
-          // Make sure the team name is included in the stored data
-          teamObj.name = formData.team_name.trim();
           const teamsArray = [teamObj];
           sessionStorage.setItem("teams", JSON.stringify(teamsArray));
           
@@ -2335,9 +2277,11 @@ const TeamForm = ({ onClose }) => {
           try {
             const teamsResponse = await teamsService.getAllTeams();
             if (teamsResponse && teamsResponse.data) {
-              const userId = parseInt(sessionStorage.getItem('userId'), 10);
+              const playerId = parseInt(sessionStorage.getItem('player_id'), 10);
+              
+              // Filter teams using the player_id instead of userId
               const userTeams = teamsResponse.data.filter(team => 
-                team.capitain === userId || parseInt(team.capitain, 10) === userId
+                team.capitain === playerId || parseInt(team.capitain, 10) === playerId
               );
               
               if (userTeams.length > 0) {
@@ -2351,29 +2295,26 @@ const TeamForm = ({ onClose }) => {
                 setCaptainInfo(prev => ({
                   ...prev,
                   teamId: userTeams[0].id_teams,
-                  teamName: userTeams[0].name || `Team ${userTeams[0].id_teams}`
+                  teamName: userTeams[0].team_name || `Team ${userTeams[0].id_teams}`
                 }));
               }
             }
           } catch (teamError) {
             console.error('Error fetching team details:', teamError);
           }
-        } else if (errorData.details && 
-                  (errorData.details.starting_time || errorData.details.finishing_time)) {
-          setSubmitError("Please ensure your available times are in the correct format (HH:MM:SS) and that finish time is after start time.");
         } else if (errorData.error && typeof errorData.error === 'object') {
-          // Handle the specific error format shown in the user query
-          let errorMessage = "Validation error: ";
-          if (errorData.error.capitain) {
-            errorMessage += errorData.error.capitain[0] + " ";
-          }
+          // Handle validation errors for time format
+          let errorMessage = "";
+          
           if (errorData.error.starting_time) {
             errorMessage += errorData.error.starting_time[0] + " ";
           }
+          
           if (errorData.error.finishing_time) {
             errorMessage += errorData.error.finishing_time[0];
           }
-          setSubmitError(errorMessage);
+          
+          setSubmitError(errorMessage || 'Please ensure your available times are in the correct format (H:i:s)');
         } else {
           setSubmitError(errorData.message || (errorData.error ? String(errorData.error) : 'Failed to register team. Please try again later.'));
         }
@@ -2424,7 +2365,7 @@ const TeamForm = ({ onClose }) => {
                 Your Team Details
               </h4>
               <p className="text-sm mb-1"><span className="text-yellow-300">Team ID:</span> {captainInfo.teamId}</p>
-              <p className="text-sm"><span className="text-yellow-300">Team Name:</span> {captainInfo.teamName || 'Unknown'}</p>
+              <p className="text-sm">{captainInfo.teamName || 'Unknown'}</p>
             </div>
           )}
           
@@ -2474,7 +2415,7 @@ const TeamForm = ({ onClose }) => {
   return (
     <>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Register a Team</h2>
+        <h2 className="text-2xl font-bold">Register</h2>
         <button
           onClick={onClose}
           className="text-gray-400 hover:text-white"
@@ -2489,34 +2430,13 @@ const TeamForm = ({ onClose }) => {
           <div className="bg-white/5 p-4 rounded-lg mb-4">
             <h3 className="text-lg font-medium mb-3 flex items-center">
               <Shield className="w-5 h-5 mr-2 text-[#07f468]" />
-              Team Captain Information
+              Team Information
             </h3>
-            {captainInfo && (
-              <div className="text-sm text-gray-300">
-                <p className="mb-1"><span className="text-gray-400">Captain ID:</span> {captainInfo.id}</p>
-                <p className="mb-1"><span className="text-gray-400">Name:</span> {captainInfo.name}</p>
-                <p><span className="text-gray-400">Email:</span> {captainInfo.email}</p>
-              </div>
-            )}
+            <p className="text-sm text-gray-300">
+              You'll be registered as the team captain. You can add team members after registration.
+            </p>
           </div>
 
-          {/* Add Team Name field */}
-          <div>
-            <label htmlFor="team_name" className="block text-sm font-medium text-gray-300 mb-1">
-              Team Name *
-            </label>
-            <input
-              type="text"
-              id="team_name"
-              name="team_name"
-              value={formData.team_name}
-              onChange={handleChange}
-              required
-              placeholder="Enter your team name"
-              className="w-full py-3 px-4 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent transition-all"
-            />
-          </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="starting_time" className="block text-sm font-medium text-gray-300 mb-1">
@@ -2558,10 +2478,10 @@ const TeamForm = ({ onClose }) => {
           </div>
           
           {/* Explanation section */}
-          <div className="bg-[#07f468]/10 p-4 rounded-lg text-sm text-gray-300 border border-[#07f468]/20">
+          <div className="bg-[#07f468]/10 p-4 rounded-lg text-sm text-gray-300 border border-[#07f468]/20 mt-4">
             <p className="flex items-start">
               <InfoIcon className="w-5 h-5 text-[#07f468] mr-2 flex-shrink-0 mt-0.5" />
-              Upon registration, your team will be initialized with default values for matches, rating, and other statistics. You can customize your team further after registration.
+              Upon registration, your team will be created with a default name, which can be customized later from your profile. Team statistics (matches, rating, etc.) will be initialized with default values.
             </p>
           </div>
       </div>

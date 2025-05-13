@@ -3,20 +3,72 @@ import { motion } from "framer-motion";
 import adminTerrainService from "../../lib/services/admin/terrainServices";
 import userTerrainService from "../../lib/services/user/terrainServices";
 
-export default function Buttons({ onChange }) {
-  const [selectedTerrain, setSelectedTerrain] = useState(null);
+// Create a cache for the terrains list to avoid repeated API calls
+const terrainsListCache = {
+  admin: null,
+  user: null
+};
+
+export default function Buttons({ onChange, selectedTerrainId }) {
+  const [selectedTerrain, setSelectedTerrain] = useState(selectedTerrainId || null);
   const [terrains, setTerrains] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fetchingData, setFetchingData] = useState(false);
+
+  // Update selectedTerrain when prop changes
+  useEffect(() => {
+    if (selectedTerrainId && selectedTerrainId !== selectedTerrain) {
+      setSelectedTerrain(selectedTerrainId);
+    }
+  }, [selectedTerrainId]);
 
   useEffect(() => {
+    // Skip if we're already fetching data
+    if (fetchingData) {
+      return;
+    }
+
     const fetchTerrains = async () => {
       try {
+        setFetchingData(true);
         setLoading(true);
+        
         // Check if user is admin - ensure consistent check
-        const isAdmin = sessionStorage.getItem("type") === "admin";
+        let isAdmin = false;
+        try {
+          isAdmin = sessionStorage.getItem("type") === "admin";
+        } catch (error) {
+          console.warn("Could not access sessionStorage, defaulting to user role", error);
+        }
+        
         console.log("User role in Buttons:", isAdmin ? "admin" : "user");
         
+        // Check cache first
+        const role = isAdmin ? 'admin' : 'user';
+        if (terrainsListCache[role]) {
+          console.log("Using cached terrains list for role:", role);
+          setTerrains(terrainsListCache[role]);
+          setLoading(false);
+          setFetchingData(false);
+          
+          // Check for selected terrain in the cached data
+          if (selectedTerrainId) {
+            const foundTerrain = terrainsListCache[role].find(
+              terrain => terrain.id_terrain.toString() === selectedTerrainId.toString()
+            );
+            
+            if (foundTerrain && onChange) {
+              // Don't update state, just inform parent that we have a valid selection
+              console.log("Found selected terrain in cache:", foundTerrain);
+            }
+          }
+          
+          return;
+        }
+        
+        // If not in cache, make the API call
+        console.log("Fetching terrains list for role:", role);
         const service = isAdmin 
           ? adminTerrainService 
           : userTerrainService;
@@ -25,8 +77,51 @@ export default function Buttons({ onChange }) {
         console.log("Terrain API response:", response);
         
         if (response.data) {
+          // Store in cache
+          terrainsListCache[role] = response.data;
           setTerrains(response.data);
           console.log("Terrains loaded:", response.data);
+
+          // Check if a terrain was previously selected
+          if (selectedTerrainId) {
+            const foundTerrain = response.data.find(
+              terrain => terrain.id_terrain.toString() === selectedTerrainId.toString()
+            );
+            
+            if (foundTerrain) {
+              setSelectedTerrain(foundTerrain.id_terrain);
+              if (onChange) {
+                console.log("Found and setting selected terrain:", foundTerrain);
+                // Call onChange but only if the parent doesn't already know about this terrain
+                if (!selectedTerrainId) {
+                  onChange(foundTerrain);
+                }
+              }
+            }
+          } else {
+            // Try session storage as fallback if no terrain is selected via props
+            let previouslySelectedTerrainId = null;
+            try {
+              previouslySelectedTerrainId = sessionStorage.getItem("selectedTerrainId");
+            } catch (error) {
+              console.warn("Could not access sessionStorage for terrain ID", error);
+            }
+
+            // If found, pre-select it
+            if (previouslySelectedTerrainId) {
+              const foundTerrain = response.data.find(
+                terrain => terrain.id_terrain.toString() === previouslySelectedTerrainId.toString()
+              );
+              
+              if (foundTerrain) {
+                setSelectedTerrain(foundTerrain.id_terrain);
+                if (onChange) {
+                  console.log("Found terrain from session storage:", foundTerrain);
+                  onChange(foundTerrain);
+                }
+              }
+            }
+          }
         } else {
           setError("No terrains found");
         }
@@ -35,19 +130,30 @@ export default function Buttons({ onChange }) {
         setError("Failed to load terrains");
       } finally {
         setLoading(false);
+        setFetchingData(false);
       }
     };
 
     fetchTerrains();
-  }, []);
+  }, [onChange, selectedTerrainId]);
 
   const handleButtonClick = (terrain) => {
-    setSelectedTerrain(terrain.id_terrain);
-    console.log("Selected terrain in Buttons:", terrain);
+    // Skip if it's already the selected terrain
+    if (selectedTerrain === terrain.id_terrain) {
+      console.log("Terrain already selected, skipping:", terrain);
+      return;
+    }
     
-    // Store in sessionStorage for persistence
-    sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
-    sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
+    console.log("Selecting terrain:", terrain);
+    setSelectedTerrain(terrain.id_terrain);
+    
+    // Store in sessionStorage for persistence if available
+    try {
+      sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
+      sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
+    } catch (error) {
+      console.warn("Could not access sessionStorage in button click", error);
+    }
     
     if (onChange) onChange(terrain);
   };

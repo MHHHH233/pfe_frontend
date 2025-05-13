@@ -48,6 +48,7 @@ import {
   UserX,
   Check,
   Bug,
+  CheckCircle,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
 import Loader from "../Component/Loading";
@@ -1582,7 +1583,7 @@ const Users1 = () => {
             }`}
           >
             {notification.type === 'success' ? (
-              <CopyCheck className="mr-2" size={20} />
+              <CheckCircle className="mr-2" size={20} />
             ) : (
               <X className="mr-2" size={20} />
             )}
@@ -1605,19 +1606,41 @@ const Reservations = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTerrain, setSelectedTerrain] = useState("all");
   const [error, setError] = useState(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const modalRef = useRef(null);
   const menuRef = useRef(null);
   // Add this new state for the detail modal
   const [selectedReservation, setSelectedReservation] = useState(null);
+  // Add notification state
+  const [showNotification, setShowNotification] = useState(false);
+  const [notification, setNotification] = useState({ message: '', type: 'success' });
+  
+  // Utility function to show notifications
+  const showSuccessNotification = (message) => {
+    setNotification({ message, type: 'success' });
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  };
+
+  const showErrorNotification = (message) => {
+    setNotification({ message, type: 'error' });
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  };
   
   // Updated fetch data function without polling
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page = 1) => {
     try {
       setLoading(true);
       setError(null);
       
       // Prepare params object for filtering
-      const params = {};
+      const params = {
+        per_page: 100, // Request 100 items per page
+        page: page
+      };
+      
       if (selectedTerrain !== "all") {
         params.id_terrain = selectedTerrain;
       }
@@ -1625,13 +1648,45 @@ const Reservations = () => {
       const response = await reservationService.getAllReservations(params);
       
       if (response.status === "success") {
-        setData(response.data);
+        // Process the data to ensure consistent structure regardless of API source
+        const processedData = response.data.map(res => ({
+          id_reservation: res.id_reservation,
+          num_res: res.num_res || "",
+          id_client: res.client?.id_client || res.id_client,
+          id_terrain: parseInt(res.terrain?.id_terrain || res.id_terrain),
+          date: res.date,
+          heure: res.heure,
+          etat: res.etat || "en attente",
+          created_at: res.created_at,
+          client: res.client || {
+            id_client: res.id_client,
+            nom: res.name || "",
+            prenom: "",
+            telephone: "",
+            email: ""
+          },
+          terrain: res.terrain || {
+            id_terrain: parseInt(res.id_terrain),
+            nom: res.nom_terrain || `Terrain ${res.id_terrain}`,
+            type: res.type || "",
+            prix: res.prix || 0
+          }
+        }));
+        
+        setData(processedData);
+        
+        // Set pagination data if available
+        if (response.pagination) {
+          setTotalPages(response.pagination.last_page);
+          setCurrentPage(response.pagination.current_page);
+        }
       } else {
         // Handle empty data case
         setData([]);
+        setTotalPages(1);
+        setCurrentPage(1);
       }
     } catch (error) {
-      console.error("Error fetching reservations:", error);
       setError("Failed to load reservations. Please try again.");
       setData([]);
     } finally {
@@ -1643,17 +1698,12 @@ const Reservations = () => {
     // Check sessionStorage for selected hour and time
     if (sessionStorage.getItem("selectedHour") && sessionStorage.getItem("selectedTime")) {
       setReserv(true);
-      // Also set the terrain if it's stored
-      // if (sessionStorage.getItem("selectedTerrain")) {
-      //   setIdTerrain(sessionStorage.getItem("selectedTerrain"));
-      // }
     } else {
       setReserv(false); // Reset if values are not present
     }
 
     // Listen for custom event from table component
     const handleReservationClick = (event) => {
-      console.log("Reservation cell clicked event received:", event.detail);
       setReserv(true);
       if (event.detail.terrain) {
         setIdTerrain(event.detail.terrain);
@@ -1662,7 +1712,7 @@ const Reservations = () => {
 
     document.addEventListener('reservationCellClicked', handleReservationClick);
 
-    // Fetch data only once when component mounts or when selectedTerrain changes
+    // Fetch data when component mounts or when selectedTerrain changes
     fetchData();
 
     // Add event listener for click outside
@@ -1671,15 +1721,25 @@ const Reservations = () => {
     // Listen for cancel event
     const handleReservationCancel = () => {
       setReserv(false);
+      // Refresh data after cancel
+      fetchData();
+    };
+    
+    // Listen for successful reservation
+    const handleReservationSuccess = () => {
+      // Refresh data after successful reservation
+      fetchData();
     };
     
     document.addEventListener('closeReservationPopup', handleReservationCancel);
+    document.addEventListener('reservationSuccess', handleReservationSuccess);
 
     // Cleanup
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener('reservationCellClicked', handleReservationClick);
       document.removeEventListener('closeReservationPopup', handleReservationCancel);
+      document.removeEventListener('reservationSuccess', handleReservationSuccess);
     };
   }, [fetchData]);
 
@@ -1699,19 +1759,22 @@ const Reservations = () => {
 
   // Handle terrain change
   const handleChange = (terrain) => {
-    console.log("Selected terrain in Admin:", terrain);
     setIdTerrain(terrain);
     
     // Store terrain data in sessionStorage
     if (terrain) {
-      sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
+      const terrainId = parseInt(terrain.id_terrain);
+      sessionStorage.setItem("selectedTerrainId", terrainId);
       sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
       
       // If there's an open form modal, we need to update it
       if (reserv) {
         // Dispatch a custom event to notify form
         const event = new CustomEvent('terrainSelected', {
-          detail: { terrain: terrain }
+          detail: { terrain: {
+            ...terrain,
+            id_terrain: terrainId
+          }}
         });
         document.dispatchEvent(event);
       }
@@ -1727,23 +1790,43 @@ const Reservations = () => {
   const handleAction = async (action, id) => {
     try {
       if (action === "valider") {
-        // Pass etat: "reserver" for validation
-        await reservationService.validateReservation(id, { etat: "reserver" });
+        // Pass etat: "reserver" for validation and update payment status
+        await reservationService.validateReservation(id, { 
+          etat: "reserver",
+          payment_status: "paid" 
+        });
+        
         // Update the local state to reflect the change
         setData(prevData => 
           prevData.map(res => 
-            res.id_reservation === id ? {...res, etat: "reserver"} : res
+            res.id_reservation === id ? {
+              ...res, 
+              etat: "reserver",
+              payment_status: "paid"
+            } : res
           )
         );
+        
+        showSuccessNotification("Reservation validated successfully");
       } else if (action === "devalider") {
         // Pass etat: "en attente" for invalidation
-        await reservationService.invalidateReservation(id, { etat: "en attente" });
+        await reservationService.invalidateReservation(id, { 
+          etat: "en attente",
+          payment_status: "pending" 
+        });
+        
         // Update the local state to reflect the change
         setData(prevData => 
           prevData.map(res => 
-            res.id_reservation === id ? {...res, etat: "en attente"} : res
+            res.id_reservation === id ? {
+              ...res, 
+              etat: "en attente",
+              payment_status: "pending"
+            } : res
           )
         );
+        
+        showSuccessNotification("Reservation marked as pending");
       }
       
       // Refresh data after action completes
@@ -1751,7 +1834,7 @@ const Reservations = () => {
     } catch (error) {
       console.error(`Error performing ${action} action:`, error);
       // Show error notification
-      alert(`Failed to ${action === "valider" ? "validate" : "invalidate"} reservation. Please try again.`);
+      showErrorNotification(`Failed to ${action === "valider" ? "validate" : "invalidate"} reservation. Please try again.`);
     }
   };
 
@@ -1764,11 +1847,12 @@ const Reservations = () => {
         setData(prevData => 
           prevData.filter(res => res.id_reservation !== reservationToDelete)
         );
+        showSuccessNotification("Reservation deleted successfully");
         setShowConfirmation(false);
         setReservationToDelete(null);
       } catch (error) {
         console.error("Error deleting reservation:", error);
-        // Show an error notification or handle the error appropriately
+        showErrorNotification("Failed to delete reservation. Please try again.");
       }
     }
   };
@@ -1776,11 +1860,19 @@ const Reservations = () => {
   // Handle terrain change
   const handleTerrainChange = (e) => {
     setSelectedTerrain(e.target.value);
+    setClientSidePage(1); // Reset to first page when terrain filter changes
   };
 
   // Handle search query change
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
+    setClientSidePage(1); // Reset to first page when search query changes
+  };
+  
+  // Handle pagination
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    fetchData(page);
   };
 
   // Filter reservations based on search query and selected terrain
@@ -1804,6 +1896,22 @@ const Reservations = () => {
     return matchesSearch && matchesTerrain;
   });
 
+  // Add pagination control for the filtered reservations
+  const [clientSidePage, setClientSidePage] = useState(1);
+  const itemsPerPage = 10;
+  const totalClientSidePages = Math.ceil(filteredReservations.length / itemsPerPage);
+  
+  // Get current page reservations for display
+  const currentReservations = filteredReservations.slice(
+    (clientSidePage - 1) * itemsPerPage, 
+    clientSidePage * itemsPerPage
+  );
+  
+  // Go to a specific page
+  const handleClientSidePageChange = (page) => {
+    setClientSidePage(page);
+  };
+
   // Add this function to handle row click for mobile view
   const handleRowClick = (reservation) => {
     // Only open detail view on mobile
@@ -1823,12 +1931,12 @@ const Reservations = () => {
     
     // Make sure we have the terrain data in the form
     if (idTerrain) {
-      console.log("Opening form with terrain data:", idTerrain);
+      // Ensure terrain ID is handled as a number
+      const terrainId = parseInt(idTerrain.id_terrain);
+      
       // Explicitly set the selectedTerrain in sessionStorage
-      sessionStorage.setItem("selectedTerrainId", idTerrain.id_terrain);
+      sessionStorage.setItem("selectedTerrainId", terrainId);
       sessionStorage.setItem("selectedTerrainName", idTerrain.nom_terrain);
-    } else {
-      console.warn("No terrain selected when opening reservation form");
     }
   };
 
@@ -1855,19 +1963,6 @@ const Reservations = () => {
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg sm:text-xl font-bold text-white">Calendrier de Réservation</h3>
-          
-          {/* Refresh button */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={fetchData}
-            className="p-2 bg-gray-600 hover:bg-gray-500 rounded-full text-white transition-colors"
-            title="Rafraîchir les données"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </motion.button>
         </div>
         
         {/* Reservation form popup */}
@@ -1918,19 +2013,6 @@ const Reservations = () => {
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h3 className="text-xl sm:text-2xl font-bold text-white">Réservations à venir</h3>
-          
-          {/* Refresh button for reservations list */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={fetchData}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-600 hover:bg-gray-500 rounded-lg text-white text-sm transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>Rafraîchir</span>
-          </motion.button>
         </div>
 
         {/* Search Bar and Terrain Filter */}
@@ -2001,6 +2083,7 @@ const Reservations = () => {
               onClick={() => {
                 setSearchQuery("");
                 setSelectedTerrain("all");
+                setClientSidePage(1); // Reset to first page when filters change
               }}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
             >
@@ -2017,6 +2100,8 @@ const Reservations = () => {
                     <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Heure</th>
                     <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Terrain</th>
                     <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Client</th>
+                    <th className="hidden lg:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Téléphone</th>
+                    <th className="hidden xl:table-cell px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Email</th>
                     {/* Show Status on mobile, hide on larger screens */}
                     <th className="sm:hidden px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Statut</th>
                     {/* Hide Status on mobile, show on larger screens */}
@@ -2028,7 +2113,7 @@ const Reservations = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {filteredReservations.map((reservation, index) => (
+                  {currentReservations.map((reservation, index) => (
                     <motion.tr 
                       key={reservation.id_reservation}
                       initial={{ opacity: 0, y: 10 }}
@@ -2046,6 +2131,12 @@ const Reservations = () => {
                         {reservation.client?.nom 
                           ? `${reservation.client.nom} ${reservation.client.prenom || ''}`.trim()
                           : 'Client inconnu'}
+                      </td>
+                      <td className="hidden lg:table-cell px-4 py-3.5 text-sm text-white">
+                        {reservation.client?.telephone || 'N/A'}
+                      </td>
+                      <td className="hidden xl:table-cell px-4 py-3.5 text-sm text-white">
+                        {reservation.client?.email || 'N/A'}
                       </td>
                       {/* Show Status on mobile */}
                       <td className="sm:hidden px-4 py-3.5 text-sm">
@@ -2140,6 +2231,122 @@ const Reservations = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalClientSidePages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center mt-6 bg-gray-800/50 p-4 rounded-xl">
+            <div className="text-sm text-gray-400 mb-4 sm:mb-0">
+              Showing {filteredReservations.length > 0 ? (clientSidePage - 1) * itemsPerPage + 1 : 0} to {Math.min(clientSidePage * itemsPerPage, filteredReservations.length)} of {filteredReservations.length} reservations
+            </div>
+            <div className="flex space-x-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleClientSidePageChange(clientSidePage - 1)}
+                disabled={clientSidePage === 1}
+                className={`p-2 rounded-lg ${
+                  clientSidePage === 1
+                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                <ChevronLeft size={16} />
+              </motion.button>
+              {totalClientSidePages <= 5 ? (
+                // If fewer than 5 pages, show all page numbers
+                [...Array(totalClientSidePages)].map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleClientSidePageChange(i + 1)}
+                    className={`px-4 py-2 rounded-md mx-1 ${
+                      clientSidePage === i + 1
+                        ? 'bg-[#07f468] text-gray-900 font-medium'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    } transition-colors`}
+                  >
+                    {i + 1}
+                  </button>
+                ))
+              ) : (
+                // If more than 5 pages, show a limited set with ellipsis
+                <>
+                  {/* First page */}
+                  <button
+                    onClick={() => handleClientSidePageChange(1)}
+                    className={`px-4 py-2 rounded-md mx-1 ${
+                      clientSidePage === 1
+                        ? 'bg-[#07f468] text-gray-900 font-medium'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    } transition-colors`}
+                  >
+                    1
+                  </button>
+                  
+                  {/* Ellipsis or 2nd page */}
+                  {clientSidePage > 3 && (
+                    <span className="px-4 py-2 text-gray-400">...</span>
+                  )}
+                  
+                  {/* Pages around current page */}
+                  {[...Array(3)].map((_, i) => {
+                    const pageNumber = clientSidePage > 3 
+                      ? clientSidePage - 1 + i 
+                      : 1 + i + 1;
+                    
+                    // Skip if outside valid range or is first/last page (already shown)
+                    if (pageNumber <= 1 || pageNumber >= totalClientSidePages) {
+                      return null;
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNumber}
+                        onClick={() => handleClientSidePageChange(pageNumber)}
+                        className={`px-4 py-2 rounded-md mx-1 ${
+                          clientSidePage === pageNumber
+                            ? 'bg-[#07f468] text-gray-900 font-medium'
+                            : 'bg-gray-700 text-white hover:bg-gray-600'
+                        } transition-colors`}
+                      >
+                        {pageNumber}
+                      </button>
+                    );
+                  })}
+                  
+                  {/* Ellipsis before last page */}
+                  {clientSidePage < totalClientSidePages - 2 && (
+                    <span className="px-4 py-2 text-gray-400">...</span>
+                  )}
+                  
+                  {/* Last page */}
+                  <button
+                    onClick={() => handleClientSidePageChange(totalClientSidePages)}
+                    className={`px-4 py-2 rounded-md mx-1 ${
+                      clientSidePage === totalClientSidePages
+                        ? 'bg-[#07f468] text-gray-900 font-medium'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    } transition-colors`}
+                  >
+                    {totalClientSidePages}
+                  </button>
+                </>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleClientSidePageChange(clientSidePage + 1)}
+                disabled={clientSidePage === totalClientSidePages}
+                className={`p-2 rounded-lg ${
+                  clientSidePage === totalClientSidePages
+                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                <ChevronRight size={16} />
+              </motion.button>
             </div>
           </div>
         )}
@@ -2252,6 +2459,26 @@ const Reservations = () => {
                   </div>
                 </div>
                 
+                <div className="flex items-center space-x-3">
+                  <Phone size={18} className="text-gray-400" />
+                  <div>
+                    <p className="text-xs text-gray-400">Téléphone</p>
+                    <p className="text-white">
+                      {selectedReservation.client?.telephone || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <Mail size={18} className="text-gray-400" />
+                  <div>
+                    <p className="text-xs text-gray-400">Email</p>
+                    <p className="text-white">
+                      {selectedReservation.client?.email || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+                
                 <div className="sm:col-span-2 flex items-center space-x-3">
                   <div className={`w-3 h-3 rounded-full ${
                     selectedReservation.etat === "reserver" 
@@ -2308,6 +2535,29 @@ const Reservations = () => {
                 </button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {showNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-[9999] flex items-center ${
+              notification.type === 'success' 
+                ? 'bg-green-800 text-green-100' 
+                : 'bg-red-800 text-red-100'
+            }`}
+          >
+            {notification.type === 'success' ? (
+              <CheckCircle className="mr-2" size={20} />
+            ) : (
+              <X className="mr-2" size={20} />
+            )}
+            <span>{notification.message}</span>
           </motion.div>
         )}
       </AnimatePresence>

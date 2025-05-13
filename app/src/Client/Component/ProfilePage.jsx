@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
@@ -29,7 +29,8 @@ import {
   Trash2,
   ExternalLink,
   UserCheck,
-  UserX
+  UserX,
+  ChevronLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import profileService from '../../lib/services/user/profileService';
@@ -40,9 +41,11 @@ import teamsService from '../../lib/services/user/teamsService';
 import playerTeamsService from '../../lib/services/user/playerTeamsService';
 import playerRequestsService from '../../lib/services/user/playerRequestsService';
 import debounce from 'lodash/debounce';
+import { toast } from 'react-toastify';
+import activitiesMembersService from '../../lib/services/user/activitiesMembersService';
 
 const ProfilePage = () => {
-  // State for user data, reservations, and activities
+  // State declarations
   const [userData, setUserData] = useState(null);
   const [reservations, setReservations] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -135,10 +138,7 @@ const ProfilePage = () => {
   // State for team form
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [teamFormData, setTeamFormData] = useState({
-    name: '',
-    description: '',
-    logo: null,
-    captain_id: '',
+    selected_member: '', // This will be used as capitain in the API call
     starting_time: '',
     finishing_time: ''
   });
@@ -172,6 +172,270 @@ const ProfilePage = () => {
   const [inviteError, setInviteError] = useState(null);
   const [inviteSuccess, setInviteSuccess] = useState(null);
 
+  // Add these new state variables after the existing player request states (around line 120)
+  const [availablePlayers, setAvailablePlayers] = useState([]);
+  const [playersLoading, setPlayersLoading] = useState(false);
+  const [requestsPage, setRequestsPage] = useState(1);
+  const [requestsTotalPages, setRequestsTotalPages] = useState(1);
+  const [requestsFilter, setRequestsFilter] = useState('all');
+  const [requestsSearchQuery, setRequestsSearchQuery] = useState('');
+  const [requestsPerPage, setRequestsPerPage] = useState(10);
+
+  // Add function to handle profile picture upload
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const fileInputRef = useRef(null);
+  
+  // Add state for delete account confirmation modal
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  // Add state for password in delete account modal
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState(null);
+
+  // Add this state near your other state declarations
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState('');
+  const [planChangeAcademieId, setPlanChangeAcademieId] = useState(null);
+
+  // Academy activities state
+  const [academyActivities, setAcademyActivities] = useState([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activitiesError, setActivitiesError] = useState(null);
+  const [activitiesPage, setActivitiesPage] = useState(1);
+  const [activitiesTotalPages, setActivitiesTotalPages] = useState(1);
+
+  const handleProfilePictureChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setProfilePicture(e.target.files[0]);
+    }
+  };
+  
+  const handleProfilePictureUpload = async () => {
+    if (!profilePicture) {
+      toast.warning('Please select an image first');
+      return;
+    }
+    
+    try {
+      setUploadingPicture(true);
+      const response = await profileService.uploadProfilePicture(profilePicture);
+      toast.success('Profile picture updated successfully');
+      // Refresh user data or update profile picture URL
+    } catch (error) {
+      toast.error('Failed to upload profile picture: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
+  // Define fetch functions at the top
+  const fetchTeamInfo = async () => {
+    try {
+      setTeamLoading(true);
+      setTeamError(null);
+      
+      // Get player_id from playerInfo or session storage
+      const playerId = playerInfo?.id_player || sessionStorage.getItem('player_id');
+      
+      if (!playerId) {
+        setTeamError("No player_id available, can't fetch team info");
+        setTeamLoading(false);
+        return;
+      }
+      
+      // Use getMyTeam with player_id
+      const response = await teamsService.getMyTeam({
+        player_id: playerId,
+        include: 'captain,members,ratings'
+      });
+      
+      // Check if the player doesn't belong to any team
+      if (response && response.success === false && response.message === "Player does not belong to any team") {
+        // Clear team data from session storage
+        sessionStorage.removeItem('has_teams');
+        sessionStorage.removeItem('id_teams');
+        sessionStorage.removeItem('teams');
+        sessionStorage.removeItem('is_captain');
+        
+        // Set null teamInfo and a friendly message
+        setTeamInfo(null);
+        setTeamError(null); // Don't show as error since it's an expected state
+        
+        setTeamLoading(false);
+        return;
+      }
+      
+      if (response && response.success && response.data && response.data.team) {
+        const { team, is_captain, members_count } = response.data;
+        
+        // Store data in session storage
+        sessionStorage.setItem('has_teams', 'true');
+        sessionStorage.setItem('id_teams', team.id_teams.toString());
+        sessionStorage.setItem('teams', JSON.stringify([team]));
+        sessionStorage.setItem('is_captain', is_captain.toString());
+        
+        // Add additional fields to team object
+        const enrichedTeam = {
+          ...team,
+          is_captain,
+          members_count,
+          // Ensure members have the is_captain flag
+          members: team.members?.map(member => ({
+            ...member,
+            is_captain: member.id_player === team.capitain
+          })) || []
+        };
+        
+        // Set team info
+        setTeamInfo(enrichedTeam);
+      } else {
+        setTeamInfo(null);
+        sessionStorage.removeItem('has_teams');
+        sessionStorage.removeItem('id_teams');
+        sessionStorage.removeItem('teams');
+        sessionStorage.removeItem('is_captain');
+        
+        // Set error message if there's one in the response
+        if (response && response.message && response.message !== "Player does not belong to any team") {
+          setTeamError(response.message);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching team info:', error);
+      
+      // Check for specific error about player not belonging to any team
+      if (error.response?.data?.message === "Player does not belong to any team") {
+        // Don't show as error, just clear team data
+        setTeamInfo(null);
+        setTeamError(null);
+      } else {
+        setTeamError('Failed to load team information: ' + (error.response?.data?.message || error.message));
+      }
+      
+      // Clear team data from session storage on error
+      sessionStorage.removeItem('has_teams');
+      sessionStorage.removeItem('id_teams');
+      sessionStorage.removeItem('teams');
+      sessionStorage.removeItem('is_captain');
+      setTeamInfo(null);
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  const fetchReservations = async () => {
+    try {
+      setReservationLoading(true);
+      setReservationError(null);
+
+      // Fetch upcoming reservations
+      const upcomingResponse = await reservationService.getUpcomingReservations();
+      if (upcomingResponse && upcomingResponse.status === 'success' && upcomingResponse.data) {
+        setUpcomingReservations(upcomingResponse.data);
+      } else {
+        setUpcomingReservations([]);
+      }
+
+      // Prepare history parameters - ensure we're getting past or cancelled reservations
+      const historyParams = {
+        page: currentPage,
+        per_page: 10,
+        past: true // Add parameter to specifically request past reservations
+      };
+      
+      if (filterStatus !== 'all') historyParams.etat = filterStatus;
+      if (searchQuery) historyParams.search = searchQuery;
+
+      console.log("Fetching history with params:", historyParams);
+
+      // Fetch history reservations with pagination
+      const historyResponse = await reservationService.getReservationHistory(historyParams);
+      
+      if (historyResponse && historyResponse.status === 'success') {
+        // Handle different possible response formats
+        if (historyResponse.data && Array.isArray(historyResponse.data)) {
+          // Direct array format
+          setHistoryReservations(historyResponse.data);
+          setTotalPages(1); // No pagination info in this format
+        } else if (historyResponse.data && historyResponse.data.data) {
+          // Laravel pagination format
+          setHistoryReservations(historyResponse.data.data);
+          setTotalPages(historyResponse.data.last_page || 1);
+        } else if (historyResponse.data && typeof historyResponse.data === 'object') {
+          // Handle other potential response formats
+          const dataArray = Object.values(historyResponse.data);
+          if (Array.isArray(dataArray[0])) {
+            setHistoryReservations(dataArray[0]);
+          } else {
+            setHistoryReservations(dataArray);
+          }
+          setTotalPages(1);
+        } else {
+          // Fall back to empty array if we can't extract data
+          setHistoryReservations([]);
+          setTotalPages(1);
+        }
+      } else {
+        setHistoryReservations([]);
+        setTotalPages(1);
+      }
+    } catch (error) {
+      console.error('Error fetching reservations:', error);
+      toast.error('Error fetching reservations: ' + (error.message || 'Unknown error'));
+      setReservationError('Failed to load reservations');
+      setUpcomingReservations([]);
+      setHistoryReservations([]);
+    } finally {
+      setReservationLoading(false);
+    }
+  };
+
+  const fetchMemberships = async () => {
+    try {
+      setMembershipsLoading(true);
+      setMembershipsError(null);
+      
+      const response = await academieMemberService.getMyMemberships();
+      
+      if (response && response.status === 'success' && response.data) {
+        setMemberships(response.data);
+        
+        // Store membership data in session storage
+        if (response.data.length > 0) {
+          sessionStorage.setItem('academie_memberships', JSON.stringify(response.data));
+          sessionStorage.setItem('has_academie_membership', 'true');
+          
+          // Store first membership id_member for activities API
+          const firstMembership = response.data[0];
+          if (firstMembership.id_member) {
+            sessionStorage.setItem("academy_member_id", firstMembership.id_member);
+          }
+        } else {
+          // No memberships, clear session storage
+          sessionStorage.removeItem('academie_memberships');
+          sessionStorage.removeItem('academy_member_id');
+          sessionStorage.setItem('has_academie_membership', 'false');
+          setMemberships([]);
+        }
+      } else {
+        setMemberships([]);
+        sessionStorage.removeItem('academie_memberships');
+        sessionStorage.removeItem('academy_member_id');
+        sessionStorage.setItem('has_academie_membership', 'false');
+      }
+    } catch (error) {
+      toast.error('Error fetching academy memberships: ' + (error.message || 'Unknown error'));
+      setMembershipsError('Failed to load memberships');
+      setMemberships([]);
+      sessionStorage.removeItem('academie_memberships');
+      sessionStorage.removeItem('academy_member_id');
+      sessionStorage.setItem('has_academie_membership', 'false');
+    } finally {
+      setMembershipsLoading(false);
+    }
+  };
+
   // Fetch user data from API or use session storage as fallback
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -180,7 +444,19 @@ const ProfilePage = () => {
         const response = await profileService.getProfile();
         if (response && response.data) {
           const user = response.data;
-          setUserData(user);
+          
+          // Get profile picture URL
+          let profilePicture = user.pfp;
+          if (profilePicture && !profilePicture.startsWith('http')) {
+            // Add base URL if it's a relative path
+            profilePicture = `http://127.0.0.1:8000/${profilePicture}`;
+          }
+          
+          setUserData({
+            ...user,
+            pfp: profilePicture
+          });
+          
           setFormData({
             nom: user.nom || '',
             prenom: user.prenom || '',
@@ -197,8 +473,8 @@ const ProfilePage = () => {
           
           // Use reviews as activities for now
           if (user.reviews && user.reviews.length > 0) {
-            const convertedActivities = user.reviews.map(review => ({
-              id: review.id_review,
+            const convertedActivities = user.reviews.map((review, index) => ({
+              id: `${review.id_review || index}-${Date.now()}`,
               title: review.name,
               description: review.description,
               date: new Date(review.created_at).toLocaleDateString(),
@@ -207,26 +483,6 @@ const ProfilePage = () => {
               academy: "General"
             }));
             setActivities(convertedActivities);
-          } else {
-            // Fallback mock activities
-            setActivities([
-              {
-                id: 1,
-                title: "Junior Football Training",
-                description: "Weekly training session for juniors",
-                date: "Every Wednesday",
-                time: "16:00 - 17:30",
-                academy: "Youth Academy"
-              },
-              {
-                id: 2,
-                title: "Advanced Techniques Workshop",
-                description: "Learn professional techniques",
-                date: "July 20, 2024",
-                time: "10:00 - 12:00",
-                academy: "Pro Skills Academy"
-              }
-            ]);
           }
 
           // Store player data in session storage if available for other components to use
@@ -238,72 +494,39 @@ const ProfilePage = () => {
           }
         }
       } catch (error) {
-        console.error('Error fetching profile:', error);
-        setError("Failed to load user data. Using local data instead.");
+        toast.error('Error fetching profile: ' + error.message);
         
         // Fallback to session storage if API fails
-        const nom = sessionStorage.getItem('nom');
-        const prenom = sessionStorage.getItem('prenom');
-        const email = sessionStorage.getItem('email');
-        const userId = sessionStorage.getItem('userId');
-        const telephone = sessionStorage.getItem('telephone');
-        const pfp = sessionStorage.getItem('pfp');
-        const dateInscription = sessionStorage.getItem('date_inscription');
-
+        const userDetails = JSON.parse(sessionStorage.getItem('userdetails') || '{}');
+        
+        // Get profile picture from session storage
+        let profilePicture = userDetails.pfp || sessionStorage.getItem('pfp');
+        if (!profilePicture || profilePicture === 'null') {
+          // Generate avatar if no profile picture is available
+          const name = `${userDetails.prenom || ''}+${userDetails.nom || ''}`;
+          profilePicture = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=07F468&color=121212&size=128`;
+        }
+        
         // Set user data from session storage
-        if (email) {
+        if (userDetails.email) {
           const user = {
-            nom,
-            prenom,
-            email,
-            userId,
-            telephone,
-            pfp,
-            dateInscription
+            ...userDetails,
+            userId: userDetails.id_compte || sessionStorage.getItem('userId'),
+            pfp: profilePicture
           };
           
           setUserData(user);
           setFormData({
-            nom: nom || '',
-            prenom: prenom || '',
-            email: email || '',
-            telephone: telephone || '',
-            date_naissance: '',
-            age: ''
+            nom: userDetails.nom || '',
+            prenom: userDetails.prenom || '',
+            email: userDetails.email || '',
+            telephone: userDetails.telephone || '',
+            date_naissance: userDetails.date_naissance || '',
+            age: userDetails.age || ''
           });
         }
-
-        // Mock reservations data as fallback
-        setReservations([
-          {
-            id: 1,
-            terrain: "Stadium Alpha",
-            date: "2024-07-15",
-            time: "14:00",
-            heure: "14:00:00",
-            duration: "1h30",
-            etat: "reserver"
-          },
-          {
-            id: 2,
-            terrain: "Field Bravo",
-            date: "2024-07-18",
-            time: "18:30",
-            heure: "18:30:00",
-            duration: "1h",
-            etat: "en attente"
-          },
-          {
-            id: 3,
-            terrain: "Arena Charlie",
-            date: "2024-07-22",
-            time: "10:00",
-            heure: "10:00:00",
-            duration: "2h",
-            etat: "reserver"
-          }
-        ]);
       } finally {
+        // Always set loading to false when done
         setLoading(false);
       }
     };
@@ -311,42 +534,115 @@ const ProfilePage = () => {
     fetchUserProfile();
   }, []);
 
+  // Function to handle infinite loading issues
+  const resetLoadingStates = () => {
+    setLoading(false);
+    setPlayerLoading(false);
+    setTeamLoading(false);
+    setReservationLoading(false);
+    setMembershipsLoading(false);
+    setRequestsLoading(false);
+    setIsSearching(false);
+    setUploadingPicture(false);
+  };
+
+  // Add a safety catch-all to reset loading states after 10 seconds
+  useEffect(() => {
+    // Reset all loading states when component mounts
+    resetLoadingStates();
+    
+    // Set a timeout to reset all loading states after 10 seconds
+    const loadingTimeout = setTimeout(() => {
+      resetLoadingStates();
+    }, 10000);
+
+    // Clear the timeout when component unmounts
+    return () => {
+      clearTimeout(loadingTimeout);
+      // Also reset loading states when unmounting
+      resetLoadingStates();
+    };
+  }, []);
+
   // Fetch activity history
   useEffect(() => {
     const fetchActivityHistory = async () => {
-      if (!userData) return;
-      
       try {
         const response = await profileService.getActivityHistory();
-        console.log('Activity history:', response);
-        
-        if (response && response.success && response.data) {
-          // Update reservations from activity history
-          if (response.data.reservations && response.data.reservations.length > 0) {
-            setReservations(response.data.reservations);
-          }
-          
-          // Update activities from reviews
-          if (response.data.reviews && response.data.reviews.length > 0) {
-            const convertedActivities = response.data.reviews.map(review => ({
-              id: review.id_review,
-              title: review.name,
-              description: review.description,
-              date: new Date(review.created_at).toLocaleDateString(),
-              time: new Date(review.created_at).toLocaleTimeString(),
-              status: review.status,
-              academy: "Review"
-            }));
-            setActivities(convertedActivities);
-          }
-        }
+        setActivities(response.data || []);
       } catch (error) {
-        console.error('Error fetching activity history:', error);
+        toast.error('Error fetching activity history: ' + error.message);
       }
     };
     
     fetchActivityHistory();
-  }, [userData]);
+  }, []);
+
+  // Fetch academy activities
+  useEffect(() => {
+    const fetchAcademyActivities = async () => {
+      // Get the member ID from session storage
+      const academyMemberId = sessionStorage.getItem("academy_member_id");
+      
+      if (!academyMemberId) {
+        // If no member ID found in session storage, return
+        console.log("No academy member ID found in session storage");
+        return;
+      }
+      
+      try {
+        setActivitiesLoading(true);
+        setActivitiesError(null);
+        
+        const params = {
+          include: 'activite',
+          paginationSize: 10,
+          sort_by: 'date_joined',
+          sort_order: 'desc',
+        };
+        
+        const response = await activitiesMembersService.getActivitesIn(academyMemberId, params);
+        
+        if (response && response.message === "Member activities retrieved successfully") {
+          // Format the activities data based on the actual API response
+          const formattedActivities = response.data.map(item => {
+            const activity = item.activite || {};
+            return {
+              id: item.id_activity_member,
+              title: activity.title || 'Academy Activity',
+              description: activity.description || '',
+              date: `${new Date(activity.date_debut).toLocaleDateString()} - ${new Date(activity.date_fin).toLocaleDateString()}`,
+              time: '',
+              status: new Date() < new Date(activity.date_fin) ? 'upcoming' : 'completed',
+              academy: `Activity #${activity.id_activites}`,
+              dateJoined: new Date(item.date_joined).toLocaleDateString()
+            };
+          });
+          
+          setAcademyActivities(formattedActivities);
+          
+          // Set pagination details if available
+          if (response.meta) {
+            setActivitiesPage(response.meta.current_page || 1);
+            setActivitiesTotalPages(response.meta.last_page || 1);
+          } else {
+            // If no pagination info, assume everything is on one page
+            setActivitiesPage(1);
+            setActivitiesTotalPages(1);
+          }
+        } else {
+          setAcademyActivities([]);
+        }
+      } catch (error) {
+        console.error('Error fetching academy activities:', error);
+        setActivitiesError('Failed to load academy activities. Please try again later.');
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+    
+    fetchAcademyActivities();
+  }, [activitiesPage]); // Refetch when page changes
 
   // Fetch upcoming and history reservations
   useEffect(() => {
@@ -380,7 +676,7 @@ const ProfilePage = () => {
           setTotalPages(historyResponse.data.last_page || 1);
         }
       } catch (error) {
-        console.error('Error fetching reservations:', error);
+        toast.error('Error fetching reservations: ' + error.message);
         setReservationError('Failed to load reservations: ' + (error.response?.data?.message || error.message));
       } finally {
         setReservationLoading(false);
@@ -393,18 +689,29 @@ const ProfilePage = () => {
   // Add this new useEffect for fetching user's academy memberships
   useEffect(() => {
     const fetchMemberships = async () => {
-      if (!userData) return;
-      
       try {
         setMembershipsLoading(true);
         setMembershipsError(null);
         
         const response = await academieMemberService.getMyMemberships();
         if (response && response.success && response.data) {
+          // Update state with memberships
           setMemberships(response.data);
+          
+          // Update session storage
+          if (response.data.length > 0) {
+            sessionStorage.setItem('academie_memberships', JSON.stringify(response.data));
+            sessionStorage.setItem('academy_member_id', response.data[0].id_member);
+            sessionStorage.setItem('has_academie_membership', 'true');
+          } else {
+            // No memberships, clear session storage
+            sessionStorage.removeItem('academie_memberships');
+            sessionStorage.removeItem('academy_member_id');
+            sessionStorage.setItem('has_academie_membership', 'false');
+          }
         }
       } catch (error) {
-        console.error('Error fetching academy memberships:', error);
+        toast.error('Error fetching academy memberships: ' + error.message);
         setMembershipsError('Failed to load memberships: ' + (error.response?.data?.message || error.message));
       } finally {
         setMembershipsLoading(false);
@@ -412,26 +719,29 @@ const ProfilePage = () => {
     };
     
     fetchMemberships();
-  }, [userData]);
+  }, []);
 
   // Fetch player data when the user has a player account
   useEffect(() => {
     const fetchPlayerInfo = async () => {
-      if (!userData) return;
-      
       try {
         setPlayerLoading(true);
         
         // First check if the player data is already in userData
-        if (userData.player) {
-          setPlayerInfo(userData.player);
+        if (userData && userData.player) {
+          // Create a copy of player data without requests for cleaner state
+          const playerData = { ...userData.player };
+          delete playerData.sent_requests;
+          delete playerData.received_requests;
+          
+          setPlayerInfo(playerData);
           
           // Update session storage with latest data
           sessionStorage.setItem('has_player', 'true');
           sessionStorage.setItem('isPlayer', 'true');
-          sessionStorage.setItem('player_id', userData.player.id_player || userData.player.id);
-          sessionStorage.setItem('player_position', userData.player.position);
-          sessionStorage.setItem('player_rating', userData.player.rating || '0');
+          sessionStorage.setItem('player_id', playerData.id_player || playerData.id);
+          sessionStorage.setItem('player_position', playerData.position);
+          sessionStorage.setItem('player_rating', playerData.rating || '0');
           
           setPlayerLoading(false);
           return;
@@ -463,14 +773,19 @@ const ProfilePage = () => {
               );
               
               if (userPlayer) {
-                setPlayerInfo(userPlayer);
+                // Remove requests data if present
+                const playerData = { ...userPlayer };
+                delete playerData.sent_requests;
+                delete playerData.received_requests;
+                
+                setPlayerInfo(playerData);
                 
                 // Update session storage with found player data
                 sessionStorage.setItem('has_player', 'true');
                 sessionStorage.setItem('isPlayer', 'true');
-                sessionStorage.setItem('player_id', userPlayer.id_player || userPlayer.id);
-                sessionStorage.setItem('player_position', userPlayer.position);
-                sessionStorage.setItem('player_rating', userPlayer.rating || '0');
+                sessionStorage.setItem('player_id', playerData.id_player || playerData.id);
+                sessionStorage.setItem('player_position', playerData.position);
+                sessionStorage.setItem('player_rating', playerData.rating || '0');
                 
                 setPlayerLoading(false);
                 return;
@@ -488,23 +803,39 @@ const ProfilePage = () => {
           const response = await playersService.getPlayer(playerId);
           
           // Handle different response formats
-          const playerData = response.data?.data || response.data;
+          let playerData = null;
+          
+          if (response.data?.data?.player) {
+            // Format where player is nested in data.data.player
+            playerData = response.data.data.player;
+          } else if (response.data?.player) {
+            // Format where player is nested in data.player
+            playerData = response.data.player;
+          } else if (response.data?.data) {
+            // Format where player is in data.data
+            playerData = response.data.data;
+          } else {
+            // Direct format
+            playerData = response.data;
+          }
           
           if (playerData) {
-            // Ensure we have the correct ID field
-            const player = {
-              ...playerData,
-              id_player: playerData.id_player || playerData.id
-            };
+            // Remove requests data if present to keep the state clean
+            const cleanPlayerData = { ...playerData };
+            delete cleanPlayerData.sent_requests;
+            delete cleanPlayerData.received_requests;
             
-            setPlayerInfo(player);
+            // Ensure we have the correct ID field
+            cleanPlayerData.id_player = cleanPlayerData.id_player || cleanPlayerData.id;
+            
+            setPlayerInfo(cleanPlayerData);
             
             // Update session storage with latest data
             sessionStorage.setItem('has_player', 'true');
             sessionStorage.setItem('isPlayer', 'true');
-            sessionStorage.setItem('player_id', player.id_player);
-            sessionStorage.setItem('player_position', player.position);
-            sessionStorage.setItem('player_rating', player.rating || '0');
+            sessionStorage.setItem('player_id', cleanPlayerData.id_player);
+            sessionStorage.setItem('player_position', cleanPlayerData.position);
+            sessionStorage.setItem('player_rating', cleanPlayerData.rating || '0');
           }
         } catch (error) {
           // Handle "Player not found" error
@@ -544,158 +875,90 @@ const ProfilePage = () => {
   // Fetch team data when the user has a team or is a team member
   useEffect(() => {
     const fetchTeamInfo = async () => {
-      if (!userData) return;
-      
       try {
         setTeamLoading(true);
+        setTeamError(null);
         
-        // First check if the team data is already in userData
-        if (userData.team) {
-          setTeamInfo(userData.team);
-          
-          // Update session storage with latest data
-          sessionStorage.setItem('has_teams', 'true');
-          sessionStorage.setItem('id_teams', userData.team.id_teams);
-          
+        // Get player_id from playerInfo or session storage
+        const playerId = playerInfo?.id_player || sessionStorage.getItem('player_id');
+        
+        if (!playerId) {
+          console.log("No player_id available, can't fetch team info");
           setTeamLoading(false);
           return;
         }
         
-        // Check if user already has a team ID in session storage
-        const teamId = sessionStorage.getItem('id_teams');
-        const hasTeams = sessionStorage.getItem('has_teams') === 'true';
+        // Use getMyTeam with player_id
+        const response = await teamsService.getMyTeam({
+          player_id: playerId,
+          include: 'captain,members,ratings'
+        });
         
-        // If we have stored teams data in session storage, try to use that first
-        const storedTeamsData = sessionStorage.getItem('teams');
-        if (storedTeamsData) {
-          try {
-            const teams = JSON.parse(storedTeamsData);
-            if (teams && teams.length > 0) {
-              // Use the first team as the active team
-              setTeamInfo(teams[0]);
-              setTeamLoading(false);
-              return;
-            }
-          } catch (e) {
-            console.error('Error parsing stored teams data:', e);
-          }
+        // Check if the player doesn't belong to any team
+        if (response && response.success === false && response.message === "Player does not belong to any team") {
+          // This is an expected case, not an error
+          setTeamInfo(null);
+          sessionStorage.removeItem('has_teams');
+          sessionStorage.removeItem('id_teams');
+          sessionStorage.removeItem('teams');
+          sessionStorage.removeItem('is_captain');
+          setTeamLoading(false);
+          return;
         }
         
-        if (!teamId && !hasTeams) {
-          // If no team ID in session and no has_teams flag, check if the user is a player
-          const playerId = sessionStorage.getItem('player_id');
-          if (!playerId) {
-            // If not a player, they can't have a team
-            setTeamLoading(false);
-            return;
-          }
+        if (response && response.success && response.data && response.data.team) {
+          const { team, is_captain, members_count } = response.data;
           
-          // Try to get all the player's teams
-          try {
-            const response = await playerTeamsService.getAllPlayerTeams();
-            if (response && response.data && response.data.length > 0) {
-              // Found teams for this player
-              const teams = response.data;
-              
-              // Store teams data in session storage
-              sessionStorage.setItem('teams', JSON.stringify(teams));
-              sessionStorage.setItem('has_teams', 'true');
-              sessionStorage.setItem('id_teams', teams[0].id_teams);
-              
-              // Set the first team as the active team
-              setTeamInfo(teams[0]);
-              setTeamLoading(false);
-              return;
-            } else {
-              // No teams found for this player
-              setTeamLoading(false);
-              return;
-            }
-          } catch (error) {
-            // Handle API error
-            console.error('Error fetching player teams:', error);
-            if (error.response && error.response.status !== 404) {
-              throw error; // Re-throw non-404 errors
-            }
-            // For 404 errors, just continue as if no teams were found
-            setTeamLoading(false);
-            return;
-          }
-        }
-        
-        // If we have a team ID, fetch the team data
-        if (teamId) {
-          try {
-            const response = await playerTeamsService.getPlayerTeam(teamId);
-            
-            // Handle different response formats
-            const teamData = response.data?.data || response.data;
-            
-            if (teamData) {
-              // Set the team info
-              setTeamInfo(teamData);
-              
-              // Fetch team members if they're not included
-              if (!teamData.members) {
-                try {
-                  const membersResponse = await playerTeamsService.getTeamMembers(teamId);
-                  if (membersResponse && membersResponse.data) {
-                    const members = membersResponse.data;
-                    
-                    // Mark the captain in the members list
-                    const membersWithCaptainFlag = members.map(member => ({
-                      ...member,
-                      is_captain: member.id_player === teamData.captain_id
-                    }));
-                    
-                    // Update team info with members
-                    setTeamInfo(prevTeamInfo => ({
-                      ...prevTeamInfo,
-                      members: membersWithCaptainFlag,
-                      member_count: members.length
-                    }));
-                  }
-                } catch (membersError) {
-                  console.error('Error fetching team members:', membersError);
-                }
-              } else {
-                // If members are included, still mark the captain
-                const membersWithCaptainFlag = teamData.members.map(member => ({
-                  ...member,
-                  is_captain: member.id_player === teamData.captain_id
-                }));
-                
-                // Update team info with captain flags
-                setTeamInfo({
-                  ...teamData,
-                  members: membersWithCaptainFlag
-                });
-              }
-            }
-          } catch (error) {
-            // Handle "Team not found" error
-            if (error.response && error.response.status === 404) {
-              console.log("Team not found, clearing team data");
-              // Clear team info and session storage since team doesn't exist
-              setTeamInfo(null);
-              sessionStorage.removeItem('has_teams');
-              sessionStorage.removeItem('id_teams');
-              sessionStorage.removeItem('teams');
-            } else {
-              throw error; // Re-throw other errors
-            }
-          }
+          // Store data in session storage
+          sessionStorage.setItem('has_teams', 'true');
+          sessionStorage.setItem('id_teams', team.id_teams.toString());
+          sessionStorage.setItem('teams', JSON.stringify([team]));
+          sessionStorage.setItem('is_captain', is_captain.toString());
+          
+          // Add additional fields to team object
+          const enrichedTeam = {
+            ...team,
+            is_captain,
+            members_count,
+            // Ensure members have the is_captain flag
+            members: team.members?.map(member => ({
+              ...member,
+              is_captain: member.id_player === team.capitain
+            })) || []
+          };
+          
+          // Set team info
+          setTeamInfo(enrichedTeam);
+        } else {
+          setTeamInfo(null);
+          sessionStorage.removeItem('has_teams');
+          sessionStorage.removeItem('id_teams');
+          sessionStorage.removeItem('teams');
+          sessionStorage.removeItem('is_captain');
         }
       } catch (error) {
         console.error('Error fetching team info:', error);
-        setTeamError('Failed to load team information');
+        // Check for specific error about player not belonging to any team
+        if (error.response?.data?.message === "Player does not belong to any team") {
+          // Don't show as error, just clear team data
+          setTeamInfo(null);
+          setTeamError(null);
+        } else {
+          setTeamError('Failed to load team information: ' + (error.response?.data?.message || error.message));
+        }
+        
+        // Clear team data from session storage on error
+        sessionStorage.removeItem('has_teams');
+        sessionStorage.removeItem('id_teams');
+        sessionStorage.removeItem('teams');
+        sessionStorage.removeItem('is_captain');
       } finally {
         setTeamLoading(false);
       }
     };
     
     fetchTeamInfo();
-  }, [userData]);
+  }, [userData, playerInfo]);
 
   // Add this new effect to fetch team invitations and join requests
   useEffect(() => {
@@ -720,8 +983,7 @@ const ProfilePage = () => {
       if (!teamInfo) return;
       
       // Only fetch if the current user is the captain
-      const playerId = playerInfo?.id_player || playerInfo?.id;
-      if (teamInfo.captain_id !== playerId) return;
+      if (!teamInfo.is_captain) return;
       
       try {
         setInvitationsLoading(true);
@@ -741,44 +1003,115 @@ const ProfilePage = () => {
     fetchPendingJoinRequests();
   }, [playerInfo, teamInfo]);
 
-  // Add new handlers for accepting and refusing invitations
+  // Fetch player requests when the player info is loaded
+  useEffect(() => {
+    const fetchPlayerRequests = async () => {
+      if (!playerInfo) return;
+      
+      try {
+        setRequestsLoading(true);
+        setRequestsError(null);
+        
+        // Prepare request parameters with pagination and filtering
+        const params = {
+          paginationSize: requestsPerPage,
+          page: requestsPage
+        };
+        
+        // Add status filter if not 'all'
+        if (requestsFilter !== 'all') {
+          params.status = requestsFilter;
+        }
+        
+        // Add search query if present
+        if (requestsSearchQuery.trim()) {
+          params.search = requestsSearchQuery.trim();
+        }
+        
+        // Use the getPlayerRequests method with parameters
+        const response = await playerRequestsService.getPlayerRequests(params);
+        
+        if (response && response.data) {
+          // Split into sent and received
+          const playerId = playerInfo.id_player || playerInfo.id;
+          const sent = response.data.filter(req => req.sender.toString() === playerId.toString());
+          const received = response.data.filter(req => req.receiver.toString() === playerId.toString());
+          
+          setPlayerRequests({
+            sent,
+            received
+          });
+          
+          // Set pagination info
+          if (response.meta) {
+            setRequestsTotalPages(response.meta.last_page || 1);
+          }
+        }
+        
+        // Also fetch available players for the dropdown
+        fetchAvailablePlayers();
+        
+      } catch (error) {
+        console.error('Error fetching player requests:', error);
+        setRequestsError('Failed to load player requests: ' + (error.response?.data?.message || error.message));
+      } finally {
+        setRequestsLoading(false);
+      }
+    };
+    
+    fetchPlayerRequests();
+  }, [playerInfo, requestsPage, requestsFilter, requestsSearchQuery, requestsPerPage]);
+
+  // Update the invitation handling functions
   const handleAcceptInvitation = async (id) => {
     try {
       setInvitationsLoading(true);
+      
+      console.log(`Accepting invitation ${id}`);
       const response = await playerTeamsService.acceptInvitation(id);
       
       if (response && (response.success || response.status === 'success')) {
+        toast.success('Invitation accepted successfully');
+        
         // Remove from pending invitations
         setPendingInvitations(prev => prev.filter(inv => inv.id !== id));
         
         // Refresh team data
         if (response.data && response.data.id_teams) {
-          const teamResponse = await playerTeamsService.getPlayerTeam(response.data.id_teams);
-          if (teamResponse && teamResponse.data) {
-            setTeamInfo(teamResponse.data);
+          // Update session storage with team data
+          sessionStorage.setItem('has_teams', 'true');
+          sessionStorage.setItem('id_teams', response.data.id_teams.toString());
+          
+          try {
+            // Update teams array in session storage
+            let teamsArray = [];
+            const existingTeams = sessionStorage.getItem('teams');
             
-            // Update session storage
-            sessionStorage.setItem('has_teams', 'true');
-            sessionStorage.setItem('id_teams', teamResponse.data.id_teams);
-            
-            // If we have teams array in session storage, update it
-            try {
-              const storedTeamsData = sessionStorage.getItem('teams');
-              if (storedTeamsData) {
-                const teams = JSON.parse(storedTeamsData);
-                teams.push(teamResponse.data);
-                sessionStorage.setItem('teams', JSON.stringify(teams));
-              } else {
-                sessionStorage.setItem('teams', JSON.stringify([teamResponse.data]));
-              }
-            } catch (e) {
-              console.error('Error updating teams in session storage:', e);
+            if (existingTeams) {
+              teamsArray = JSON.parse(existingTeams);
+              if (!Array.isArray(teamsArray)) teamsArray = [teamsArray];
             }
+            
+            // Add the new team if not already in the array
+            const teamExists = teamsArray.some(team => team.id_teams === response.data.id_teams);
+            if (!teamExists) {
+              teamsArray.push(response.data);
+            }
+            
+            sessionStorage.setItem('teams', JSON.stringify(teamsArray));
+          } catch (e) {
+            console.error('Error updating teams in session storage:', e);
           }
+          
+          // Refresh team info
+          await fetchTeamInfo();
         }
+      } else {
+        toast.error(response?.message || 'Failed to accept invitation');
       }
     } catch (error) {
       console.error('Error accepting invitation:', error);
+      toast.error('Error accepting invitation: ' + (error.response?.data?.message || error.message));
     } finally {
       setInvitationsLoading(false);
     }
@@ -787,52 +1120,70 @@ const ProfilePage = () => {
   const handleRefuseInvitation = async (id) => {
     try {
       setInvitationsLoading(true);
+      
+      console.log(`Refusing invitation ${id}`);
       const response = await playerTeamsService.refuseInvitation(id);
       
       if (response && (response.success || response.status === 'success')) {
+        toast.success('Invitation refused successfully');
+        
         // Remove from pending invitations
         setPendingInvitations(prev => prev.filter(inv => inv.id !== id));
+      } else {
+        toast.error(response?.message || 'Failed to refuse invitation');
       }
     } catch (error) {
       console.error('Error refusing invitation:', error);
+      toast.error('Error refusing invitation: ' + (error.response?.data?.message || error.message));
     } finally {
       setInvitationsLoading(false);
     }
   };
 
-  // Add handler for processing join requests
   const handleProcessJoinRequest = async (id, status) => {
     try {
       setInvitationsLoading(true);
+      
+      console.log(`Processing join request ${id} with status ${status}`);
       const response = await playerTeamsService.processJoinRequest(id, { status });
       
       if (response && (response.success || response.status === 'success')) {
+        toast.success(`Join request ${status} successfully`);
+        
         // Remove from pending join requests
         setPendingJoinRequests(prev => prev.filter(req => req.id !== id));
         
-        // Refresh team members if accepted
+        // Refresh team members if accepted and we have team info
         if (status === 'accepted' && teamInfo) {
-          const membersResponse = await playerTeamsService.getTeamMembers(teamInfo.id_teams);
-          if (membersResponse && membersResponse.data) {
-            const members = membersResponse.data;
+          try {
+            const membersResponse = await playerTeamsService.getTeamMembers(teamInfo.id_teams);
             
-            // Mark the captain in the members list
-            const membersWithCaptainFlag = members.map(member => ({
-              ...member,
-              is_captain: member.id_player === teamInfo.captain_id
-            }));
-            
-            // Update team info with members
-            setTeamInfo(prevTeamInfo => ({
-              ...prevTeamInfo,
-              members: membersWithCaptainFlag,
-              member_count: members.length
-            }));
+            if (membersResponse && membersResponse.data) {
+              const members = membersResponse.data;
+              
+              // Mark the captain in the members list
+              const membersWithCaptainFlag = members.map(member => ({
+                ...member,
+                is_captain: member.id_player === teamInfo.captain_id || member.id_player === teamInfo.capitain
+              }));
+              
+              // Update team info with members
+              setTeamInfo(prevTeamInfo => ({
+                ...prevTeamInfo,
+                members: membersWithCaptainFlag,
+                member_count: members.length
+              }));
+            }
+          } catch (e) {
+            console.error('Error refreshing team members:', e);
           }
         }
+      } else {
+        toast.error(response?.message || `Failed to ${status} join request`);
       }
     } catch (error) {
       console.error('Error processing join request:', error);
+      toast.error('Error processing join request: ' + (error.response?.data?.message || error.message));
     } finally {
       setInvitationsLoading(false);
     }
@@ -852,16 +1203,83 @@ const ProfilePage = () => {
     setPasswordVisibility({ ...passwordVisibility, [field]: !passwordVisibility[field] });
   };
 
-  const handleSubmitPasswordChange = (e) => {
+  const handleSubmitPasswordChange = async (e) => {
     e.preventDefault();
-    // Implement password change logic
+    
+    // Reset previous messages
     setPasswordError(null);
-    setPasswordSuccess('Password changed successfully');
+    setPasswordSuccess(null);
+    
+    // Validate passwords
+    if (passwordFormData.new_password !== passwordFormData.confirm_password) {
+      setPasswordError("New passwords don't match");
+      return;
+    }
+    
+    try {
+      // Call API to change password
+      const response = await profileService.changePassword({
+        current_password: passwordFormData.current_password,
+        new_password: passwordFormData.new_password,
+        new_password_confirmation: passwordFormData.confirm_password // Add confirmation field for Laravel validation
+      });
+      
+      if (response && (response.success || response.status === 'success')) {
+        // Show success message
+        setPasswordSuccess('Password changed successfully');
+        
+        // Reset form
+        setPasswordFormData({
+          current_password: '',
+          new_password: '',
+          confirm_password: ''
+        });
+        
+        // Close form after delay
+        setTimeout(() => {
+          setShowPasswordForm(false);
+          setPasswordSuccess(null);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordError(error.response?.data?.message || error.message || 'Failed to change password');
+    }
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    // Implement profile save logic
+    
+    try {
+      const response = await profileService.updateProfile(formData);
+      
+      if (response && (response.success || response.status === 'success')) {
+        // Update user data in state and session storage
+        const updatedUser = {
+          ...userData,
+          ...formData
+        };
+        setUserData(updatedUser);
+        
+        // Update session storage with the new user details
+        const currentUserDetails = JSON.parse(sessionStorage.getItem('userdetails') || '{}');
+        const updatedUserDetails = {
+          ...currentUserDetails,
+          ...formData
+        };
+        sessionStorage.setItem('userdetails', JSON.stringify(updatedUserDetails));
+        
+        // Also update individual session items if they exist
+        if (formData.email) sessionStorage.setItem('email', formData.email);
+        if (formData.nom) sessionStorage.setItem('name', `${formData.prenom} ${formData.nom}`);
+        
+        // Show success message and exit edit mode
+        toast.success('Profile updated successfully');
+        setEditMode(false);
+      }
+    } catch (error) {
+      toast.error('Failed to update profile: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const handlePlayerInputChange = (e) => {
@@ -871,11 +1289,13 @@ const ProfilePage = () => {
 
   const handleTeamInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'logo' && e.target.files && e.target.files[0]) {
-      setTeamFormData({ ...teamFormData, [name]: e.target.files[0] });
-    } else {
-      setTeamFormData({ ...teamFormData, [name]: value });
-    }
+    setTeamFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear any previous errors
+    setTeamFormError(null);
   };
 
   const handleJoinTeamInputChange = (e) => {
@@ -886,62 +1306,27 @@ const ProfilePage = () => {
   const handleJoinTeam = async (e) => {
     e.preventDefault();
     
-    // Reset messages
-    setJoinTeamError(null);
-    setJoinTeamSuccess(null);
-    
-    // Validate form data
-    if (!joinTeamData.team_id) {
-      setJoinTeamError('Please enter a team ID');
-      return;
-    }
-    
     try {
-      setTeamLoading(true);
+      const response = await teamsService.joinTeam(joinTeamData.team_id);
       
-      // Call API to join team
-      const response = await playerTeamsService.joinTeam(joinTeamData.team_id);
-      
-      if (response && (response.success || response.status === 'success' || response.data)) {
-        // Get the team data
-        const team = response.data?.data || response.data;
+      if (response && response.success) {
+        toast.success('Successfully joined team');
+        setShowJoinTeamSection(false);
+        setJoinTeamData({ team_id: '' });
         
-        // Update team info
-        setTeamInfo(team);
-        
-        // Update session storage
-        sessionStorage.setItem('has_teams', 'true');
-        sessionStorage.setItem('id_teams', team.id_teams);
-        
-        // If we have teams array in session storage, update it
+        // Update teams in session storage
         try {
-          const storedTeamsData = sessionStorage.getItem('teams');
-          if (storedTeamsData) {
-            const teams = JSON.parse(storedTeamsData);
-            // Add new team to array
-            teams.push(team);
-            sessionStorage.setItem('teams', JSON.stringify(teams));
-          } else {
-            // Create new teams array
-            sessionStorage.setItem('teams', JSON.stringify([team]));
-          }
+          const teams = JSON.parse(sessionStorage.getItem('teams') || '[]');
+          teams.push(response.data);
+          sessionStorage.setItem('teams', JSON.stringify(teams));
         } catch (e) {
-          console.error('Error updating teams in session storage:', e);
+          toast.warning('Error updating teams in storage');
         }
         
-        // Show success message
-        setJoinTeamSuccess('Successfully joined team');
-        
-        // Close form after success
-        setTimeout(() => {
-          setShowJoinTeamSection(false);
-        }, 2000);
+        await fetchTeamInfo();
       }
     } catch (error) {
-      console.error('Error joining team:', error);
-      setJoinTeamError('Failed to join team: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setTeamLoading(false);
+      toast.error('Error joining team: ' + error.message);
     }
   };
 
@@ -967,22 +1352,27 @@ const ProfilePage = () => {
         id_compte: userData?.userId || sessionStorage.getItem('userId')
       };
       
-      // Format times to include seconds if they don't have them
-      if (apiData.starting_time && !apiData.starting_time.includes(':')) {
-        apiData.starting_time = `${apiData.starting_time}:00`;
+      // Ensure times are in HH:MM:SS format as required by the backend
+      if (apiData.starting_time) {
+        // Split the time into parts, handling both HH:MM and HH:MM:SS formats
+        const timeParts = apiData.starting_time.split(':');
+        const hours = timeParts[0] ? timeParts[0].padStart(2, '0') : '00';
+        const minutes = timeParts[1] ? timeParts[1].padStart(2, '0') : '00';
+        const seconds = timeParts[2] ? timeParts[2].padStart(2, '0') : '00';
+        
+        // Reconstruct in the required format
+        apiData.starting_time = `${hours}:${minutes}:${seconds}`;
       }
       
-      if (apiData.finishing_time && !apiData.finishing_time.includes(':')) {
-        apiData.finishing_time = `${apiData.finishing_time}:00`;
-      }
-      
-      // Ensure times are in HH:MM:SS format
-      if (apiData.starting_time && apiData.starting_time.split(':').length === 2) {
-        apiData.starting_time = `${apiData.starting_time}:00`;
-      }
-      
-      if (apiData.finishing_time && apiData.finishing_time.split(':').length === 2) {
-        apiData.finishing_time = `${apiData.finishing_time}:00`;
+      if (apiData.finishing_time) {
+        // Split the time into parts, handling both HH:MM and HH:MM:SS formats
+        const timeParts = apiData.finishing_time.split(':');
+        const hours = timeParts[0] ? timeParts[0].padStart(2, '0') : '00';
+        const minutes = timeParts[1] ? timeParts[1].padStart(2, '0') : '00';
+        const seconds = timeParts[2] ? timeParts[2].padStart(2, '0') : '00';
+        
+        // Reconstruct in the required format
+        apiData.finishing_time = `${hours}:${minutes}:${seconds}`;
       }
       
       let response;
@@ -1031,110 +1421,74 @@ const ProfilePage = () => {
   const handleSubmitTeamForm = async (e) => {
     e.preventDefault();
     
-    // Reset messages
-    setTeamFormError(null);
-    setTeamFormSuccess(null);
-    
-    // Validate form data
-    if (!teamFormData.name) {
-      setTeamFormError('Please enter a team name');
+    if (!teamInfo || !teamInfo.is_captain) {
+      setTeamFormError('You must be the team captain to make changes');
       return;
     }
     
     try {
       setTeamLoading(true);
       
-      // Prepare data for API
-      const formData = new FormData();
-      formData.append('name', teamFormData.name);
-      
-      if (teamFormData.description) {
-        formData.append('description', teamFormData.description);
-      }
-      
-      if (teamFormData.logo) {
-        formData.append('logo', teamFormData.logo);
-      }
-      
-      // Add captain ID if available
-      if (teamFormData.captain_id) {
-        formData.append('captain_id', teamFormData.captain_id);
-      } else {
-        // Use current player ID as default captain if creating a new team
-        const playerId = playerInfo?.id_player || sessionStorage.getItem('player_id');
-        if (playerId && !teamInfo) {
-          formData.append('captain_id', playerId);
-        }
-      }
-      
-      // Add time fields if available
-      if (teamFormData.starting_time) {
-        formData.append('starting_time', teamFormData.starting_time);
-      }
-      
-      if (teamFormData.finishing_time) {
-        formData.append('finishing_time', teamFormData.finishing_time);
-      }
-      
-      let response;
-      if (teamInfo) {
-        // Update existing team
-        const teamId = teamInfo.id_teams;
-        response = await playerTeamsService.updatePlayerTeam(teamId, formData);
-      } else {
-        // Create new team
-        response = await playerTeamsService.createPlayerTeam(formData);
-      }
-      
-      // Handle response
-      const responseData = response.data?.data || response.data;
-      
-      if (response.success || responseData) {
-        // Get the team data
-        const team = responseData || response.data;
+      const formatTime = (timeString) => {
+        if (!timeString) return null;
         
-        // Update team info
-        setTeamInfo(team);
+        // Split the time into parts, handling both HH:MM and HH:MM:SS formats
+        const timeParts = timeString.split(':');
+        const hours = timeParts[0] ? timeParts[0].padStart(2, '0') : '00';
+        const minutes = timeParts[1] ? timeParts[1].padStart(2, '0') : '00';
+        const seconds = timeParts[2] ? timeParts[2].padStart(2, '0') : '00';
         
-        // Update session storage
-        sessionStorage.setItem('has_teams', 'true');
-        sessionStorage.setItem('id_teams', team.id_teams);
+        // Reconstruct in the required format
+        return `${hours}:${minutes}:${seconds}`;
+      };
+      
+      const teamFormValues = {
+        capitain: parseInt(teamFormData.selected_member, 10), // Using id_compte for captain
+        starting_time: formatTime(teamFormData.starting_time),
+        finishing_time: formatTime(teamFormData.finishing_time),
+        // Keep existing stats
+        misses: teamInfo.misses || 0,
+        invites_accepted: teamInfo.invites_accepted || 0,
+        invites_refused: teamInfo.invites_refused || 0,
+        total_invites: teamInfo.total_invites || 0
+      };
+      
+      // Validate times before sending
+      if (!teamFormValues.starting_time || !teamFormValues.finishing_time) {
+        setTeamFormError('Please set both starting and finishing times');
+        setTeamLoading(false);
+        return;
+      }
+      
+      const response = await teamsService.updateTeam(teamInfo.id_teams, teamFormValues);
+      
+      if (response && (response.success || response.status === 'success')) {
+        setTeamFormSuccess('Team updated successfully');
         
-        // If we have teams array in session storage, update it
-        try {
-          const storedTeamsData = sessionStorage.getItem('teams');
-          if (storedTeamsData) {
-            const teams = JSON.parse(storedTeamsData);
-            if (teamInfo) {
-              // Update existing team in array
-              const updatedTeams = teams.map(t => 
-                t.id_teams === team.id_teams ? team : t
-              );
-              sessionStorage.setItem('teams', JSON.stringify(updatedTeams));
-            } else {
-              // Add new team to array
-              teams.push(team);
-              sessionStorage.setItem('teams', JSON.stringify(teams));
-            }
-          } else {
-            // Create new teams array
-            sessionStorage.setItem('teams', JSON.stringify([team]));
-          }
-        } catch (e) {
-          console.error('Error updating teams in session storage:', e);
-        }
-        
-        // Show success message
-        setTeamFormSuccess(teamInfo ? 'Team updated successfully' : 'Team created successfully');
+        // Update the team info in state
+        setTeamInfo(prev => ({
+          ...prev,
+          starting_time: teamFormValues.starting_time,
+          finishing_time: teamFormValues.finishing_time,
+          capitain: teamFormValues.capitain,
+          members: prev.members?.map(member => ({
+            ...member,
+            is_captain: member.id_compte === teamFormValues.capitain
+          }))
+        }));
         
         // Close form after success
         setTimeout(() => {
           setShowTeamForm(false);
+          setTeamFormSuccess(null);
         }, 2000);
       }
     } catch (error) {
-      console.error('Error saving team:', error);
-      setTeamFormError('Failed to save team: ' + (error.response?.data?.message || error.message));
+      console.error('Error updating team:', error);
+      const errorMessage = error.response?.data?.error 
+        ? Object.values(error.response.data.error).flat().join(', ')
+        : error.message;
+      setTeamFormError('Failed to update team: ' + errorMessage);
     } finally {
       setTeamLoading(false);
     }
@@ -1233,34 +1587,50 @@ const ProfilePage = () => {
           sessionStorage.removeItem('player_rating');
           
           // Show success message
-          setPlayerFormSuccess('Player profile deleted successfully');
+          toast.success(response.message || 'Player profile deleted successfully');
         }
       } else if (deleteTarget.type === 'team' && deleteTarget.id) {
         setTeamLoading(true);
         
         // Call API to delete team
-        const response = await playerTeamsService.deletePlayerTeam(deleteTarget.id);
+        const response = await teamsService.deleteTeam(deleteTarget.id);
         
-        if (response && (response.success || response.status === 'success')) {
+        if (response && (response.success || response.status === 'success' || response.message)) {
           // Clear team info and session storage
           setTeamInfo(null);
           sessionStorage.removeItem('has_teams');
           sessionStorage.removeItem('id_teams');
           sessionStorage.removeItem('teams');
+          sessionStorage.removeItem('is_captain');
           
-          // Show success message
-          setTeamFormSuccess('Team deleted successfully');
+          // Show success message from API response
+          toast.success(response.message || 'Team deleted successfully');
+          
+          // Close the modal immediately
+          setShowDeleteConfirmation(false);
+          setDeleteTarget(null);
+          setTeamLoading(false);
+          
+          // Redirect to client home page after a short delay
+          setTimeout(() => {
+            window.location.href = '/Client';
+          }, 1500);
+          
+          return; // Exit early to prevent the modal from closing again
         }
       }
     } catch (error) {
       console.error('Error deleting resource:', error);
       if (deleteTarget.type === 'player') {
         setPlayerFormError('Failed to delete player: ' + (error.response?.data?.message || error.message));
+        toast.error('Failed to delete player: ' + (error.response?.data?.message || error.message));
       } else if (deleteTarget.type === 'team') {
         setTeamFormError('Failed to delete team: ' + (error.response?.data?.message || error.message));
+        toast.error('Failed to delete team: ' + (error.response?.data?.message || error.message));
       }
     } finally {
       // Close the confirmation modal and reset state
+      // Only reaches here if we didn't return early for team deletion success
       setShowDeleteConfirmation(false);
       setDeleteTarget(null);
       setPlayerLoading(false);
@@ -1271,22 +1641,42 @@ const ProfilePage = () => {
   // Add missing function to handle cancelling a reservation
   const handleCancelReservation = async (reservationId) => {
     try {
-      setReservationLoading(true);
-      const response = await reservationService.cancelReservation(reservationId);
+      // First check if the endpoint exists in the service
+      const cancelEndpoint = reservationService.cancelReservation ? 
+        'cancelReservation' : 'deleteReservation';
       
-      if (response && (response.success || response.status === 'success')) {
-        // Remove from upcoming reservations
-        setUpcomingReservations(prev => prev.filter(r => r.id_reservation !== reservationId));
+      console.log(`Cancelling reservation ${reservationId} using ${cancelEndpoint}`);
+      
+      // Immediately update the UI by removing the cancelled reservation
+      setUpcomingReservations(prev => 
+        prev.filter(res => res.id_reservation !== reservationId)
+      );
+      
+      // Show pending status to user
+      toast.info('Cancelling reservation...');
+      
+      const response = await reservationService[cancelEndpoint](reservationId);
+      
+      if (response && (response.success || response.status === 'success' || response.message)) {
+        // Success! 
+        toast.success(response.message || 'Reservation cancelled successfully');
+      } else {
+        toast.error(response?.message || 'Failed to cancel reservation');
         
-        // Optionally show a success message
-        // This could be a toast or a state-based message
-        console.log('Reservation cancelled successfully');
+        // If failed, refresh to restore accurate data
+        await fetchReservations();
       }
-    } catch (error) {
-      console.error('Error cancelling reservation:', error);
-      setReservationError('Failed to cancel reservation: ' + (error.response?.data?.message || error.message));
+    } catch (cancelError) {
+      console.error('Error cancelling reservation:', cancelError);
+      toast.error('Error cancelling reservation: ' + (cancelError.response?.data?.message || cancelError.message));
+      
+      // On error, refresh to restore accurate data
+      await fetchReservations();
     } finally {
-      setReservationLoading(false);
+      // Always refresh reservations after a delay to ensure data is updated
+      setTimeout(() => {
+        fetchReservations();
+      }, 500);
     }
   };
 
@@ -1306,68 +1696,119 @@ const ProfilePage = () => {
     setCurrentPage(page);
   };
 
+  // Handle changing page for academy activities
+  const handleActivitiesPageChange = (page) => {
+    setActivitiesPage(page);
+  };
+
   // Add functions for academy memberships
   const handleCancelMembership = async (academieId) => {
     try {
-      const response = await academieMemberService.cancelMembership(academieId);
+      // Try both cancelMembership and cancelSubscription functions
+      const cancelFunction = academieMemberService.cancelMembership || academieMemberService.cancelSubscription;
+      
+      if (!cancelFunction) {
+        throw new Error('Cancel membership function not available');
+      }
+      
+      const response = await cancelFunction(academieId);
       
       if (response && (response.success || response.status === 'success')) {
-        // Remove from memberships
-        setMemberships(prev => prev.filter(m => m.id_academie !== academieId));
+        toast.success('Membership cancelled successfully');
         
-        // Show success message
-        setMembershipActionStatus({
-          type: 'success',
-          text: 'Academy membership cancelled successfully'
-        });
+        // Update memberships in state
+        setMemberships(prevMemberships => 
+          prevMemberships.filter(membership => membership.id_academie !== academieId)
+        );
         
-        // Clear message after a delay
-        setTimeout(() => {
-          setMembershipActionStatus(null);
-        }, 3000);
+        // Update session storage - first remove from array
+        const storedMemberships = JSON.parse(sessionStorage.getItem('academie_memberships') || '[]');
+        const updatedMemberships = storedMemberships.filter(
+          membership => membership.id_academie !== academieId
+        );
+        
+        if (updatedMemberships.length > 0) {
+          sessionStorage.setItem('academie_memberships', JSON.stringify(updatedMemberships));
+          sessionStorage.setItem('academy_member_id', updatedMemberships[0].id_member);
+          sessionStorage.setItem('has_academie_membership', 'true');
+        } else {
+          // No more memberships
+          sessionStorage.removeItem('academie_memberships');
+          sessionStorage.removeItem('academy_member_id');
+          sessionStorage.setItem('has_academie_membership', 'false');
+        }
+        
+        // Refresh memberships
+        await fetchMemberships();
+      } else {
+        toast.error('Failed to cancel membership');
       }
     } catch (error) {
       console.error('Error cancelling membership:', error);
-      setMembershipActionStatus({
-        type: 'error',
-        text: 'Failed to cancel membership: ' + (error.response?.data?.message || error.message)
-      });
+      toast.error('Error cancelling membership: ' + (error.response?.data?.message || error.message));
     }
   };
 
-  const handleUpdatePlan = async (academieId, newPlan) => {
+  // Update the handleUpdatePlan function to show the modal instead of immediately updating
+  const handleUpdatePlan = async (academieId, currentPlan) => {
+    setPlanChangeAcademieId(academieId);
+    setSelectedPlan(currentPlan || 'base');
+    setShowPlanModal(true);
+  };
+
+  // Add this new function to handle the actual plan update
+  const confirmPlanUpdate = async () => {
     try {
-      const response = await academieMemberService.updateMembershipPlan(academieId, { plan: newPlan });
+      // Format the data correctly for the API
+      // Backend requires subscription_plan to be either 'base' or 'premium'
+      let planValue = (selectedPlan || '').toString().toLowerCase();
+      
+      // Validate the plan value
+      if (planValue !== 'base' && planValue !== 'premium') {
+        // If invalid, default to 'base'
+        planValue = 'base';
+        console.warn(`Invalid plan value '${selectedPlan}' converted to 'base'`);
+      }
+      
+      const planData = {
+        subscription_plan: planValue
+      };
+      
+      console.log('Updating plan with data:', planData);
+      
+      const response = await academieMemberService.updatePlan(planChangeAcademieId, planData);
       
       if (response && (response.success || response.status === 'success')) {
-        // Update the plan in the memberships array
-        setMemberships(prev => prev.map(m => 
-          m.id_academie === academieId ? { ...m, plan: newPlan } : m
-        ));
+        toast.success(response.message || 'Plan updated successfully');
         
-        // Show success message
-        setMembershipActionStatus({
-          type: 'success',
-          text: 'Membership plan updated successfully'
-        });
+        // Close the modal
+        setShowPlanModal(false);
         
-        // Clear message after a delay
-        setTimeout(() => {
-          setMembershipActionStatus(null);
-        }, 3000);
+        // Update memberships in state and session storage
+        await fetchMemberships();
+      } else {
+        const errorMsg = response?.errors?.subscription_plan?.[0] || 
+                        response?.message || 
+                        'Failed to update membership plan';
+        toast.error(errorMsg);
       }
     } catch (error) {
-      console.error('Error updating membership plan:', error);
-      setMembershipActionStatus({
-        type: 'error',
-        text: 'Failed to update plan: ' + (error.response?.data?.message || error.message)
-      });
+      console.error('Error updating plan:', error);
+      
+      // Extract detailed error message if available
+      const errorData = error.response?.data;
+      const errorMsg = errorData?.errors?.subscription_plan?.[0] || 
+                      errorData?.message || 
+                      error.message || 
+                      'Error updating membership plan';
+      
+      toast.error(errorMsg);
     }
   };
 
   // Add function to handle team deletion
   const handleDeleteTeam = () => {
-    if (!teamInfo) return;
+    if (!teamInfo || !teamInfo.is_captain) return;
     
     // Get the team ID
     const teamId = teamInfo.id_teams;
@@ -1381,32 +1822,29 @@ const ProfilePage = () => {
     setDeleteTarget({
       type: 'team',
       id: teamId,
-      name: teamInfo.name || `Team #${teamId}`
+      name: teamInfo.name || teamInfo.team_name || `Team #${teamId}`
     });
     setShowDeleteConfirmation(true);
   };
 
   // Add function to handle removing a member from a team
   const handleRemoveMember = async (playerId) => {
-    if (!teamInfo || !playerId) return;
-    
     try {
-      setTeamLoading(true);
-      const response = await playerTeamsService.removeTeamMember(teamInfo.id_teams, playerId);
+      if (!teamInfo?.id_teams) {
+        toast.error('Team ID is missing');
+        return;
+      }
+
+      const response = await teamsService.removeTeamMember(teamInfo.id_teams, playerId, {
+        captain_id: teamInfo.is_captain
+      });
       
-      if (response && (response.success || response.status === 'success')) {
-        // Remove member from the team members list
-        setTeamInfo(prev => ({
-          ...prev,
-          members: prev.members.filter(member => member.id_player !== playerId),
-          member_count: prev.member_count - 1
-        }));
+      if (response && response.success) {
+        toast.success('Member removed successfully');
+        await fetchTeamInfo();
       }
     } catch (error) {
-      console.error('Error removing team member:', error);
-      setTeamFormError('Failed to remove team member: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setTeamLoading(false);
+      toast.error('Error removing team member: ' + error.message);
     }
   };
 
@@ -1414,125 +1852,83 @@ const ProfilePage = () => {
   const handleInviteMember = async (e) => {
     e.preventDefault();
     
-    // Reset messages
-    setInviteError(null);
-    setInviteSuccess(null);
-    
-    // Validate form data
-    if (!invitePlayerData.player_id) {
-      setInviteError('Please select a player from the search results');
-      return;
-    }
-    
-    // If team doesn't exist, we need to create one first
-    if (!teamInfo) {
-      try {
-        setTeamLoading(true);
-        setInviteError(null);
-        
-        // Get player info
-        const playerId = playerInfo?.id_player || playerInfo?.id;
-        if (!playerId) {
-          setInviteError('You need to create a player profile before creating a team');
-          return;
-        }
-        
-        // Create default team data
-        const formData = new FormData();
-        formData.append('name', `${userData?.prenom || 'My'}'s Team`);
-        formData.append('description', 'Team created automatically');
-        formData.append('captain_id', playerId);
-        
-        console.log('Creating new team before invitation');
-        
-        // Create the team first
-        const teamResponse = await playerTeamsService.createPlayerTeam(formData);
-        
-        if (!teamResponse || (!teamResponse.success && !teamResponse.data)) {
-          setInviteError('Failed to create team before inviting player');
-          return;
-        }
-        
-        // Get the newly created team
-        const newTeam = teamResponse.data?.data || teamResponse.data;
-        
-        // Update teamInfo
-        setTeamInfo(newTeam);
-        
-        // Update session storage
-        sessionStorage.setItem('has_teams', 'true');
-        sessionStorage.setItem('id_teams', newTeam.id_teams);
-        
-        // Invite the player to the new team
-        console.log('Inviting player to newly created team', newTeam.id_teams);
-        const inviteResponse = await playerTeamsService.addPlayerToTeam({
-          player_id: invitePlayerData.player_id,
-          team_id: newTeam.id_teams
-        });
-        
-        if (inviteResponse && (inviteResponse.success || inviteResponse.status === 'success')) {
-          // Show success message
-          setInviteSuccess('Team created and invitation sent successfully');
-          
-          // Reset form
-          setInvitePlayerData({ player_id: '' });
-          setPlayerSearchQuery('');
-          setSearchResults([]);
-          
-          // Close form after success
-          setTimeout(() => {
-            setShowInviteForm(false);
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('Error creating team and inviting player:', error);
-        setInviteError('Failed to create team and invite player: ' + (error.response?.data?.message || error.message));
-      } finally {
-        setTeamLoading(false);
-      }
-      return;
-    }
-    
-    // If we have a team, proceed with invitation
     try {
-      setTeamLoading(true);
-      
-      // Get the team ID
-      const teamId = teamInfo.id_teams || teamInfo.id;
-      
-      if (!teamId) {
-        setInviteError('Team ID is missing. Please refresh the page or create a team first.');
-        console.error('Team ID is missing from teamInfo:', teamInfo);
+      if (!teamInfo?.id_teams) {
+        toast.error('Team ID is missing');
         return;
       }
       
-      console.log('Inviting player', invitePlayerData.player_id, 'to existing team', teamId);
+      if (!invitePlayerData.player_id) {
+        toast.error('Please select a player');
+        return;
+      }
+
+      const teamId = teamInfo.id_teams;
+      const playerId = invitePlayerData.player_id;
       
-      // Call API to invite player with the correct parameter names
-      const response = await playerTeamsService.addPlayerToTeam({
-        player_id: invitePlayerData.player_id,
-        team_id: teamId
-      });
+      setInvitationsLoading(true);
+      setInviteError(null);
       
-      if (response && (response.success || response.status === 'success')) {
-        // Show success message
-        setInviteSuccess('Invitation sent successfully');
+      console.log(`Inviting player ${playerId} to team ${teamId}`);
+      toast.info('Inviting player to team...');
+      
+      // Skip the problematic service methods entirely and use a direct API call
+      // Import the API client directly
+      const apiClient = await import('../../lib/userapi').then(module => module.default);
+      
+      // Try the most likely endpoint paths
+      let response;
+      try {
+        // First attempt - team invite endpoint
+        response = await apiClient.post(`/api/user/v1/teams/${teamId}/members`, {
+          player_id: playerId
+        });
+      } catch (firstError) {
+        console.log("First invite attempt failed, trying alternative endpoint", firstError);
+        try {
+          // Second attempt - direct team member add
+          response = await apiClient.post(`/api/user/v1/teams/${teamId}/invite`, {
+            player_id: playerId
+          });
+        } catch (secondError) {
+          console.log("Second invite attempt failed, trying alternative endpoint", secondError);
+          // Third attempt - player-teams endpoint
+          response = await apiClient.post(`/api/user/v1/player-teams`, {
+            team_id: teamId,
+            player_id: playerId
+          });
+        }
+      }
+      
+      // Extract data from axios response
+      const responseData = response.data;
+      
+      if (responseData && (responseData.success || responseData.status === 'success' || responseData.message)) {
+        const successMessage = responseData.message || 'Player invited successfully';
+        toast.success(successMessage);
+        setInviteSuccess(successMessage);
         
-        // Reset form
+        // Reset form data
         setInvitePlayerData({ player_id: '' });
-        setPlayerSearchQuery('');
-        setSearchResults([]);
         
-        // Close form after success
+        // Close the form after delay
         setTimeout(() => {
           setShowInviteForm(false);
-        }, 2000);
+          setInviteSuccess(null);
+        }, 1500);
+        
+        // Refresh team data
+        await fetchTeamInfo();
+      } else {
+        setInviteError(responseData?.message || 'Failed to invite player');
       }
-    } catch (error) {
-      console.error('Error inviting player:', error);
-      setInviteError('Failed to send invitation: ' + (error.response?.data?.message || error.message));
+    } catch (inviteError) {
+      console.error('Error inviting player:', inviteError);
+      const errorMessage = inviteError.response?.data?.message || inviteError.message || 'Failed to invite player'; 
+      setInviteError(errorMessage);
+      toast.error(errorMessage);
     } finally {
-      setTeamLoading(false);
+      setInvitationsLoading(false);
     }
   };
 
@@ -1545,55 +1941,71 @@ const ProfilePage = () => {
   // Add function to handle changes in request form
   const handleRequestInputChange = (e) => {
     const { name, value } = e.target;
-    setNewRequestData({ ...newRequestData, [name]: value });
+    
+    // For time input, make sure we format correctly
+    if (name === 'starting_time' && value) {
+      // Ensure it has seconds if not provided
+      const formattedTime = value.includes(':') && value.split(':').length === 2
+        ? `${value}:00`
+        : value;
+      
+      setNewRequestData({ ...newRequestData, [name]: formattedTime });
+    } else {
+      setNewRequestData({ ...newRequestData, [name]: value });
+    }
   };
 
   // Add function to handle submitting a new request
   const handleSubmitNewRequest = async (e) => {
     e.preventDefault();
     
-    // Reset messages
-    setRequestFormError(null);
-    setRequestFormSuccess(null);
-    
-    // Validate form data
-    if (!newRequestData.receiver_id) {
-      setRequestFormError('Please enter a receiver ID');
-      return;
-    }
-    
-    if (!newRequestData.match_date) {
-      setRequestFormError('Please select a match date');
-      return;
-    }
-    
-    if (!newRequestData.starting_time) {
-      setRequestFormError('Please select a starting time');
-      return;
-    }
-    
-    if (!newRequestData.message) {
-      setRequestFormError('Please enter a message');
-      return;
-    }
-    
     try {
       setRequestsLoading(true);
+      setRequestFormError(null);
       
-      // Call API to create new request
-      const response = await playerRequestsService.createPlayerRequest(newRequestData);
+      // Validate form
+      if (!newRequestData.receiver_id) {
+        setRequestFormError("Please select a player");
+        setRequestsLoading(false);
+        return;
+      }
       
-      if (response && (response.success || response.status === 'success')) {
-        // Show success message
-        setRequestFormSuccess('Request sent successfully');
-        
-        // Add to sent requests
-        if (response.data) {
-          setPlayerRequests(prev => ({
-            ...prev,
-            sent: [...prev.sent, response.data]
-          }));
-        }
+      if (!newRequestData.match_date) {
+        setRequestFormError("Please select a match date");
+        setRequestsLoading(false);
+        return;
+      }
+      
+      if (!newRequestData.starting_time) {
+        setRequestFormError("Please set a starting time");
+        setRequestsLoading(false);
+        return;
+      }
+      
+      // Format the data for the API
+      const formattedData = {
+        receiver_id: newRequestData.receiver_id,
+        match_date: newRequestData.match_date,
+        starting_time: newRequestData.starting_time,
+        message: newRequestData.message || "Would you like to play a match?"
+      };
+      
+      console.log("Sending request data:", formattedData);
+      
+      // Use createPlayerRequest if createRequest is not available
+      const createFunc = playerRequestsService.createRequest || playerRequestsService.createPlayerRequest;
+      
+      if (!createFunc) {
+        throw new Error("Request creation function not available");
+      }
+      
+      const response = await createFunc(formattedData);
+      
+      if (response && (response.success || response.status === 'success' || response.message)) {
+        // Success! Show message with green toast
+        const successMessage = response.message || 'Request sent successfully';
+        toast.success(successMessage);
+        setRequestFormSuccess(successMessage);
         
         // Reset form
         setNewRequestData({
@@ -1603,14 +2015,181 @@ const ProfilePage = () => {
           message: ''
         });
         
-        // Close form after success
+        // Close form automatically after a delay
         setTimeout(() => {
           setShowNewRequestForm(false);
-        }, 2000);
+          setRequestFormSuccess(null);
+        }, 1500);
+        
+        // Refresh requests data
+        await refreshPlayerRequests();
+      } else {
+        // Handle non-error but unsuccessful response
+        setRequestFormError(response?.message || 'Failed to send request');
       }
     } catch (error) {
       console.error('Error sending request:', error);
-      setRequestFormError('Failed to send request: ' + (error.response?.data?.message || error.message));
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to send request';
+      setRequestFormError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    // Show the delete account confirmation modal instead of using window.confirm
+    setDeleteAccountPassword(''); // Reset password field
+    setDeleteAccountError(null); // Reset any previous errors
+    setShowDeleteAccountModal(true);
+  };
+  
+  const confirmDeleteAccount = async () => {
+    // Validate that password is provided
+    if (!deleteAccountPassword.trim()) {
+      setDeleteAccountError('Password is required to delete your account');
+      return;
+    }
+    
+    try {
+      setDeleteAccountLoading(true);
+      
+      // Get user ID from session storage
+      const userId = userData?.userId || sessionStorage.getItem('userId');
+      
+      if (!userId) {
+        toast.error('User ID not found. Please log in again.');
+        setDeleteAccountLoading(false);
+        setShowDeleteAccountModal(false);
+        return;
+      }
+      
+      // Call API to delete account with password
+      const response = await profileService.deleteAccount(userId, {
+        password: deleteAccountPassword
+      });
+      
+      if (response && (response.success || response.status === 'success')) {
+        // Clear ALL session storage items
+        const keysToRemove = [
+          'token', 'userId', 'email', 'type', 'name', 'userdetails', 'pfp',
+          'has_academie_membership', 'academie_memberships', 'academy_member_id',
+          'has_teams', 'id_teams', 'teams', 'is_captain',
+          'has_player', 'isPlayer', 'player_id', 'player_position', 'player_rating'
+        ];
+        
+        keysToRemove.forEach(key => sessionStorage.removeItem(key));
+        
+        // Also try sessionStorage.clear() to be thorough
+        try {
+          sessionStorage.clear();
+        } catch (e) {
+          console.error('Error clearing session storage:', e);
+        }
+        
+        // Show success message before redirect
+        toast.success('Account deleted successfully');
+        
+        // Close modal
+        setShowDeleteAccountModal(false);
+        
+        // Redirect to login page after a short delay
+        setTimeout(() => {
+          window.location.href = '/sign-in';
+        }, 1500);
+      } else {
+        // If the response isn't successful, make sure to reset loading state
+        toast.error(response?.message || 'Failed to delete account: Unexpected response from server');
+        setDeleteAccountLoading(false);
+        setDeleteAccountError(response?.message || 'Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      setDeleteAccountError(error.response?.data?.message || error.response?.data?.error?.password?.[0] || 'Failed to delete account');
+      setDeleteAccountLoading(false);
+    }
+  };
+  
+  const cancelDeleteAccount = () => {
+    setShowDeleteAccountModal(false);
+    setDeleteAccountPassword('');
+    setDeleteAccountError(null);
+  };
+
+  // Add function to refresh player requests data
+  const refreshPlayerRequests = async () => {
+    if (!playerInfo) return;
+    
+    try {
+      setRequestsLoading(true);
+      setRequestsError(null);
+      
+      // Prepare request parameters with pagination and filtering
+      const params = {
+        paginationSize: requestsPerPage,
+        page: requestsPage
+      };
+      
+      // Add status filter if not 'all'
+      if (requestsFilter !== 'all') {
+        params.status = requestsFilter;
+      }
+      
+      // Add search query if present
+      if (requestsSearchQuery.trim()) {
+        params.search = requestsSearchQuery.trim();
+      }
+      
+      console.log("Fetching player requests with params:", params);
+      
+      // Use the getPlayerRequests method with parameters
+      const response = await playerRequestsService.getPlayerRequests(params);
+      
+      if (response && response.data) {
+        // Parse IDs to ensure correct type comparison
+        const playerId = playerInfo.id_player?.toString() || playerInfo.id?.toString();
+        
+        // Handle different response formats
+        let requestsData = Array.isArray(response.data) ? response.data : [];
+        
+        // If we have pagination data nested within data
+        if (!Array.isArray(response.data) && response.data.data && Array.isArray(response.data.data)) {
+          requestsData = response.data.data;
+        }
+        
+        // Split into sent and received
+        const sent = requestsData.filter(req => 
+          req.sender?.toString() === playerId || req.id_sender?.toString() === playerId
+        );
+        
+        const received = requestsData.filter(req => 
+          req.receiver?.toString() === playerId || req.id_receiver?.toString() === playerId
+        );
+        
+        setPlayerRequests({
+          sent,
+          received
+        });
+        
+        // Set pagination info from various response formats
+        if (response.meta) {
+          setRequestsTotalPages(response.meta.last_page || 1);
+        } else if (response.data && response.data.last_page) {
+          setRequestsTotalPages(response.data.last_page);
+        } else {
+          setRequestsTotalPages(1);
+        }
+      } else {
+        // Reset player requests if no valid response
+        setPlayerRequests({
+          sent: [],
+          received: []
+        });
+        setRequestsTotalPages(1);
+      }
+    } catch (error) {
+      console.error('Error refreshing player requests:', error);
+      setRequestsError('Failed to refresh player requests: ' + (error.response?.data?.message || error.message));
     } finally {
       setRequestsLoading(false);
     }
@@ -1619,74 +2198,278 @@ const ProfilePage = () => {
   // Add functions for handling player requests
   const handleAcceptRequest = async (requestId) => {
     try {
-      setRequestsLoading(true);
-      const response = await playerRequestsService.acceptPlayerRequest(requestId);
+      const response = await playerRequestsService.acceptRequest(requestId);
       
-      if (response && (response.success || response.status === 'success')) {
-        // Update request status in state
-        setPlayerRequests(prev => ({
-          received: prev.received.map(req => 
-            req.id === requestId ? { ...req, status: 'accepted' } : req
-          ),
-          sent: prev.sent.map(req => 
-            req.id === requestId ? { ...req, status: 'accepted' } : req
-          )
-        }));
+      if (response && response.success) {
+        toast.success('Request accepted successfully');
+        refreshPlayerRequests();
       }
     } catch (error) {
-      console.error('Error accepting request:', error);
-      setRequestsError('Failed to accept request: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setRequestsLoading(false);
+      toast.error('Error accepting request: ' + error.message);
     }
   };
 
   const handleRejectRequest = async (requestId) => {
     try {
-      setRequestsLoading(true);
-      const response = await playerRequestsService.rejectPlayerRequest(requestId);
+      const response = await playerRequestsService.rejectRequest(requestId);
       
-      if (response && (response.success || response.status === 'success')) {
-        // Update request status in state
-        setPlayerRequests(prev => ({
-          received: prev.received.map(req => 
-            req.id === requestId ? { ...req, status: 'rejected' } : req
-          ),
-          sent: prev.sent.map(req => 
-            req.id === requestId ? { ...req, status: 'rejected' } : req
-          )
-        }));
+      if (response && response.success) {
+        toast.success('Request rejected successfully');
+        refreshPlayerRequests();
       }
     } catch (error) {
-      console.error('Error rejecting request:', error);
-      setRequestsError('Failed to reject request: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setRequestsLoading(false);
+      toast.error('Error rejecting request: ' + error.message);
     }
   };
 
   const handleCancelRequest = async (requestId) => {
     try {
       setRequestsLoading(true);
-      const response = await playerRequestsService.cancelPlayerRequest(requestId);
       
-      if (response && (response.success || response.status === 'success')) {
-        // Update request status in state
+      console.log(`Cancelling request ${requestId}`);
+      const response = await playerRequestsService.cancelRequest(requestId);
+      
+      if (response && (response.success || response.status === 'success' || response.message)) {
+        // Show success message
+        toast.success(response.message || 'Request cancelled successfully');
+        
+        // Update player requests state immediately to provide feedback
         setPlayerRequests(prev => ({
-          received: prev.received.map(req => 
-            req.id === requestId ? { ...req, status: 'cancelled' } : req
-          ),
           sent: prev.sent.map(req => 
-            req.id === requestId ? { ...req, status: 'cancelled' } : req
+            req.id === requestId || req.id_request === requestId
+              ? { ...req, status: 'cancelled' }
+              : req
+          ),
+          received: prev.received.map(req => 
+            req.id === requestId || req.id_request === requestId
+              ? { ...req, status: 'cancelled' }
+              : req
           )
         }));
+        
+        // Then refresh all requests data
+        setTimeout(() => {
+          refreshPlayerRequests();
+        }, 500);
+      } else {
+        toast.error(response?.message || 'Failed to cancel request');
       }
     } catch (error) {
       console.error('Error cancelling request:', error);
-      setRequestsError('Failed to cancel request: ' + (error.response?.data?.message || error.message));
+      toast.error('Error cancelling request: ' + (error.response?.data?.message || error.message));
     } finally {
       setRequestsLoading(false);
     }
+  };
+
+  // Update the team form data when editing
+  const handleEditTeam = () => {
+    if (!teamInfo || !teamInfo.is_captain) return;
+    
+    // Set form data from team info
+    setTeamFormData({
+      selected_member: teamInfo.capitain?.toString() || '', // capitain is already id_compte
+      starting_time: extractTimeFromDateTime(teamInfo.starting_time),
+      finishing_time: extractTimeFromDateTime(teamInfo.finishing_time)
+    });
+    
+    setShowTeamForm(true);
+  };
+
+  // Add helper function to extract time from datetime string
+  const extractTimeFromDateTime = (dateTimeString) => {
+    if (!dateTimeString) return '';
+    // Handle both "HH:mm:ss" and full datetime formats
+    const timeMatch = dateTimeString.match(/\d{2}:\d{2}(:\d{2})?$/);
+    if (timeMatch) {
+      return timeMatch[0].substring(0, 5); // Return just HH:mm
+    }
+    return '';
+  };
+
+  // Add helper function to format member name
+  const formatMemberName = (member) => {
+    return `${member.prenom} ${member.nom} - ${member.position}`;
+  };
+
+  // Add fetchAvailablePlayers function inside the component
+  const fetchAvailablePlayers = async () => {
+    if (!playerInfo) return;
+    
+    try {
+      setPlayersLoading(true);
+      
+      // Call API to get all players except the current user
+      const response = await playersService.getAllPlayers();
+      
+      if (response && response.data) {
+        // Filter out the current player
+        const currentPlayerId = playerInfo.id_player || playerInfo.id;
+        const filteredPlayers = response.data.filter(player => 
+          player.id_player !== currentPlayerId && player.id !== currentPlayerId
+        );
+        
+        setAvailablePlayers(filteredPlayers);
+      }
+    } catch (error) {
+      console.error('Error fetching available players:', error);
+    } finally {
+      setPlayersLoading(false);
+    }
+  };
+
+  // Add request pagination functions
+  const handleRequestsPageChange = (page) => {
+    if (page < 1 || page > requestsTotalPages) return;
+    setRequestsPage(page);
+  };
+
+  const handleRequestsFilterChange = (status) => {
+    setRequestsFilter(status);
+    setRequestsPage(1); // Reset to first page when changing filter
+  };
+
+  const handleRequestsSearch = (query) => {
+    setRequestsSearchQuery(query);
+    setRequestsPage(1); // Reset to first page when searching
+  };
+
+  const RequestsTab = ({ playerInfo }) => {
+    const [sentRequests, setSentRequests] = useState([]);
+    const [receivedRequests, setReceivedRequests] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+      if (playerInfo) {
+        // Get requests from player info
+        setSentRequests(playerInfo.sent_requests || []);
+        setReceivedRequests(playerInfo.received_requests || []);
+      }
+    }, [playerInfo]);
+
+    const handleDeleteRequest = async (requestId) => {
+      try {
+        setLoading(true);
+        await playerRequestsService.deletePlayerRequest(requestId);
+        // Remove the deleted request from the list
+        setSentRequests(prev => prev.filter(req => req.id !== requestId));
+        setReceivedRequests(prev => prev.filter(req => req.id !== requestId));
+      } catch (error) {
+        setError('Failed to delete request: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const formatDate = (dateString) => {
+      if (!dateString) return 'N/A';
+      return new Date(dateString).toLocaleDateString();
+    };
+
+    const formatTime = (timeString) => {
+      if (!timeString) return 'N/A';
+      return new Date(timeString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getStatusColor = (status) => {
+      switch (status?.toLowerCase()) {
+        case 'accepted': return 'text-green-500';
+        case 'rejected': return 'text-red-500';
+        case 'pending': return 'text-yellow-500';
+        case 'expired': return 'text-gray-500';
+        default: return 'text-gray-700';
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex justify-center items-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+          </div>
+        )}
+
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Sent Requests</h3>
+          <div className="space-y-4">
+            {sentRequests && sentRequests.length > 0 ? (
+              sentRequests.map(request => (
+                <div key={request.id_request} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium bg-gray-700/50 px-2 py-1 rounded">
+                          {request.request_type === 'match' ? 'Match Request' : 'Team Request'}
+                        </span>
+                        <span className={`text-sm font-medium px-2 py-1 rounded ${getStatusColor(request.status)}`}>
+                          {request.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-300">Match Date: {formatDate(request.match_date)}</p>
+                      <p className="text-sm text-gray-300">Starting Time: {formatTime(request.starting_time)}</p>
+                      <p className="text-sm text-gray-300 mt-2">{request.message}</p>
+                      <p className="text-xs text-gray-500 mt-2">Expires: {formatDate(request.expires_at)}</p>
+                    </div>
+                    {request.status === 'pending' && (
+                      <button
+                        onClick={() => handleDeleteRequest(request.id)}
+                        disabled={loading}
+                        className="text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 text-center border border-gray-700/50">
+                <p className="text-gray-400">No sent requests</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Received Requests</h3>
+          <div className="space-y-4">
+            {receivedRequests && receivedRequests.length > 0 ? (
+              receivedRequests.map(request => (
+                <div key={request.id_request} className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-gray-700/50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium bg-gray-700/50 px-2 py-1 rounded">
+                          {request.request_type === 'match' ? 'Match Request' : 'Team Request'}
+                        </span>
+                        <span className={`text-sm font-medium px-2 py-1 rounded ${getStatusColor(request.status)}`}>
+                          {request.status}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-300">Match Date: {formatDate(request.match_date)}</p>
+                      <p className="text-sm text-gray-300">Starting Time: {formatTime(request.starting_time)}</p>
+                      <p className="text-sm text-gray-300 mt-2">{request.message}</p>
+                      <p className="text-xs text-gray-500 mt-2">Expires: {formatDate(request.expires_at)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 text-center border border-gray-700/50">
+                <p className="text-gray-400">No received requests</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -1704,6 +2487,67 @@ const ProfilePage = () => {
         <div className="absolute inset-0 bg-[url('https://wallpapercave.com/wp/wp3046717.jpg')] bg-center bg-cover opacity-50"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent"></div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-xl border border-red-500/20 shadow-xl max-w-md w-full p-6 text-white animate-fade-in">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-16 h-16 flex items-center justify-center rounded-full bg-red-500/20 mb-4">
+                <Trash2 className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">Delete Account</h3>
+              <p className="text-gray-300">
+                Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.
+              </p>
+            </div>
+            
+            {deleteAccountError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-red-400 text-sm">
+                {deleteAccountError}
+              </div>
+            )}
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-400 mb-2">Enter your password to confirm</label>
+              <input
+                type="password"
+                value={deleteAccountPassword}
+                onChange={(e) => setDeleteAccountPassword(e.target.value)}
+                className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 border border-gray-700"
+                placeholder="Your current password"
+                required
+              />
+            </div>
+            
+            <div className="border-t border-gray-700 pt-4 mt-2">
+              <div className="flex flex-col sm:flex-row-reverse gap-3">
+                <button
+                  onClick={confirmDeleteAccount}
+                  disabled={deleteAccountLoading}
+                  className="px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors flex items-center justify-center"
+                >
+                  {deleteAccountLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>Delete Account</>
+                  )}
+                </button>
+                <button
+                  onClick={cancelDeleteAccount}
+                  disabled={deleteAccountLoading}
+                  className="px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirmation && deleteTarget && (
@@ -1751,24 +2595,60 @@ const ProfilePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10">
           <div className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] rounded-xl shadow-2xl overflow-hidden border border-white/5">
             {/* User info with avatar, name, etc. */}
-            <div className="p-6 sm:p-8 flex flex-col md:flex-row md:items-end gap-6">
-              <div className="flex-shrink-0 -mt-20">
+            <div className="p-4 sm:p-6 md:p-8 flex flex-col md:flex-row md:items-end gap-4 md:gap-6">
+              <div className="flex-shrink-0 mx-auto md:mx-0 -mt-16 sm:-mt-20 md:-mt-24 relative z-10">
                 <div className="relative inline-block">
-                  <div className="absolute -inset-1 bg-gradient-to-r from-[#07F468] to-[#19be59] rounded-full blur opacity-70"></div>
-                  <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-[#141414]">
+                  <div className="absolute -inset-1.5 bg-gradient-to-r from-[#07F468] to-[#19be59] rounded-full blur opacity-70"></div>
+                  <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-[#141414] group">
                     <img
-                      src={userData.pfp || "https://ui-avatars.com/api/?name=" + (userData.nom || '') + "+" + (userData.prenom || '') + "&background=07F468&color=121212&size=128"}
-                      alt={userData.nom || 'Profile Avatar'}
+                      src={userData.pfp || `https://ui-avatars.com/api/?name=${encodeURIComponent((userData.nom || '') + "+" + (userData.prenom || ''))}&background=07F468&color=121212&size=128`}
+                      alt={userData.nom ? `${userData.prenom} ${userData.nom}` : 'Profile Avatar'}
                       className="w-full h-full object-cover"
                     />
+                    
+                    {/* Upload overlay */}
+                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                         onClick={() => fileInputRef.current?.click()}>
+                      <div className="text-white text-xs font-medium text-center">
+                        <Upload className="w-5 h-5 mx-auto mb-1" />
+                        Change
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* Hidden file input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleProfilePictureChange}
+                    className="hidden"
+                    accept="image/*"
+                  />
+                  
+                  {/* Upload button - only show when a file is selected */}
+                  {profilePicture && (
+                    <button
+                      onClick={handleProfilePictureUpload}
+                      disabled={uploadingPicture}
+                      className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#07F468] text-black text-xs font-medium py-1 px-2 rounded-full shadow-md"
+                    >
+                      {uploadingPicture ? (
+                        <span className="flex items-center">
+                          <span className="animate-spin h-3 w-3 border-2 border-black/20 border-t-black rounded-full mr-1"></span>
+                          Uploading...
+                        </span>
+                      ) : (
+                        'Upload'
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
               
-              <div className="flex-grow">
-                <h1 className="text-3xl font-bold">{userData.nom} {userData.prenom}</h1>
+              <div className="flex-grow text-center md:text-left">
+                <h1 className="text-2xl sm:text-3xl font-bold">{userData.nom} {userData.prenom}</h1>
                 <p className="text-gray-400 mt-1">Member since {new Date(userData.created_at || userData.dateInscription || Date.now()).toLocaleDateString()}</p>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
                   <span className="bg-[#07F468]/10 text-[#07F468] text-xs font-medium px-2.5 py-1 rounded-full border border-[#07F468]/30">
                     {userData.role || 'Member'}
                   </span>
@@ -1787,8 +2667,8 @@ const ProfilePage = () => {
                 </div>
               </div>
               
-              <div className="flex-shrink-0 mt-4 md:mt-0">
-                <Link to="/reservation" className="bg-[#07F468] text-black font-bold py-2 px-4 rounded-lg hover:bg-[#06C357] inline-flex items-center transition duration-300">
+              <div className="flex-shrink-0 mt-4 md:mt-0 text-center md:text-left w-full md:w-auto">
+                <Link to="/reservation" className="bg-[#07F468] text-black font-bold py-2 px-4 rounded-lg hover:bg-[#06C357] inline-flex items-center justify-center transition duration-300 w-full md:w-auto">
                   <Calendar className="w-4 h-4 mr-2" />
                   Book a Field
                 </Link>
@@ -1796,73 +2676,125 @@ const ProfilePage = () => {
             </div>
             
             {/* Tab Navigation */}
-            <div className="border-b border-white/10">
-              <nav className="flex overflow-x-auto whitespace-nowrap hide-scrollbar">
+            <div className="border-b border-white/10 overflow-x-auto scrollbar-hide">
+              <nav className="flex whitespace-nowrap min-w-full py-1">
                 <button
-                  onClick={() => setActiveTab('info')}
-                  className={`py-3 px-6 font-medium transition-colors ${
+                  onClick={() => {
+                    setActiveTab('info');
+                    // Clear error states
+                    setTeamError(null);
+                    setPlayerError(null);
+                    setReservationError(null);
+                    setMembershipsError(null);
+                    setRequestsError(null);
+                  }}
+                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
                     activeTab === 'info'
                       ? 'text-[#07F468] border-b-2 border-[#07F468]'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <User className="w-4 h-4 inline-block mr-2" />
-                  Profile Info
+                  <User className="w-4 h-4 inline-block mr-1 sm:mr-2" />
+                  <span>Info</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('reservations')}
-                  className={`py-3 px-6 font-medium transition-colors ${
+                  onClick={() => {
+                    setActiveTab('reservations');
+                    // Clear error states
+                    setTeamError(null);
+                    setPlayerError(null);
+                    setReservationError(null);
+                    setMembershipsError(null);
+                    setRequestsError(null);
+                  }}
+                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
                     activeTab === 'reservations'
                       ? 'text-[#07F468] border-b-2 border-[#07F468]'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 inline-block mr-2" />
-                  Reservations
+                  <Calendar className="w-4 h-4 inline-block mr-1 sm:mr-2" />
+                  <span>Bookings</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('academies')}
-                  className={`py-3 px-6 font-medium transition-colors ${
+                  onClick={() => {
+                    setActiveTab('academies');
+                    // Clear error states
+                    setTeamError(null);
+                    setPlayerError(null);
+                    setReservationError(null);
+                    setMembershipsError(null);
+                    setRequestsError(null);
+                  }}
+                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
                     activeTab === 'academies'
                       ? 'text-[#07F468] border-b-2 border-[#07F468]'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <Award className="w-4 h-4 inline-block mr-2" />
-                  Academies
+                  <Award className="w-4 h-4 inline-block mr-1 sm:mr-2" />
+                  <span>Academies</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('player')}
-                  className={`py-3 px-6 font-medium transition-colors ${
+                  onClick={() => {
+                    setActiveTab('player');
+                    // Clear error states
+                    setTeamError(null);
+                    setPlayerError(null);
+                    setReservationError(null);
+                    setMembershipsError(null);
+                    setRequestsError(null);
+                  }}
+                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
                     activeTab === 'player'
                       ? 'text-[#07F468] border-b-2 border-[#07F468]'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <UserPlus className="w-4 h-4 inline-block mr-2" />
-                  Player
+                  <UserPlus className="w-4 h-4 inline-block mr-1 sm:mr-2" />
+                  <span>Player</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('team')}
-                  className={`py-3 px-6 font-medium transition-colors ${
+                  onClick={() => {
+                    setActiveTab('team');
+                    // Clear error states
+                    setTeamError(null);
+                    setPlayerError(null);
+                    setReservationError(null);
+                    setMembershipsError(null);
+                    setRequestsError(null);
+                    // Refresh team data when switching to team tab
+                    if (playerInfo?.id_player) {
+                      fetchTeamInfo();
+                    }
+                  }}
+                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
                     activeTab === 'team'
                       ? 'text-[#07F468] border-b-2 border-[#07F468]'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <Shield className="w-4 h-4 inline-block mr-2" />
-                  Team
+                  <Shield className="w-4 h-4 inline-block mr-1 sm:mr-2" />
+                  <span>Team</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab('requests')}
-                  className={`py-3 px-6 font-medium transition-colors ${
+                  onClick={() => {
+                    setActiveTab('requests');
+                    // Clear error states
+                    setTeamError(null);
+                    setPlayerError(null);
+                    setReservationError(null);
+                    setMembershipsError(null);
+                    setRequestsError(null);
+                  }}
+                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
                     activeTab === 'requests'
                       ? 'text-[#07F468] border-b-2 border-[#07F468]'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <MessageCircle className="w-4 h-4 inline-block mr-2" />
-                  Requests
+                  <MessageCircle className="w-4 h-4 inline-block mr-1 sm:mr-2" />
+                  <span>Requests</span>
                 </button>
               </nav>
             </div>
@@ -2015,13 +2947,24 @@ const ProfilePage = () => {
                           <h3 className="text-lg font-medium text-white mb-3 md:mb-4">Security Settings</h3>
                           
                           {!showPasswordForm ? (
-                            <button
-                              type="button"
-                              onClick={() => setShowPasswordForm(true)}
-                              className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                            >
-                              Change Password
-                            </button>
+                            <div className="flex flex-wrap gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setShowPasswordForm(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                              >
+                                Change Password
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={handleDeleteAccount}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Account
+                              </button>
+                            </div>
                           ) : (
                             <form onSubmit={handleSubmitPasswordChange} className="space-y-3 md:space-y-4 bg-gray-800/50 p-3 md:p-4 rounded-lg">
                               {passwordError && (
@@ -2369,28 +3312,103 @@ const ProfilePage = () => {
                   </div>
                   
                   {/* Activities List */}
-                  <h3 className="text-lg font-medium text-white mb-4">Academy Activities</h3>
-                  
-                  {activities.length > 0 ? (
-                    <div className="space-y-4">
-                      {activities.map((activity) => (
-                        <ActivityCard key={activity.id} activity={activity} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 text-center">
-                      <Activity className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-                      <h3 className="text-xl font-medium text-white mb-2">No Activities</h3>
-                      <p className="text-gray-400 mb-6">You haven't joined any academy activities yet.</p>
-                      <Link
-                        to="/events"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
-                      >
-                        Browse Events
-                        <ChevronRight className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  )}
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium text-white mb-4">My Academy Activities</h3>
+                    <p className="text-gray-400 mb-4">Activities that you are currently enrolled in</p>
+                    
+                    {activitiesLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
+                      </div>
+                    ) : activitiesError ? (
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-4">
+                        <p className="text-red-400">{activitiesError}</p>
+                      </div>
+                    ) : academyActivities.length > 0 ? (
+                      <div>
+                        <div className="space-y-4">
+                          {academyActivities.map((activity) => (
+                            <ActivityCard key={activity.id} activity={activity} />
+                          ))}
+                        </div>
+                        
+                        {/* Pagination */}
+                        {activitiesTotalPages > 1 && (
+                          <div className="flex justify-center mt-6">
+                            <div className="flex items-center space-x-1">
+                              {/* Previous Page Button */}
+                              <button
+                                onClick={() => handleActivitiesPageChange(Math.max(1, activitiesPage - 1))}
+                                disabled={activitiesPage === 1}
+                                className={`px-3 py-1.5 rounded-md ${
+                                  activitiesPage === 1
+                                    ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed'
+                                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                                }`}
+                              >
+                                <ChevronLeft className="w-5 h-5" />
+                              </button>
+                              
+                              {/* Page Numbers */}
+                              {Array.from({ length: Math.min(5, activitiesTotalPages) }, (_, i) => {
+                                // Handle cases with more than 5 pages
+                                let pageNum;
+                                if (activitiesTotalPages <= 5) {
+                                  pageNum = i + 1;
+                                } else if (activitiesPage <= 3) {
+                                  pageNum = i + 1;
+                                } else if (activitiesPage >= activitiesTotalPages - 2) {
+                                  pageNum = activitiesTotalPages - 4 + i;
+                                } else {
+                                  pageNum = activitiesPage - 2 + i;
+                                }
+                                
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    onClick={() => handleActivitiesPageChange(pageNum)}
+                                    className={`px-3 py-1.5 rounded-md ${
+                                      pageNum === activitiesPage
+                                        ? 'bg-green-500 text-white'
+                                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+                              
+                              {/* Next Page Button */}
+                              <button
+                                onClick={() => handleActivitiesPageChange(Math.min(activitiesTotalPages, activitiesPage + 1))}
+                                disabled={activitiesPage === activitiesTotalPages}
+                                className={`px-3 py-1.5 rounded-md ${
+                                  activitiesPage === activitiesTotalPages
+                                    ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed'
+                                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                                }`}
+                              >
+                                <ChevronRight className="w-5 h-5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-8 text-center">
+                        <Activity className="w-12 h-12 text-gray-500 mx-auto mb-3" />
+                        <h3 className="text-xl font-medium text-white mb-2">No Activities</h3>
+                        <p className="text-gray-400 mb-6">You haven't joined any academy activities yet.</p>
+                        <Link
+                          to="/events"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                        >
+                          Browse Events
+                          <ChevronRight className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </motion.div>
               )}
               
@@ -2553,11 +3571,11 @@ const ProfilePage = () => {
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1">
                             <div className="flex items-center text-white">
                               <Clock className="w-4 h-4 text-[#07F468] mr-1" />
-                              <span>From: {playerInfo?.starting_time?.substring(0, 5) || 'Not Set'}</span>
+                              <span>From: {extractTimeFromDateTime(playerInfo?.starting_time) || 'Not Set'}</span>
                             </div>
                             <div className="flex items-center text-white">
                               <Clock className="w-4 h-4 text-[#07F468] mr-1" />
-                              <span>To: {playerInfo?.finishing_time?.substring(0, 5) || 'Not Set'}</span>
+                              <span>To: {extractTimeFromDateTime(playerInfo?.finishing_time) || 'Not Set'}</span>
                             </div>
                           </div>
                         </div>
@@ -2662,7 +3680,7 @@ const ProfilePage = () => {
                   ) : showTeamForm ? (
                     <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50">
                       <h3 className="text-lg font-medium text-white mb-4">
-                        {teamInfo ? 'Edit Team' : 'Create Team'}
+                        Edit Team
                       </h3>
                       
                       {teamFormError && (
@@ -2677,115 +3695,90 @@ const ProfilePage = () => {
                         </div>
                       )}
                       
+                      {/* Display Team Info */}
+                      <div className="bg-gray-900/50 rounded-lg p-4 mb-6">
+                        <h4 className="text-sm font-medium text-gray-400 mb-3">Team Information</h4>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Team Name:</span>
+                            <span className="text-white">{teamInfo.team_name || 'Not Set'}</span>
+                        </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Total Matches:</span>
+                            <span className="text-white">{teamInfo.total_matches || 0}</span>
+                        </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Rating:</span>
+                            <span className="text-white">{teamInfo.rating || 0}/5</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Members:</span>
+                            <span className="text-white">{teamInfo.members_count || 0}</span>
+                          </div>
+                          </div>
+                        </div>
+                        
                       <form onSubmit={handleSubmitTeamForm} className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-2">Team Name</label>
-                          <input
-                            type="text"
-                            name="name"
-                            value={teamFormData.name}
-                            onChange={handleTeamInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            required
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-2">Description</label>
-                          <textarea
-                            name="description"
-                            value={teamFormData.description}
-                            onChange={handleTeamInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 min-h-[80px]"
-                            placeholder="Describe your team..."
-                          ></textarea>
-                        </div>
-                        
-                        {/* Time availability fields */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Member selection dropdown */}
                           <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-2">Starting Time</label>
-                            <input
-                              type="time"
-                              name="starting_time"
-                              value={teamFormData.starting_time}
-                              onChange={handleTeamInputChange}
-                              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-2">Finishing Time</label>
-                            <input
-                              type="time"
-                              name="finishing_time"
-                              value={teamFormData.finishing_time}
-                              onChange={handleTeamInputChange}
-                              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
-                          </div>
-                        </div>
-                        
-                        {/* Captain selection dropdown - only show for existing teams */}
-                        {teamInfo && teamInfo.members && teamInfo.members.length > 0 && (
-                          <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-2">Team Captain</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-2">Select Team Captain</label>
                             <select
-                              name="captain_id"
-                              value={teamFormData.captain_id}
+                            name="selected_member"
+                            value={teamFormData.selected_member}
                               onChange={handleTeamInputChange}
                               className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
                             >
                               <option value="">Select a new captain</option>
-                              {teamInfo.members.map((member) => (
+                            {teamInfo.members?.map((member) => (
                                 <option 
-                                  key={member.id_player} 
-                                  value={member.id_player}
+                                key={member.id_compte} 
+                                value={member.id_compte}
+                                disabled={member.id_compte === parseInt(teamInfo.capitain, 10)}
                                 >
-                                  {member.name || `Player #${member.id_player}`} ({member.position || 'Unknown'})
-                                  {member.is_captain ? ' (Current Captain)' : ''}
+                                {formatMemberName(member)}
+                                {member.id_compte === parseInt(teamInfo.capitain, 10) ? ' (Current Captain)' : ''}
                                 </option>
                               ))}
                             </select>
                             <p className="text-xs text-gray-500 mt-1">Select a team member to transfer captaincy</p>
                           </div>
-                        )}
                         
-                        <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-2">Team Logo</label>
-                          <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-green-500 transition-colors">
-                            <input
-                              type="file"
-                              name="logo"
-                              onChange={handleTeamInputChange}
-                              className="hidden"
-                              id="team-logo-input"
-                              accept="image/*"
-                            />
-                            <label htmlFor="team-logo-input" className="cursor-pointer">
-                              <Upload className="w-8 h-8 mx-auto text-gray-400 mb-2" />
-                              <p className="text-sm text-gray-400">
-                                {teamFormData.logo ? teamFormData.logo.name : 'Click to upload a logo'}
-                              </p>
-                            </label>
-                          </div>
-                        </div>
+                        {/* Time availability fields */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">Starting Time</label>
+                                <input
+                              type="time"
+                              name="starting_time"
+                              value={teamFormData.starting_time}
+                                  onChange={handleTeamInputChange}
+                                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                              </div>
+                          
+                              <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">Finishing Time</label>
+                                <input
+                              type="time"
+                              name="finishing_time"
+                              value={teamFormData.finishing_time}
+                                  onChange={handleTeamInputChange}
+                                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                />
+                              </div>
+                              </div>
                         
-                        <div className="flex justify-end space-x-3 pt-2">
+                        <div className="flex justify-end mt-6">
                           <button
                             type="button"
-                            onClick={() => {
-                              setShowTeamForm(false);
-                              setTeamFormError(null);
-                              setTeamFormSuccess(null);
-                            }}
-                            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                            onClick={() => setShowTeamForm(false)}
+                            className="px-4 py-2 text-gray-400 hover:text-white transition-colors mr-3"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
                             disabled={teamLoading}
                           >
                             {teamLoading ? (
@@ -2794,10 +3787,7 @@ const ProfilePage = () => {
                                 Saving...
                               </>
                             ) : (
-                              <>
-                                <Save className="w-4 h-4" />
-                                Save
-                              </>
+                              <>Save Changes</>
                             )}
                           </button>
                         </div>
@@ -2817,16 +3807,18 @@ const ProfilePage = () => {
                             />
                           </div>
                           <div>
-                            <h3 className="text-xl font-bold">{teamInfo.name || `Team #${teamInfo.id_teams}`}</h3>
+                            <h3 className="text-xl font-bold">{teamInfo.team_name || `Team #${teamInfo.id_teams}`}</h3>
                             <div className="flex items-center mt-1">
-                              <span className="bg-purple-500/10 text-purple-400 text-xs font-medium px-2.5 py-1 rounded-full border border-purple-500/30 flex items-center">
-                                <Users className="w-3 h-3 mr-1" />
-                                Team Captain
-                              </span>
-                              {teamInfo.rank && (
-                                <div className="flex items-center ml-2 bg-white/10 px-2 py-1 rounded-full">
-                                  <Trophy className="w-3 h-3 mr-1 text-yellow-400" />
-                                  <span className="text-xs">{teamInfo.rank}</span>
+                              {teamInfo.captain && (
+                                <span className="bg-purple-500/10 text-purple-400 text-xs font-medium px-2.5 py-1 rounded-full border border-purple-500/30 flex items-center">
+                                  <Users className="w-3 h-3 mr-1" />
+                                  Captain: {teamInfo.captain.prenom} {teamInfo.captain.nom}
+                                </span>
+                              )}
+                              {teamInfo.rating > 0 && (
+                                <div className="flex items-center ml-2 bg-yellow-500/10 px-2 py-1 rounded-full text-yellow-400 text-xs">
+                                  <Star className="w-3 h-3 mr-1" />
+                                  <span>{teamInfo.rating}/5</span>
                                 </div>
                               )}
                             </div>
@@ -2843,24 +3835,34 @@ const ProfilePage = () => {
                         <div className="grid grid-cols-2 gap-4 mt-4">
                           <div className="bg-gray-800/50 p-4 rounded-lg">
                             <p className="text-gray-400 text-sm">Members</p>
-                            <p className="text-xl font-semibold text-white">{teamInfo.member_count || '1'}</p>
+                            <p className="text-xl font-semibold text-white">{teamInfo.members_count || teamInfo.members?.length || 0}</p>
                           </div>
                           <div className="bg-gray-800/50 p-4 rounded-lg">
                             <p className="text-gray-400 text-sm">Matches</p>
-                            <p className="text-xl font-semibold text-white">{teamInfo.match_count || '0'}</p>
+                            <p className="text-xl font-semibold text-white">{teamInfo.total_matches || 0}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Time availability */}
+                        <div className="bg-gray-800/50 p-4 rounded-lg mt-4">
+                          <p className="text-gray-400 text-sm">Team Availability</p>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1">
+                            <div className="flex items-center text-white">
+                              <Clock className="w-4 h-4 text-[#07F468] mr-1" />
+                              <span>From: {extractTimeFromDateTime(teamInfo.starting_time) || 'Not Set'}</span>
+                            </div>
+                            <div className="flex items-center text-white">
+                              <Clock className="w-4 h-4 text-[#07F468] mr-1" />
+                              <span>To: {extractTimeFromDateTime(teamInfo.finishing_time) || 'Not Set'}</span>
+                            </div>
                           </div>
                         </div>
                         
                         <div className="flex justify-between mt-6">
+                          {teamInfo.is_captain && (
+                            <>
                           <button
-                            onClick={() => {
-                              setTeamFormData({
-                                name: teamInfo.name || '',
-                                description: teamInfo.description || '',
-                                logo: null
-                              });
-                              setShowTeamForm(true);
-                            }}
+                            onClick={handleEditTeam}
                             className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -2874,6 +3876,8 @@ const ProfilePage = () => {
                             <Trash2 className="w-3.5 h-3.5" />
                             Delete
                           </button>
+                            </>
+                          )}
                         </div>
                       </div>
                       
@@ -2883,23 +3887,28 @@ const ProfilePage = () => {
                         
                         {teamInfo.members && teamInfo.members.length > 0 ? (
                           <div className="space-y-3">
-                            {teamInfo.members.map((member, index) => (
-                              <div key={index} className="flex items-center p-2 rounded-lg bg-gray-800/50">
+                            {teamInfo.members.map((member) => (
+                              <div key={member.id_compte} className="flex items-center p-2 rounded-lg bg-gray-800/50">
                                 <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center mr-3">
                                   <User className="w-4 h-4 text-gray-400" />
                                 </div>
                                 <div className="flex-1">
-                                  <p className="text-white">{member.name || `Player #${member.id_player}`}</p>
+                                  <p className="text-white">
+                                    {formatMemberName(member)}
+                                  </p>
                                   <div className="flex items-center">
-                                    <p className="text-xs text-gray-400">{member.position || 'Unknown'}</p>
-                                    {member.is_captain && (
+                                    <p className="text-xs text-gray-400">
+                                      Matches: {member.total_matches || 0} • Rating: {member.rating || 0}/5
+                                    </p>
+                                    {member.id_compte === parseInt(teamInfo.capitain, 10) && (
                                       <span className="ml-2 bg-yellow-500/10 text-yellow-400 text-xs px-2 py-0.5 rounded-full">
                                         Captain
                                       </span>
                                     )}
                                   </div>
                                 </div>
-                                {!member.is_captain && member.id_player !== (playerInfo?.id_player) && (
+                                {/* Only show remove button if current user is captain and the member is not the captain */}
+                                {teamInfo.is_captain && member.id_compte !== parseInt(teamInfo.capitain, 10) && (
                                   <button 
                                     className="text-red-400 hover:text-red-500"
                                     onClick={() => handleRemoveMember(member.id_player)}
@@ -2917,6 +3926,29 @@ const ProfilePage = () => {
                           </div>
                         )}
                         
+                        {/* Team stats */}
+                        <h3 className="text-lg font-bold mt-6 mb-4">Team Statistics</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-gray-800/50 p-3 rounded-lg">
+                            <p className="text-gray-400 text-sm">Total Matches</p>
+                            <p className="text-lg font-semibold text-white">{teamInfo.total_matches || 0}</p>
+                          </div>
+                          <div className="bg-gray-800/50 p-3 rounded-lg">
+                            <p className="text-gray-400 text-sm">Rating</p>
+                            <p className="text-lg font-semibold text-white">{teamInfo.rating || 0}/5</p>
+                          </div>
+                          <div className="bg-gray-800/50 p-3 rounded-lg">
+                            <p className="text-gray-400 text-sm">Invites Accepted</p>
+                            <p className="text-lg font-semibold text-white">{teamInfo.invites_accepted || 0}</p>
+                          </div>
+                          <div className="bg-gray-800/50 p-3 rounded-lg">
+                            <p className="text-gray-400 text-sm">Invites Refused</p>
+                            <p className="text-lg font-semibold text-white">{teamInfo.invites_refused || 0}</p>
+                          </div>
+                        </div>
+                        
+                        {/* Only show invite button if user is captain */}
+                        {teamInfo.is_captain && (
                         <div className="mt-6">
                           <button 
                             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
@@ -3028,6 +4060,7 @@ const ProfilePage = () => {
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -3093,7 +4126,7 @@ const ProfilePage = () => {
                   )}
                   
                   {/* Team Join Requests Section - Only shown if user is captain */}
-                  {playerInfo && teamInfo && playerInfo.id === teamInfo.captain_id && pendingJoinRequests.length > 0 && (
+                  {teamInfo && teamInfo.is_captain && pendingJoinRequests.length > 0 && (
                     <div className="mt-6 bg-[#1E1E1E] rounded-xl border border-white/5 p-6 shadow-lg">
                       <h3 className="text-lg font-bold mb-4">Pending Join Requests</h3>
                       
@@ -3197,17 +4230,28 @@ const ProfilePage = () => {
                       
                       <form onSubmit={handleSubmitNewRequest} className="space-y-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-2">Receiver ID</label>
-                          <input
-                            type="text"
+                          <label className="block text-sm font-medium text-gray-400 mb-2">Select Player</label>
+                          <select
                             name="receiver_id"
                             value={newRequestData.receiver_id}
                             onChange={handleRequestInputChange}
                             className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            placeholder="Enter receiver ID"
                             required
-                          />
-                          <p className="text-xs text-gray-500 mt-1">Enter the ID of the player you want to send a request to</p>
+                          >
+                            <option value="">Select a player</option>
+                            {playersLoading ? (
+                              <option disabled>Loading players...</option>
+                            ) : availablePlayers.length > 0 ? (
+                              availablePlayers.map(player => (
+                                <option key={player.id_player || player.id} value={player.id_player || player.id}>
+                                  {player.compte?.prenom || ''} {player.compte?.nom || ''} - {player.position || 'Unknown'} (Rating: {player.rating || '0'}/5)
+                                </option>
+                              ))
+                            ) : (
+                              <option disabled>No players available</option>
+                            )}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">Select the player you want to send a request to</p>
                         </div>
                         
                         <div>
@@ -3285,6 +4329,34 @@ const ProfilePage = () => {
                   ) : (
                     <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700/50">
                       <h3 className="text-lg font-medium text-white mb-4">Received Requests</h3>
+                      
+                      {/* Search and Filter Controls */}
+                      <div className="flex flex-col md:flex-row gap-4 mb-6">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            placeholder="Search requests..."
+                            value={requestsSearchQuery}
+                            onChange={(e) => handleRequestsSearch(e.target.value)}
+                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          />
+                        </div>
+                        <div className="md:w-48">
+                          <select
+                            value={requestsFilter}
+                            onChange={(e) => handleRequestsFilterChange(e.target.value)}
+                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="accepted">Accepted</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="expired">Expired</option>
+                          </select>
+                        </div>
+                      </div>
+                      
                       {requestsLoading ? (
                         <div className="flex justify-center py-8">
                           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500"></div>
@@ -3315,6 +4387,9 @@ const ProfilePage = () => {
                               <p className="text-gray-400 mb-6">You haven't received any match requests yet.</p>
                             </div>
                           )}
+                          
+                          <h3 className="text-lg font-medium text-white mb-4 mt-8">Sent Requests</h3>
+                          
                           {playerRequests.sent.length > 0 ? (
                             <div className="space-y-4">
                               {playerRequests.sent.map((request) => (
@@ -3337,6 +4412,29 @@ const ProfilePage = () => {
                           )}
                         </>
                       )}
+                      
+                      {/* Pagination Controls */}
+                      {requestsTotalPages > 1 && (
+                        <div className="flex justify-center mt-6 gap-2">
+                          <button
+                            onClick={() => handleRequestsPageChange(requestsPage - 1)}
+                            disabled={requestsPage === 1}
+                            className="px-3 py-1 rounded-lg bg-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
+                          >
+                            Previous
+                          </button>
+                          <span className="px-3 py-1 text-white">
+                            Page {requestsPage} of {requestsTotalPages}
+                          </span>
+                          <button
+                            onClick={() => handleRequestsPageChange(requestsPage + 1)}
+                            disabled={requestsPage === requestsTotalPages}
+                            className="px-3 py-1 rounded-lg bg-gray-700 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </motion.div>
@@ -3349,6 +4447,62 @@ const ProfilePage = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#07F468]"></div>
         </div>
       )}
+      {/* Plan Change Modal */}
+      {showPlanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-neutral-900 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-xl font-semibold mb-4 text-white">Change Subscription Plan</h3>
+            <p className="mb-4 text-gray-300">Please select your new subscription plan:</p>
+            
+            <div className="flex flex-col space-y-3 mb-6">
+              <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-md border-gray-700 hover:border-blue-500 transition-colors">
+                <input
+                  type="radio"
+                  name="plan"
+                  value="base"
+                  checked={selectedPlan === 'base'}
+                  onChange={() => setSelectedPlan('base')}
+                  className="form-radio text-blue-500 h-5 w-5"
+                />
+                <div>
+                  <div className="text-white font-medium">Base Plan</div>
+                  <div className="text-gray-400 text-sm">Standard features and access</div>
+                </div>
+              </label>
+              
+              <label className="flex items-center space-x-3 cursor-pointer p-3 border rounded-md border-gray-700 hover:border-blue-500 transition-colors">
+                <input
+                  type="radio"
+                  name="plan"
+                  value="premium"
+                  checked={selectedPlan === 'premium'}
+                  onChange={() => setSelectedPlan('premium')}
+                  className="form-radio text-blue-500 h-5 w-5"
+                />
+                <div>
+                  <div className="text-white font-medium">Premium Plan</div>
+                  <div className="text-gray-400 text-sm">Advanced features and priority access</div>
+                </div>
+              </label>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowPlanModal(false)}
+                className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPlanUpdate}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 transition-colors"
+              >
+                Update Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -3356,6 +4510,7 @@ const ProfilePage = () => {
 const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
   // Format date from ISO string
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString(undefined, {
       weekday: 'short',
@@ -3367,6 +4522,7 @@ const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
 
   // Format time from ISO string
   const formatTime = (timeString) => {
+    if (!timeString) return 'N/A';
     const time = new Date(timeString);
     return time.toLocaleTimeString(undefined, {
       hour: '2-digit',
@@ -3385,6 +4541,8 @@ const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
         return 'bg-red-500/20 text-red-500';
       case 'cancelled':
         return 'bg-gray-500/20 text-gray-400';
+      case 'expired':
+        return 'bg-gray-500/20 text-gray-400';
       default:
         return 'bg-gray-500/20 text-gray-300';
     }
@@ -3401,21 +4559,50 @@ const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
         return 'Rejected';
       case 'cancelled':
         return 'Cancelled';
+      case 'expired':
+        return 'Expired';
       default:
         return status;
     }
   };
+  
+  // Get player details based on type
+  const getPlayerDetails = () => {
+    if (type === 'received') {
+      return request.sender_details;
+    } else {
+      return request.receiver_details;
+    }
+  };
+  
+  const playerDetails = getPlayerDetails();
+  const playerName = playerDetails ? 
+    (playerDetails.compte ? `${playerDetails.compte.prenom} ${playerDetails.compte.nom}` : `Player #${type === 'received' ? request.sender : request.receiver}`) : 
+    `Player #${type === 'received' ? request.sender : request.receiver}`;
+  
+  const playerPosition = playerDetails ? playerDetails.position || 'Unknown position' : 'Unknown position';
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 md:p-5 shadow-lg border border-gray-700/50 hover:border-green-500/30 transition-all">
       <div className="flex flex-col md:flex-row justify-between gap-4">
         <div className="flex-1">
           <h3 className="text-lg font-medium text-white mb-2">
-            Match Request {type === 'received' ? 'from' : 'to'} Player #{request.type === 'received' ? request.sender : request.receiver}
+            {type === 'received' ? 'Request from' : 'Request to'} {playerName}
           </h3>
           
           <div className="space-y-2 mb-3">
             <div className="text-gray-300">
+              {playerDetails && (
+                <div className="bg-gray-700/50 px-3 py-2 rounded-lg mb-2">
+                  <p className="text-sm text-gray-300">{playerPosition}</p>
+                  {playerDetails.rating && (
+                    <div className="flex items-center mt-1">
+                      <Star className="w-3 h-3 text-yellow-400 mr-1" />
+                      <span className="text-xs text-gray-400">Rating: {playerDetails.rating}/5</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <p className="italic text-sm mb-2">"{request.message}"</p>
               <div className="flex flex-wrap items-center text-gray-400 gap-x-4 gap-y-2">
                 <div className="flex items-center">
@@ -3426,6 +4613,11 @@ const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
                   <Clock className="w-4 h-4 mr-1.5" />
                   <span>{formatTime(request.starting_time)}</span>
                 </div>
+                {request.expires_at && (
+                  <div className="flex items-center text-gray-500 text-xs">
+                    <span>Expires: {formatDate(request.expires_at)}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -3440,14 +4632,14 @@ const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
             {type === 'received' && request.status === 'pending' && (
               <>
                 <button
-                  onClick={onAccept}
+                  onClick={() => onAccept(request.id)}
                   className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-green-600 transition-colors"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
                   Accept
                 </button>
                 <button
-                  onClick={onReject}
+                  onClick={() => onReject(request.id)}
                   className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-red-600 transition-colors"
                 >
                   <UserX className="w-3.5 h-3.5" />
@@ -3458,7 +4650,7 @@ const RequestCard = ({ request, type, onAccept, onReject, onCancel }) => {
             
             {type === 'sent' && request.status === 'pending' && (
               <button
-                onClick={onCancel}
+                onClick={() => onCancel(request.id)}
                 className="px-3 py-1.5 bg-gray-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-gray-700 transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
@@ -3607,9 +4799,9 @@ const MembershipCard = ({ membership, onCancel, onUpdatePlan }) => {
                   <span>Expires: {formatDate(membership.expiry_date)}</span>
                 </div>
               )}
-              {membership.plan && (
+              {(membership.plan || membership.subscription_plan) && (
                 <div className="bg-purple-500/10 text-purple-400 text-xs font-medium px-2.5 py-1 rounded-full border border-purple-500/30">
-                  {membership.plan}
+                  {membership.plan || membership.subscription_plan}
                 </div>
               )}
             </div>
@@ -3636,9 +4828,9 @@ const MembershipCard = ({ membership, onCancel, onUpdatePlan }) => {
               Cancel Membership
             </button>
             
-            {membership.plan && (
+            {(membership.plan || membership.subscription_plan) && (
               <button
-                onClick={() => onUpdatePlan(membership.id_academie)}
+                onClick={() => onUpdatePlan(membership.id_academie, membership.plan || membership.subscription_plan)}
                 className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg text-sm flex items-center gap-1.5 hover:bg-blue-500/30 transition-colors"
               >
                 <Settings className="w-3.5 h-3.5" />
@@ -3682,6 +4874,12 @@ const ActivityCard = ({ activity }) => {
                 <span>{activity.academy}</span>
               </div>
             )}
+            {activity.dateJoined && (
+              <div className="flex items-center">
+                <UserPlus className="w-4 h-4 mr-1.5" />
+                <span>Joined: {activity.dateJoined}</span>
+              </div>
+            )}
           </div>
         </div>
         
@@ -3702,5 +4900,8 @@ const ActivityCard = ({ activity }) => {
     </div>
   );
 };
+
+// Add function to handle account deletion
+
 
 export default ProfilePage;

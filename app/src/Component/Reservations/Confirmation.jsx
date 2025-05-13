@@ -84,12 +84,11 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
   const isAdmin = sessionStorage.getItem("type") === "admin";
 
   useEffect(() => {
-    // Remove the auto-close timeout
     if (isVisible) {
-      // Only handle cleanup if needed
-      return () => {
-        // Cleanup code if needed
-      };
+      setStatus(null);
+      setMsg('');
+      setShowPaymentForm(false);
+      setError(null);
     }
   }, [isVisible]);
   
@@ -115,10 +114,8 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       return;
     }
     
-    // Debug the incoming data
-    console.log("Incoming data:", data);
-    const userId = parseInt(sessionStorage.getItem("userId"));
-    console.log("Current user ID:", userId);
+    // Properly handle user ID - null for guest users
+    const userId = isLoggedIn ? parseInt(sessionStorage.getItem("userId")) : null;
     
     const formData = {
       id_terrain: data.id_terrain,
@@ -126,7 +123,8 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       heure: data.heure || data.heuredebut,
       type: data.type || "client",
       payment_method: paymentMethod,
-      id_client: userId, // Explicitly set the user ID
+      payment_status: isAdmin ? 'paid' : 'pending', // Admin reservations are always paid
+      id_client: userId, // Use null for guest users
       // For admin reservations, use the provided Name
       ...(isAdmin ? {
         Name: data.Name,
@@ -138,27 +136,53 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       })
     };
 
-    console.log("Final form data being submitted:", formData);
-
     try {
+      setLoading(true);
       const reservationService = isAdmin 
         ? adminReservationService 
         : userReservationService;
       
       const response = await reservationService.createReservation(formData);
       
-      if (response.status === 201) {
-        setMsg('Reservation submitted successfully!');
-        setStatus(paymentMethod === 'online' ? 'success' : 'pending');
+      // Check for success in various response formats
+      const isSuccess = response.success || response.status === 'success' || !!response.data;
+      
+      if (isSuccess) {
+        // Set the right status based on user type and response
+        if (isAdmin || paymentMethod === 'online') {
+          // Admin reservations and online payments are immediately confirmed
+          setStatus('success');
+          setMsg('Reservation confirmed successfully!');
+        } else {
+          // Regular user reservations with cash payment are pending
+          setStatus('pending');
+          setMsg('Reservation pending! Please proceed to the store for payment.');
+        }
+        
+        // Dispatch an event to notify about successful reservation
+        const event = new CustomEvent('reservationSuccess', { 
+          detail: { response: response.data || response }
+        });
+        document.dispatchEvent(event);
+        
+        // After success, ensure we call resetStatus to update the parent after a delay
+        setTimeout(() => {
+          if (resetStatus) resetStatus();
+        }, 2000);
       } else {
-        setMsg('Failed to submit reservation. Please try again.');
-        setStatus('failed');
-        console.log(response.data?.message);
+        // Handle conflict or other errors
+        if (response.message && response.message.includes("conflict")) {
+          setStatus('failed');
+          setMsg('This time slot is already reserved. Please choose another time.');
+        } else {
+          setStatus('failed');
+          setMsg(response.message || 'Failed to submit reservation. Please try again.');
+        }
       }
     } catch (error) {
-      console.error('Error:', error.message);
-      setMsg('An error occurred. Please try again.');
+      console.error('Reservation error:', error);
       setStatus('failed');
+      setMsg('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -169,32 +193,47 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     setLoading(true);
     
     try {
+      // Get user ID - null for guest users
+      const userId = isLoggedIn ? parseInt(sessionStorage.getItem("userId")) : null;
+      
       // Get the correct service based on user type
-      const reservationService = sessionStorage.getItem("type") === "admin" 
+      const reservationService = isAdmin 
         ? adminReservationService 
         : userReservationService;
       
-      // Here you would typically process the payment with a payment gateway
-      // For now, we'll just simulate a successful payment
-      
-      // Then create the reservation
+      // Create the reservation with payment data
       const formData = {
         ...data,
+        id_client: userId,
         payment_method: 'online',
         payment_status: 'paid'
       };
       
       const response = await reservationService.createReservation(formData);
       
-      if (response.status === 201) {
+      // Check for success in various response formats
+      const isSuccess = response.success || response.status === 'success' || !!response.data;
+      
+      if (isSuccess) {
         setMsg('Payment successful and reservation confirmed!');
         setStatus('success');
+        
+        // Dispatch an event to notify about successful reservation
+        const event = new CustomEvent('reservationSuccess', { 
+          detail: { response: response.data || response }
+        });
+        document.dispatchEvent(event);
+        
+        // After success, ensure we call resetStatus after a delay
+        setTimeout(() => {
+          if (resetStatus) resetStatus();
+        }, 2000);
       } else {
-        setMsg('Payment failed. Please try again.');
+        setMsg(response.message || 'Payment failed. Please try again.');
         setStatus('failed');
       }
     } catch (error) {
-      console.error('Error processing payment:', error);
+      console.error('Payment processing error:', error);
       setMsg('Payment processing failed. Please try again.');
       setStatus('failed');
     } finally {
@@ -203,9 +242,23 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
   };
   
   const closePopup = () => {
-    setStatus(null); // Reset the status
-    resetStatus(); // Notify parent to reset visibility state
-    onClose(); // Close the popup
+    // Properly reset everything to ensure new reservations can be made
+    setStatus(null);
+    setMsg('');
+    setShowPaymentForm(false);
+    setError(null);
+    
+    // Reset payment data too
+    setPaymentData({
+      cardNumber: '',
+      cardHolder: '',
+      expiryDate: '',
+      cvv: ''
+    });
+    
+    // Call parent callbacks to reset UI
+    if (resetStatus) resetStatus();
+    if (onClose) onClose();
   };
   
   // Format date for display
@@ -225,8 +278,6 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       setLoading(true);
       setError(null);
       
-      console.log('Sending reservation data:', data);
-
       const service = sessionStorage.getItem("type") === "admin" 
         ? adminReservationService 
         : userReservationService;
@@ -240,7 +291,6 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
         setMsg("Failed to create reservation");
       }
     } catch (error) {
-      console.error('Error creating reservation:', error);
       setError(error.message || "Failed to create reservation");
       setMsg(error.message || "Failed to create reservation");
     } finally {
@@ -252,21 +302,21 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     <AnimatePresence>
       {isVisible && status === null && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+          className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
           onClick={closePopup}
         >
           <motion.div
-            className="bg-[#1a1a1a] rounded-3xl p-8 max-w-[90%] w-[400px] text-center shadow-lg"
+            className="bg-[#1a1a1a] rounded-2xl p-6 max-w-[90%] w-[380px] text-center shadow-lg border border-gray-800"
             variants={cardVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-white mb-6 text-2xl font-bold">Confirm Reservation</h2>
+            <h2 className="text-white mb-5 text-xl font-bold">Confirm Reservation</h2>
             
-            <div className="bg-gray-800 rounded-lg p-4 mb-6">
-              <div className="space-y-4">
+            <div className="bg-gray-800 rounded-lg p-4 mb-5">
+              <div className="space-y-3">
                 {/* Only show client info if not in admin mode */}
                 {!isAdmin && data.Name && (
                   <div className="flex items-center space-x-3">
@@ -307,7 +357,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
               </div>
             </div>
             
-            <h3 className="text-white mb-4 text-lg">Choose Payment Option</h3>
+            <h3 className="text-white mb-4 text-base">Choose Payment Option</h3>
             
             {showPaymentForm ? (
               <motion.div
@@ -316,7 +366,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                 exit={{ opacity: 0 }}
                 className="w-full"
               >
-                <div className="flex items-center mb-6">
+                <div className="flex items-center mb-4">
                   <button 
                     onClick={() => setShowPaymentForm(false)}
                     className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700 transition-colors"
@@ -325,16 +375,16 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
                   </button>
-                  <h3 className="text-white text-xl font-semibold ml-2">Payment Details</h3>
+                  <h3 className="text-white text-lg font-semibold ml-2">Payment Details</h3>
                 </div>
 
-                <form onSubmit={handlePaymentSubmit} className="space-y-6">
+                <form onSubmit={handlePaymentSubmit} className="space-y-4">
                   {/* Card Number */}
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <label className="block text-sm font-medium text-gray-300">Card Number</label>
                     <div className="relative rounded-lg shadow-sm">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <CreditCard className="text-gray-400" size={18} />
+                        <CreditCard className="text-gray-400" size={16} />
                       </div>
                       <input
                         type="text"
@@ -342,7 +392,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                         value={paymentData.cardNumber}
                         onChange={handlePaymentChange}
                         placeholder="1234 5678 9012 3456"
-                        className="block w-full pl-10 pr-3 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                        className="block w-full pl-10 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                         required
                         maxLength="19"
                         pattern="\d*"
@@ -351,11 +401,11 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                   </div>
 
                   {/* Card Holder */}
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <label className="block text-sm font-medium text-gray-300">Card Holder Name</label>
                     <div className="relative rounded-lg shadow-sm">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <User className="text-gray-400" size={18} />
+                        <User className="text-gray-400" size={16} />
                       </div>
                       <input
                         type="text"
@@ -363,15 +413,15 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                         value={paymentData.cardHolder}
                         onChange={handlePaymentChange}
                         placeholder="JOHN DOE"
-                        className="block w-full pl-10 pr-3 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                        className="block w-full pl-10 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                         required
                       />
                     </div>
                   </div>
 
-                  {/* Expiry Date and CVV */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  {/* Expiry Date and CVV in one row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
                       <label className="block text-sm font-medium text-gray-300">Expiry Date</label>
                       <input
                         type="text"
@@ -379,17 +429,17 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                         value={paymentData.expiryDate}
                         onChange={handlePaymentChange}
                         placeholder="MM/YY"
-                        className="block w-full px-3 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                        className="block w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                         required
                         maxLength="5"
                       />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <label className="block text-sm font-medium text-gray-300">CVV</label>
                       <div className="relative rounded-lg shadow-sm">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <Lock className="text-gray-400" size={18} />
+                          <Lock className="text-gray-400" size={16} />
                         </div>
                         <input
                           type="password"
@@ -397,7 +447,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                           value={paymentData.cvv}
                           onChange={handlePaymentChange}
                           placeholder="123"
-                          className="block w-full pl-10 pr-3 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                          className="block w-full pl-10 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                           required
                           maxLength="3"
                           pattern="\d*"
@@ -407,7 +457,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                   </div>
 
                   {/* Total Amount */}
-                  <div className="bg-gray-800 rounded-lg p-4 mt-6">
+                  <div className="bg-gray-800 rounded-lg p-3 mt-4">
                     <div className="flex justify-between items-center">
                       <span className="text-gray-300">Total Amount:</span>
                       <span className="text-white font-semibold text-lg">
@@ -420,15 +470,15 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                   <button
                     type="submit"
                     disabled={loading}
-                    className={`w-full py-4 rounded-lg font-semibold text-black transition-all ${
+                    className={`w-full py-3 rounded-lg font-semibold text-white transition-all ${
                       loading 
                         ? 'bg-gray-600 cursor-not-allowed' 
-                        : 'bg-[#07f468] hover:bg-[#06d35a] transform hover:-translate-y-0.5'
+                        : 'bg-green-500 hover:bg-green-600'
                     }`}
                   >
                     {loading ? (
                       <div className="flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-black"></div>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                         <span className="ml-2">Processing...</span>
                       </div>
                     ) : (
@@ -444,7 +494,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                 )}
               </motion.div>
             ) : (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 <Button onClick={() => handleSubmit('online')}>
                   <CreditCard className="mr-2" size={18} />
                   Pay Online
@@ -459,8 +509,8 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
         </div>
       )}
       {status === 'success' && <AnimatedCheck onClose={closePopup} />}
-      {status === 'failed' && <AnimatedReserved onClose={closePopup} />}
       {status === 'pending' && <AnimatedPending onClose={closePopup} />}
+      {status === 'failed' && <AnimatedReserved onClose={closePopup} />}
     </AnimatePresence>
   );
 }

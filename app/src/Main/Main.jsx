@@ -12,7 +12,11 @@ import ProtectedRoute from "./ProtectedRoute"
 import PopupCard from "../Component/Reservations/Confirmation"
 import FootballAdminDashboard from "../Admin/Admin"
 import FindPlayerTeam from "../Players&Teams/Main"
+import AllTeams from "../Players&Teams/AllTeams"
+import AllPlayers from "../Players&Teams/AllPlayers"
 import TournamentPage from "../Tournoi/Tournoi"
+import AllTournaments from "../Tournoi/AllTournaments"
+import AllMatches from "../Tournoi/AllMatches"
 import AllEvents from "../Pages/AllEvents"
 import ProfilePage from "../Client/Component/ProfilePage"
 import AboutPage from "../Pages/AboutPage"
@@ -20,6 +24,7 @@ import ErrorPage from "../Pages/ErrorPage"
 import FaqPage from "../Pages/FaqPage"
 import PrivacyPolicy from "../Pages/PrivacyPolicy"
 import TermsOfService from "../Pages/TermsOfService"
+import AllTerrains from "../Pages/AllTerrains"
 import ScrollToTop from "../Component/ScrollToTop"
 
 export const Main = () => {
@@ -42,11 +47,17 @@ export const Main = () => {
                     <Route path="/contactus" element={<ContactUsFullscreen />} />
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/players" element={<FindPlayerTeam />} />
+                    <Route path="/teams" element={<FindPlayerTeam />} /> {/* Alias route */}
+                    <Route path="/all-teams" element={<AllTeams />} />
+                    <Route path="/all-players" element={<AllPlayers />} />
                     <Route path="/tournoi" element={<TournamentPage/>} />
+                    <Route path="/all-tournaments" element={<AllTournaments />} />
+                    <Route path="/all-matches" element={<AllMatches />} />
                     <Route path="/events" element={<AllEvents />} />
                     <Route path="/faq" element={<FaqPage />} />
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/privacy" element={<PrivacyPolicy />} />
+                    <Route path="/all-terrains" element={<AllTerrains />} />
                     {/* Protected Routes */}
                     <Route 
                         path="/reservation" 

@@ -54,7 +54,26 @@ const tournoiTeamsService = {
   
   async registerForTournament(payload) {
     try {
-      const response = await apiClient.post(tournoiTeamsEndpoints.register, payload);
+      // Ensure we're using capitain field correctly
+      const modifiedPayload = { ...payload };
+      
+      // If capitain is already provided, use it as-is
+      if (modifiedPayload.capitain) {
+        // Keep capitain as provided - this should be the player_id
+      } 
+      // If id_player is provided but capitain is not, use id_player as capitain
+      else if (!modifiedPayload.capitain && modifiedPayload.id_player) {
+        modifiedPayload.capitain = modifiedPayload.id_player;
+        delete modifiedPayload.id_player;
+      }
+      // If using legacy id_user field, convert to capitain
+      else if (!modifiedPayload.capitain && modifiedPayload.id_user) {
+        // Only for backward compatibility, but should use capitain going forward
+        modifiedPayload.capitain = modifiedPayload.id_user;
+        delete modifiedPayload.id_user; 
+      }
+      
+      const response = await apiClient.post(tournoiTeamsEndpoints.register, modifiedPayload);
       return response.data;
     } catch (error) {
       console.error('Error registering for tournament:', error);

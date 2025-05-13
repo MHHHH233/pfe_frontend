@@ -30,6 +30,25 @@ const activitiesMembersService = {
       console.error(`Error deleting activity member ${id}:`, error);
       throw error;
     }
+  },
+
+  async getActivitesIn(id, params = {}) {
+    try {
+      const queryParams = {
+        include: params.include,
+        paginationSize: params.paginationSize || 10,
+        sort_by: params.sort_by,
+        sort_order: params.sort_order,
+      };
+      
+      const response = await apiClient.get(activitiesMembersEndpoints.getActivitesIn(id), { 
+        params: queryParams 
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching activities for member ${id}:`, error);
+      throw error;
+    }
   }
 };
 

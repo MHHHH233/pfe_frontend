@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useAnimation, AnimatePresence } from 'framer-motion';
-import { Mail, Phone, MapPin, Send, ArrowRight, CheckCircle, Clock, MessageCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, ArrowRight, CheckCircle, Clock, MessageCircle, AlertCircle } from 'lucide-react';
+import { useSocialMedia } from '../contexts/SocialMediaContext';
+import { contactService } from '../lib/services/user/contactService';
+import { useLoading } from '../contexts/LoadingContext';
 
 // Safe implementation of InView that doesn't rely on external hook
 // This avoids React version conflicts
@@ -53,7 +56,9 @@ const ContactUsFullscreen = () => {
   });
   
   const [activeFaq, setActiveFaq] = useState(null);
-  
+  const { socialMedia, isLoading: socialMediaLoading } = useSocialMedia();
+  const { startLoading, stopLoading } = useLoading();
+
   // Animation controls
   const controls = useAnimation();
   const [heroRef, heroInView] = useSafeInView({ threshold: 0.3, triggerOnce: true });
@@ -99,15 +104,33 @@ const ContactUsFullscreen = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setFormStatus({ submitted: false, submitting: true, error: null });
     
-    // Simulate form submission
-    setTimeout(() => {
-      setFormStatus({ submitted: true, submitting: false, error: null });
-      setFormData({ name: '', email: '', subject: '', message: '' });
-    }, 1500);
+    try {
+      startLoading('Envoi de votre message...');
+      const response = await contactService.submitContact(formData);
+      
+      if (response.status === 'success') {
+        setFormStatus({ submitted: true, submitting: false, error: null });
+        setFormData({ name: '', email: '', subject: '', message: '' });
+      } else {
+        setFormStatus({ 
+          submitted: false, 
+          submitting: false, 
+          error: response.message || 'Une erreur est survenue lors de l\'envoi du message.' 
+        });
+      }
+    } catch (error) {
+      setFormStatus({ 
+        submitted: false, 
+        submitting: false, 
+        error: error.response?.data?.message || 'Une erreur est survenue lors de l\'envoi du message.' 
+      });
+    } finally {
+      stopLoading();
+    }
   };
   
   // Trigger animations when sections come into view
@@ -229,10 +252,10 @@ const ContactUsFullscreen = () => {
                   E-mail
                 </h3>
                 <a
-                  href="mailto:contact@terranafe.com"
+                  href={`mailto:${socialMedia?.email || "contact@terranafe.com"}`}
                   className="text-lg hover:text-green-300 transition-colors duration-300 flex items-center group"
                 >
-                  contact@terranafe.com
+                  {socialMedia?.email || "contact@terranafe.com"}
                   <ArrowRight className="ml-2 opacity-0 group-hover:opacity-100 transform translate-x-0 group-hover:translate-x-2 transition-all duration-300" size={18} />
                 </a>
               </motion.div>
@@ -251,10 +274,10 @@ const ContactUsFullscreen = () => {
                   Téléphone
                 </h3>
                 <a
-                  href="tel:+21261234567"
+                  href={`tel:${socialMedia?.telephone || "+21261234567"}`}
                   className="text-lg hover:text-green-300 transition-colors duration-300 flex items-center group"
                 >
-                  +212 6 12 34 56 78
+                  {socialMedia?.telephone || "+212 6 12 34 56 78"}
                   <ArrowRight className="ml-2 opacity-0 group-hover:opacity-100 transform translate-x-0 group-hover:translate-x-2 transition-all duration-300" size={18} />
                 </a>
               </motion.div>
@@ -273,8 +296,7 @@ const ContactUsFullscreen = () => {
                   Adresse
                 </h3>
                 <p className="text-lg text-gray-300">
-                  123 Avenue Mohammed V,<br />
-                  Quartier Atlas, Fès, Maroc
+                  {socialMedia?.address || "123 Avenue Mohammed V, Quartier Atlas, Fès, Maroc"}
                 </p>
               </motion.div>
             </div>
@@ -406,6 +428,21 @@ const ContactUsFullscreen = () => {
               </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
+                {formStatus.error && (
+                  <motion.div 
+                    className="bg-red-900/30 border border-red-500 p-4 rounded-lg flex items-start mb-6"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <AlertCircle className="text-red-500 mr-3 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h4 className="text-red-500 font-medium mb-1">Erreur</h4>
+                      <p className="text-gray-300 text-sm">{formStatus.error}</p>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <label htmlFor="name" className="block mb-2 text-gray-300">Nom</label>
@@ -517,7 +554,7 @@ const ContactUsFullscreen = () => {
         transition={{ duration: 0.8 }}
       >
         <iframe 
-          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d106376.72692390395!2d-4.997941442968747!3d34.03330999999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xd9f8b484d445777%3A0x10e6aaaeedd802ef!2zRsOocywgTWFyb2M!5e0!3m2!1sfr!2sma!4v1652360704295!5m2!1sfr!2sma" 
+          src={socialMedia?.localisation || "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d106376.72692390395!2d-4.997941442968747!3d34.03330999999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xd9f8b484d445777%3A0x10e6aaaeedd802ef!2zRsOocywgTWFyb2M!5e0!3m2!1sfr!2sma!4v1652360704295!5m2!1sfr!2sma"}
           width="100%" 
           height="100%" 
           style={{ border: 0 }} 
@@ -537,7 +574,7 @@ const ContactUsFullscreen = () => {
             transition={{ delay: 0.3, duration: 0.6 }}
           >
             <a
-              href="https://maps.google.com/?q=Fès,Maroc"
+              href={socialMedia?.localisation || "https://maps.google.com/?q=Fès,Maroc"}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center px-6 py-3 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors duration-300"

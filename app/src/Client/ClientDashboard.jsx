@@ -1,10 +1,9 @@
 "use client"
-
 import { useState, useEffect } from "react"
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
-import { Bell, Menu, User, Calendar, Trophy, Search, ChevronDown, ArrowRight, ChevronRight, Users, Star, Clock, MapPin, Shield, Mail, MailX, Phone, AlertCircle, X, InfoIcon, ChevronLeft } from 'lucide-react'
+import { Bell, Menu, User, Calendar, Trophy, Search, ChevronDown, ArrowRight, ChevronRight, Users, Star, Clock, MapPin, Shield, Mail, MailX, Phone, AlertCircle, X, InfoIcon, ChevronLeft, DollarSign } from 'lucide-react'
 import LogoLight from "../img/logoLight.png"
-import { Navigate, Route, useNavigate } from "react-router-dom"
+import { Navigate, Route, useNavigate, useLocation } from "react-router-dom"
 import tournament1 from "../img/tournament1.webp"
 import tournament2 from "../img/tournament2.webp"
 import tournament7 from "../img/tournament7.webp"
@@ -292,13 +291,14 @@ function HeroSection() {
   )
 }
 
-function TournamentsSection() {
-  const Navigate = useNavigate();
+export function TournamentsSection() {
+  const navigate = useNavigate();
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTournament, setSelectedTournament] = useState(null);
-
+  const location = useLocation();
+  const path = location.pathname;
   // Helper to determine tournament status
   const getTournamentStatus = (tournament) => {
     if (!tournament.date_debut) return 'TBA';
@@ -316,8 +316,14 @@ function TournamentsSection() {
     const fetchTournaments = async () => {
       try {
         const response = await tournoiService.getAllTournois();
+        console.log('Tournaments API response:', response);
+        
         // The API response has data in response.data
-        setTournaments(response.data || []);
+        if (response && response.data) {
+          setTournaments(response.data);
+        } else {
+          setTournaments([]);
+        }
         setLoading(false);
       } catch (err) {
         console.error("Error fetching tournaments:", err);
@@ -472,6 +478,7 @@ function TournamentsSection() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {tournaments.slice(0, 3).map((tournament, index) => {
               const status = getTournamentStatus(tournament);
+              const tournamentImage = tournament.image || (index === 0 ? tournament1 : index === 1 ? tournament2 : tournament7);
               
               return (
                 <motion.div 
@@ -486,7 +493,7 @@ function TournamentsSection() {
                 >
                   <div className="relative overflow-hidden h-52">
                     <img 
-                      src={tournament.image || (index === 0 ? tournament1 : index === 1 ? tournament2 : tournament7)} 
+                      src={tournamentImage} 
                       alt={tournament.name} 
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
                     />
@@ -546,9 +553,20 @@ function TournamentsSection() {
             className="bg-[#07F468] hover:bg-[#06d35a] text-[#1a1a1a] font-bold py-3.5 px-8 rounded-full text-base transition-all duration-300 flex items-center mx-auto shadow-lg hover:shadow-[#07F468]/20 relative overflow-hidden group"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => Navigate("/tournoi")}
+            onClick={() => {
+              
+              if (path === "/Client") {
+                navigate("/tournoi");
+              } 
+              else if (path === "/all-tournaments") {
+                navigate("/tournoi");
+              }
+              else {
+                navigate("/all-tournaments");
+              }
+            }}
           >
-            <span className="relative z-10">See More Tournaments</span>
+            <span className="relative z-10">{path === "/all-tournaments" ? "Back to Tournaments" : "See More Tournaments"}</span>
             <ChevronRight className="ml-2 h-5 w-5 relative z-10 group-hover:translate-x-1 transition-transform duration-300" />
             
             {/* Shine effect */}
@@ -1457,16 +1475,19 @@ function Footer() {
 
 // Add at the end of the file, right before the last export statement
 function TournamentDetailsPopup({ tournament, onClose }) {
-  const [registering, setRegistering] = useState(false);
-  const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [registrationData, setRegistrationData] = useState({
+    team_name: '',
+    description: ''
+  });
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
   const [userTeams, setUserTeams] = useState([]);
-  const [selectedTeamId, setSelectedTeamId] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingTeams, setLoadingTeams] = useState(false);
+  const [hasRegisteredTeam, setHasRegisteredTeam] = useState(false);
   
-  // Check if user has teams from session storage
-  const hasTeams = sessionStorage.getItem("has_teams") === "true";
-  const userTeamId = sessionStorage.getItem("id_teams");
-  
+  const navigate = useNavigate();
+
   // Helper to determine tournament status
   const getTournamentStatus = (tournament) => {
     if (!tournament.date_debut) return 'TBA';
@@ -1479,394 +1500,416 @@ function TournamentDetailsPopup({ tournament, onClose }) {
     if (now >= startDate) return 'In Progress';
     return 'Upcoming';
   };
-  
-  // Formatted status for display
-  const tournamentStatus = getTournamentStatus(tournament);
-  
-  // Ensure scrolling is restored when component unmounts
+
   useEffect(() => {
-    return () => {
-      document.body.style.overflow = 'auto';
+    // Check if the user is already registered with a team in this tournament
+    const checkRegistration = async () => {
+      try {
+        // We'd ideally fetch from the API to check registration status
+        // For now, we'll just simulate this check
+        
+        // This is where we would check if the user is registered for this tournament
+        // setHasRegisteredTeam(userIsRegistered);
+      } catch (error) {
+        console.error("Error checking registration status:", error);
+      }
     };
-  }, []);
-  
-  useEffect(() => {
-    // Fetch user's teams when registering
-    if (registering) {
-      const fetchUserTeams = async () => {
-        try {
-          setLoading(true);
-          
-          // If we already have team info from session storage, use that directly
-          if (hasTeams && userTeamId) {
-            const teamsData = sessionStorage.getItem("teams");
-            if (teamsData) {
-              try {
-                const parsedTeams = JSON.parse(teamsData);
-                if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
-                  setUserTeams(parsedTeams);
-                  setSelectedTeamId(parseInt(userTeamId));
-                  setLoading(false);
-                  return;
-                }
-              } catch (error) {
-                console.error("Error parsing teams data from session storage:", error);
-                // Continue to API call if parsing fails
-              }
-            }
-          }
-          
-          // Otherwise fetch teams from API
-          const response = await teamsService.getAllTeams();
-          
-          // Filter teams where the user is the captain
-          let userTeams = [];
-          if (response && response.data) {
-            const userId = parseInt(sessionStorage.getItem('userId'), 10);
-            const playerId = parseInt(sessionStorage.getItem('player_id'), 10);
-            
-            userTeams = response.data.filter(team => 
-              team.capitain === playerId || 
-              parseInt(team.capitain, 10) === playerId
-            );
-            
-            // Update session storage with the teams data
-            if (userTeams.length > 0) {
-              sessionStorage.setItem('has_teams', 'true');
-              sessionStorage.setItem('teams', JSON.stringify(userTeams));
-              sessionStorage.setItem('id_teams', userTeams[0].id_teams);
-            } else {
-              // Clear any invalid team data
-              sessionStorage.removeItem('has_teams');
-              sessionStorage.removeItem('id_teams');
-            }
-          }
-          
-          setUserTeams(userTeams);
-          
-          // If user has teams, select the first one by default
-          if (userTeams.length > 0) {
-            setSelectedTeamId(userTeams[0].id_teams);
-          }
-          setLoading(false);
-        } catch (err) {
-          console.error("Error fetching user teams:", err);
-          setLoading(false);
-          // Ensure scrolling is restored on error
-          document.body.style.overflow = 'auto';
-        }
-      };
-      
-      fetchUserTeams();
-    }
-  }, [registering, hasTeams, userTeamId]);
-  
-  const handleRegister = async () => {
-    // If there's only one team, use it automatically
-    if (userTeams.length === 1 && !selectedTeamId) {
-      setSelectedTeamId(userTeams[0].id_teams);
-    }
     
-    if (!selectedTeamId) {
-      setRegistrationStatus({
-        success: false,
-        message: 'Please select a team to register'
-      });
-      return;
+    const fetchUserTeams = async () => {
+      setLoadingTeams(true);
+      try {
+        // Get the current player ID
+        const playerId = sessionStorage.getItem('player_id');
+        if (!playerId) {
+          setError("You need to create a player profile first");
+          setLoadingTeams(false);
+          return;
+        }
+        
+        // Ideally fetch the user's teams from the API
+        // const response = await teamsService.getUserTeams(playerId);
+        // setUserTeams(response.data || []);
+        
+        // For now, set a test team or check if there's a team in sessionStorage
+        const teamsData = sessionStorage.getItem('teams');
+        if (teamsData) {
+          try {
+            const teams = JSON.parse(teamsData);
+            setUserTeams(teams);
+          } catch (e) {
+            console.error("Error parsing teams data", e);
+            setUserTeams([]);
+          }
+        } else {
+          setUserTeams([]);
+        }
+      } catch (error) {
+        console.error("Error fetching user teams:", error);
+        setError("Failed to load your teams");
+      } finally {
+        setLoadingTeams(false);
+      }
+    };
+    
+    checkRegistration();
+    fetchUserTeams();
+  }, [tournament]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setRegistrationData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleClose = () => {
+    if (!isRegistering) {
+      onClose();
     }
+  };
+
+  const handleRegister = async () => {
+    setIsRegistering(true);
+    setError(null);
     
     try {
-      setLoading(true);
-      setRegistrationStatus(null);
+      // Get player ID
+      const playerId = sessionStorage.getItem('player_id');
+      if (!playerId) {
+        setError("You need to create a player profile to register for tournaments");
+        setIsRegistering(false);
+        return;
+      }
       
-      // Find the selected team object to get the team name
-      const selectedTeam = userTeams.find(team => team.id_teams === selectedTeamId);
-      const teamName = selectedTeam?.name || `Team #${selectedTeamId}`;
+      // Check if we have team name
+      if (!registrationData.team_name.trim()) {
+        setError("Team name is required");
+        setIsRegistering(false);
+        return;
+      }
       
-      const payload = {
+      // Registration data with required id_teams field
+      const data = {
         id_tournoi: tournament.id_tournoi,
-        id_teams: selectedTeamId,
-        team_name: teamName
+        team_name: registrationData.team_name,
+        descrption: registrationData.description || '', // Note the intentional typo in field name to match backend
+        capitain: parseInt(playerId, 10),
+        id_teams: userTeams.length > 0 ? userTeams[0].id_teams : null // Use existing team ID if available
       };
       
-      const response = await tournoiTeamsService.registerForTournament(payload);
+      console.log("Sending registration data:", data);
       
-      setRegistrationStatus({
-        success: true,
-        message: 'Team registered successfully for the tournament!'
-      });
-      setLoading(false);
+      // Call API to register
+      const response = await tournoiTeamsService.registerForTournament(data);
       
-      // Reset registration form after 3 seconds and close popup
-      setTimeout(() => {
-        document.body.style.overflow = 'auto'; // Ensure scrolling is restored before closing
-        onClose();
-      }, 3000);
+      setSuccess(true);
       
-    } catch (err) {
-      console.error("Error registering for tournament:", err);
-      setRegistrationStatus({
-        success: false,
-        message: err.response?.data?.message || err.response?.data?.error || 'Failed to register. Please try again.'
-      });
-      setLoading(false);
-      // Ensure scrolling is still possible when there's an error
-      document.body.style.overflow = 'auto';
+      // Store team info
+      if (response && response.data) {
+        // Update team info in session storage or state as needed
+        // Wait 2 seconds and then close the popup
+        setTimeout(() => {
+          onClose();
+          // Optionally refresh data
+          window.location.reload();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error registering for tournament:", error);
+      
+      // Handle specific error messages
+      if (error.response && error.response.data) {
+        if (error.response.data.error) {
+          // Handle field validation errors
+          if (typeof error.response.data.error === 'object') {
+            const errMsg = Object.values(error.response.data.error)
+              .flat()
+              .join(", ");
+            setError(errMsg);
+          } else {
+            setError(error.response.data.error);
+          }
+        } else if (error.response.data.message) {
+          setError(error.response.data.message);
+        } else {
+          setError("Failed to register for tournament");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setIsRegistering(false);
     }
   };
   
-  const handleClose = () => {
-    document.body.style.overflow = 'auto'; // Ensure scrolling is restored
-    onClose();
-  };
-  
-  if (!tournament) return null;
-
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+      className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-4 backdrop-blur-sm overflow-y-auto"
       onClick={handleClose}
     >
-      <div
+      <motion.div
+        initial={{ scale: 0.9, y: 50, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.9, y: 50, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] rounded-xl overflow-hidden shadow-2xl max-w-md w-full mx-auto my-4"
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-3xl bg-gradient-to-b from-[#1a1a1a] to-[#0f0f0f] rounded-2xl overflow-hidden shadow-2xl my-8"
       >
-        {/* Top accent line */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent z-10"></div>
-        
-        {/* Close button */}
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 p-2 rounded-full bg-[#222]/80 text-gray-400 hover:text-white hover:bg-[#333]/80 transition-colors z-20"
-        >
-          <X className="h-5 w-5" />
-        </button>
-        
-        {/* Tournament Image with Gradient Overlay */}
-        <div className="relative h-60 overflow-hidden">
+        <div className="relative">
           <img
-            src={tournament.image || (tournament.id_tournoi % 3 === 0 ? tournament1 : tournament.id_tournoi % 3 === 1 ? tournament2 : tournament7)}
+            src={tournament.image || tournament1}
             alt={tournament.name}
-            className="w-full h-full object-cover"
+            className="w-full h-48 object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a]/70 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent"></div>
           
-          <div className="absolute bottom-6 left-6 right-6">
-            <h2 className="text-3xl font-bold text-white mb-2">{tournament.name}</h2>
-            <div className="flex items-center">
-              <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
-                tournamentStatus === 'In Progress'
-                  ? "bg-[#07F468]/10 text-[#07F468] border border-[#07F468]/30" 
-                  : tournamentStatus === 'Completed' 
-                  ? "bg-red-500/10 text-red-400 border border-red-500/30"
-                  : tournamentStatus === 'Upcoming'
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/30"
-                  : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/30"
-              }`}>
-                {tournamentStatus}
-              </span>
-            </div>
+          {/* Top gradient border */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#07F468] to-transparent z-10"></div>
+          
+          <motion.button
+            className="absolute top-3 right-3 text-white bg-black/40 hover:bg-black/60 p-2 rounded-full transition-colors z-20"
+            onClick={handleClose}
+            whileHover={{ scale: 1.1, rotate: 90 }}
+            whileTap={{ scale: 0.9 }}
+            disabled={isRegistering}
+          >
+            <X className="w-5 h-5" />
+          </motion.button>
+          
+          <div className="absolute bottom-4 left-4 right-4">
+            <motion.h2 
+              className="text-2xl font-bold text-white mb-1"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              {tournament.name}
+            </motion.h2>
+            <motion.div 
+              className="flex items-center text-xs text-gray-300"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Calendar className="w-3 h-3 mr-1 text-[#07F468]" />
+              <span>{tournament.date_debut ? new Date(tournament.date_debut).toLocaleDateString() : 'TBD'}</span>
+            </motion.div>
           </div>
         </div>
         
-        {!registering ? (
-          <div className="p-6">
-            {/* Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div className="space-y-5">
-                <div className="flex items-start">
-                  <Calendar className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-gray-300 font-medium mb-1">Tournament Date</h3>
-                    <p className="text-white">
-                      {tournament.date_debut ? new Date(tournament.date_debut).toLocaleDateString() : 'TBA'} 
-                      {tournament.date_fin && ` - ${new Date(tournament.date_fin).toLocaleDateString()}`}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <Users className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-gray-300 font-medium mb-1">Team Capacity</h3>
-                    <p className="text-white">{tournament.capacite || 'TBA'} Teams</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <Trophy className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-gray-300 font-medium mb-1">Prize Pool</h3>
-                    <p className="text-white">{tournament.award || tournament.frais_entree || 'TBA'}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-5">
-                <div className="flex items-start">
-                  <MapPin className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-gray-300 font-medium mb-1">Location</h3>
-                    <p className="text-white">{tournament.location || 'TBA'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <User className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-gray-300 font-medium mb-1">Format</h3>
-                    <p className="text-white">{tournament.type || 'TBA'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <InfoIcon className="h-5 w-5 text-[#07F468] mr-3 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <h3 className="text-gray-300 font-medium mb-1">Entry Fee</h3>
-                    <p className="text-white">{tournament.frais_entree || 'Free Entry'}</p>
-                  </div>
-                </div>
-              </div>
+        <div className="p-5">
+          <motion.div 
+            className="grid grid-cols-2 gap-3 mb-5"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="bg-[#1e1e1e] rounded-lg p-3 border border-gray-800 hover:border-[#07F468]/30 transition-all">
+              <h3 className="text-xs font-medium text-gray-400 mb-1 flex items-center">
+                <MapPin className="w-3 h-3 mr-1 text-[#07F468]" />
+                Location
+              </h3>
+              <p className="text-white text-sm font-medium">{tournament.lieu || "Unspecified location"}</p>
             </div>
             
-            {/* Description */}
-            <div className="border-t border-gray-800 pt-6 mt-6">
-              <h3 className="text-lg font-semibold text-white mb-3">About the Tournament</h3>
-              <p className="text-gray-300 leading-relaxed">
-                {tournament.description || 'No description available for this tournament.'}
-              </p>
+            <div className="bg-[#1e1e1e] rounded-lg p-3 border border-gray-800 hover:border-[#4a65ff]/30 transition-all">
+              <h3 className="text-xs font-medium text-gray-400 mb-1 flex items-center">
+                <Users className="w-3 h-3 mr-1 text-[#4a65ff]" />
+                Tournament Type
+              </h3>
+              <p className="text-white text-sm font-medium">{tournament.type || "5v5"}</p>
             </div>
             
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
-              <button
-                onClick={handleClose}
-                className="py-2.5 px-5 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-colors text-sm font-medium flex items-center justify-center"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Back
-              </button>
+            <div className="bg-[#1e1e1e] rounded-lg p-3 border border-gray-800 hover:border-[#f7a307]/30 transition-all">
+              <h3 className="text-xs font-medium text-gray-400 mb-1 flex items-center">
+                <Trophy className="w-3 h-3 mr-1 text-[#f7a307]" />
+                Prize
+              </h3>
+              <p className="text-white text-sm font-medium">{tournament.award || "To be announced"}</p>
+            </div>
+            
+            <div className="bg-[#1e1e1e] rounded-lg p-3 border border-gray-800 hover:border-[#f45a07]/30 transition-all">
+              <h3 className="text-xs font-medium text-gray-400 mb-1 flex items-center">
+                <DollarSign className="w-3 h-3 mr-1 text-[#f45a07]" />
+                Entry Fee
+              </h3>
+              <p className="text-white text-sm font-medium">{tournament.frais_entree || "Free"}</p>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            className="mb-5"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <h3 className="text-sm font-semibold mb-2 flex items-center">
+              <InfoIcon className="w-4 h-4 text-[#07F468] mr-2" />
+              About This Tournament
+            </h3>
+            <p className="text-sm text-gray-300 bg-[#1e1e1e] p-3 rounded-lg border border-gray-800">
+              {tournament.description || "Join us for an exciting soccer tournament featuring teams competing for glory and amazing prizes. Don't miss this opportunity to showcase your skills and enjoy a day of thrilling matches!"}
+            </p>
+          </motion.div>
+          
+          {success ? (
+            <motion.div 
+              className="bg-green-500/10 p-4 rounded-lg border border-green-500/30 text-center my-4"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Trophy className="h-10 w-10 text-green-500 mx-auto mb-2" />
+              <h3 className="text-lg font-bold text-green-500 mb-1">Registration Successful!</h3>
+              <p className="text-sm text-gray-300">Your team has been registered for this tournament.</p>
+            </motion.div>
+          ) : hasRegisteredTeam ? (
+            <motion.div 
+              className="mb-4 p-4 rounded-lg bg-green-500/10 border border-green-500/30"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              <div className="flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center mr-3">
+                  <Users className="w-4 h-4 text-green-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-green-500">You're Registered</h3>
+                  <p className="text-xs text-gray-300">Your team is already registered for this tournament</p>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              className="mb-5"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <h3 className="text-sm font-semibold mb-3 flex items-center">
+                <Users className="w-4 h-4 text-[#07F468] mr-2" />
+                Register Your Team
+              </h3>
               
-              {tournamentStatus !== 'Completed' && (
-                <button
-                  onClick={() => setRegistering(true)}
-                  disabled={tournamentStatus === 'Completed'}
-                  className="py-2.5 px-5 bg-[#07F468] hover:bg-[#06d35a] text-[#0a0a0a] font-bold rounded-full transition-colors text-sm flex-1 flex items-center justify-center"
-                >
-                  Register Team
-                </button>
+              {loadingTeams ? (
+                <div className="flex justify-center items-center py-4">
+                  <div className="w-8 h-8 border-2 border-[#07F468] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : userTeams.length === 0 ? (
+                <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/30 mb-4">
+                  <p className="text-sm text-blue-400 mb-2">You don't have a team yet</p>
+                  <p className="text-xs text-gray-300 mb-3">You need to create a team profile before registering for tournaments.</p>
+                  <motion.button 
+                    className="w-full bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigate('/players')}
+                  >
+                    Create a Team Profile
+                  </motion.button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-blue-500/10 p-4 rounded-lg border border-blue-500/30 mb-4">
+                    <p className="text-sm text-blue-400 mb-2">Using team: {userTeams[0].team_name || userTeams[0].name}</p>
+                    <p className="text-xs text-gray-300">You'll register with your existing team.</p>
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="team_name" className="block text-xs font-medium text-gray-300 mb-1">
+                      Team Name for Tournament*
+                    </label>
+                    <input
+                      type="text"
+                      id="team_name"
+                      name="team_name"
+                      value={registrationData.team_name}
+                      onChange={handleChange}
+                      className="w-full p-3 bg-[#1e1e1e] text-white text-sm rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#07F468] focus:border-transparent transition-all"
+                      placeholder={userTeams[0]?.team_name || userTeams[0]?.name || "Enter your team name"}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="description" className="block text-xs font-medium text-gray-300 mb-1">
+                      Team Description (Optional)
+                    </label>
+                    <textarea
+                      id="description"
+                      name="description"
+                      value={registrationData.description}
+                      onChange={handleChange}
+                      rows="3"
+                      className="w-full p-3 bg-[#1e1e1e] text-white text-sm rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-[#07F468] focus:border-transparent transition-all"
+                      placeholder="Tell us about your team"
+                    ></textarea>
+                  </div>
+                </div>
               )}
+            </motion.div>
+          )}
+          
+          {error && (
+            <div className="bg-red-500/10 p-3 rounded-lg border border-red-500/30 mb-4 text-sm text-red-400">
+              {error}
             </div>
-          </div>
-        ) : (
-          <div className="p-6">
-            <h3 className="text-xl font-semibold text-white mb-4">Register for {tournament.name}</h3>
-            
-            {registrationStatus && (
-              <div className={`mb-6 p-4 rounded-lg ${
-                registrationStatus.success 
-                  ? "bg-[#07F468]/10 border border-[#07F468]/30 text-[#07F468]" 
-                  : "bg-red-500/10 border border-red-500/30 text-red-400"
-              }`}>
-                {registrationStatus.message}
-              </div>
-            )}
-            
-            {loading ? (
-              <div className="py-10 flex justify-center items-center">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full border-2 border-gray-800"></div>
-                  <div className="absolute top-0 left-0 w-10 h-10 rounded-full border-t-2 border-l-2 border-[#07F468] animate-spin"></div>
+          )}
+          
+          {!success && !hasRegisteredTeam && userTeams.length > 0 && (
+            <motion.button
+              className="w-full bg-gradient-to-r from-[#07F468] to-[#06d35a] text-[#1a1a1a] border-none rounded-lg px-4 py-3 font-bold
+              cursor-pointer transition-all duration-300 ease-in-out hover:from-[#06d35a] hover:to-[#07F468] shadow-lg hover:shadow-xl hover:shadow-[#07F468]/20 text-sm relative overflow-hidden"
+              onClick={handleRegister}
+              disabled={isRegistering || !registrationData.team_name.trim()}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isRegistering ? (
+                <div className="flex items-center justify-center">
+                  <motion.div 
+                    className="w-5 h-5 border-2 border-white border-t-transparent rounded-full mr-2"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  />
+                  Registering...
                 </div>
-              </div>
-            ) : userTeams.length > 0 ? (
-              <>
-                {userTeams.length > 1 ? (
-                  <div className="mb-6">
-                    <label className="block text-gray-300 mb-2">Select Team</label>
-                    <select 
-                      value={selectedTeamId || ''}
-                      onChange={(e) => setSelectedTeamId(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full bg-[#222] border border-gray-700 rounded-lg p-3 text-white focus:border-[#07F468] focus:ring-1 focus:ring-[#07F468] outline-none"
-                    >
-                      <option value="">Select a team</option>
-                      {userTeams.map(team => (
-                        <option key={team.id_teams} value={team.id_teams}>
-                          Team #{team.id_teams}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="mb-6 bg-[#07F468]/10 p-4 rounded-lg border border-[#07F468]/30">
-                    <div className="flex items-center">
-                      <div className="p-2 bg-[#07F468]/20 rounded-full mr-3">
-                        <Trophy className="w-5 h-5 text-[#07F468]" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-white">You'll register with your team:</h3>
-                        <p className="text-gray-300 text-sm">Team #{userTeams[0].id_teams}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={() => {
-                      setRegistering(false);
-                      setRegistrationStatus(null);
-                    }}
-                    className="py-2.5 px-5 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-colors text-sm font-medium flex items-center justify-center"
-                  >
-                    <ChevronLeft className="w-4 h-4 mr-1" />
-                    Back
-                  </button>
-                  
-                  <button
-                    onClick={handleRegister}
-                    disabled={!selectedTeamId || loading}
-                    className={`py-2.5 px-5 bg-[#07F468] ${!selectedTeamId || loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#06d35a]'} text-[#0a0a0a] font-bold rounded-full transition-colors text-sm flex-1 flex items-center justify-center`}
-                  >
-                    Confirm Registration
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8">
-                <div className="bg-[#222] p-6 rounded-lg mb-6">
-                  <Users className="h-12 w-12 text-[#07F468]/50 mx-auto mb-4" />
-                  <h4 className="text-white text-lg mb-2">No Teams Available</h4>
-                  <p className="text-gray-400 mb-4">You need to create a team before you can register for tournaments.</p>
-                  
-                  <button
-                    onClick={() => {
-                      document.body.style.overflow = 'auto'; // Ensure scrolling is restored
-                      window.location.href = '/players';
-                    }}
-                    className="bg-[#07F468] hover:bg-[#06d35a] text-[#0a0a0a] py-2.5 px-5 rounded-full text-sm font-bold inline-flex items-center"
-                  >
-                    Create Team
-                    <ChevronRight className="ml-1 h-4 w-4" />
-                  </button>
-                </div>
-                
-                <button
-                  onClick={() => {
-                    setRegistering(false);
-                    setRegistrationStatus(null);
-                  }}
-                  className="py-2.5 px-5 rounded-full border border-gray-600 text-gray-300 hover:bg-gray-800 hover:border-gray-500 transition-colors text-sm font-medium inline-flex items-center"
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Back to Details
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+              ) : (
+                <>
+                  <span className="relative z-10">Register Team</span>
+                  {/* Shine effect */}
+                  <div className="absolute top-0 -left-[100%] w-[250%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:left-[100%] transition-all duration-700 ease-in-out z-0"></div>
+                </>
+              )}
+            </motion.button>
+          )}
+          
+          {!success && (hasRegisteredTeam || userTeams.length === 0) && (
+            <motion.button
+              className="w-full mt-4 bg-white/10 text-white border-none rounded-lg px-4 py-3 font-bold
+              cursor-pointer transition-all duration-300 ease-in-out hover:bg-white/20 text-sm"
+              onClick={handleClose}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              Close
+            </motion.button>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

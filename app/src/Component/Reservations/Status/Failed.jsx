@@ -9,7 +9,7 @@ const PopupOverlay = styled.div`
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -18,11 +18,11 @@ const PopupOverlay = styled.div`
 
 const PopupCard = styled.div`
   background-color: #1a1a1a;
-  border-radius: 20px;
+  border-radius: 16px;
   padding: 2rem;
   max-width: 90%;
-  width: 400px;
-  height: 400px;
+  width: 380px;
+  height: 380px;
   text-align: center;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   display: flex;
@@ -30,9 +30,12 @@ const PopupCard = styled.div`
   justify-content: center;
   align-items: center;
   position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 
   @media (max-width: 480px) {
     padding: 1.5rem;
+    width: 320px;
+    height: 320px;
   }
 `
 
@@ -60,19 +63,35 @@ const Title = styled(motion.h2)`
 
 const Message = styled.p`
   color: white;
+  font-size: 0.95rem;
 `
 
-export default function AnimatedReserved({onCLose}) {
+export default function AnimatedReserved({onClose}) {
   const [mounted, setMounted] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
 
   useEffect(() => {
     setMounted(true)
+    
+    // Auto-close after 4 seconds to allow new reservations
+    const timer = setTimeout(() => {
+      handleClose();
+    }, 4000);
+    
+    return () => clearTimeout(timer);
   }, [])
 
   const handleClose = () => {
     setIsVisible(false)    
-    // window.location.reload();
+    
+    // Call parent onClose if provided
+    if (onClose) {
+      onClose();
+    }
+    
+    // Dispatch event to allow for new reservations
+    const event = new CustomEvent('statusPopupClosed');
+    document.dispatchEvent(event);
   }
 
   if (!mounted || !isVisible) {
@@ -130,9 +149,9 @@ export default function AnimatedReserved({onCLose}) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 1.3 }}
         >
-          Hour Already Reserved
+          Reservation Failed
         </Title>
-        <Message>This time slot is not available. Please choose another hour.</Message>
+        <Message>The reservation could not be completed. Please try again or select a different time slot.</Message>
       </PopupCard>
     </PopupOverlay>
   )

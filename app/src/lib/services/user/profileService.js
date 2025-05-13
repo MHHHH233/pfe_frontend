@@ -100,6 +100,43 @@ const profileService = {
       console.error(`Error resetting password for user ${id}:`, error);
       throw error;
     }
+  },
+
+  /**
+   * Delete user account
+   * @param {number} id - User ID
+   * @param {Object} data - Data containing the password
+   */
+  async deleteAccount(id, data) {
+    try {
+      const response = await apiClient.post(profileEndpoints.deleteAccount(id), data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting account for user ${id}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Upload profile picture
+   * @param {FormData} formData - Form data containing the profile picture
+   */
+  async updateProfilePicture(formData) {
+    try {
+      // Add headers to ensure proper content type for file upload
+      const config = {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json'
+        }
+      };
+      
+      const response = await apiClient.post(profileEndpoints.updateProfilePicture || '/api/profile/update-picture', formData, config);
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      throw error;
+    }
   }
 };
 
