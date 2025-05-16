@@ -48,11 +48,26 @@ export default function TerrainShowcase() {
   });
 
   const handleReservation = (terrain) => {
-    // Use React Router state instead of sessionStorage
+    // Store terrain data in sessionStorage for reservation page
+    try {
+      sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
+      sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
+      sessionStorage.setItem("selectedTerrainPrice", terrain.prix || "100");
+      console.log("Storing terrain data before navigation:", {
+        id: terrain.id_terrain,
+        name: terrain.nom_terrain,
+        price: terrain.prix
+      });
+    } catch (error) {
+      console.warn("Could not access sessionStorage in TerrainShowcase", error);
+    }
+
+    // Use React Router state as a backup method
     navigate("/reservation", { 
       state: { 
         selectedTerrainId: terrain.id_terrain,
-        selectedTerrainName: terrain.nom_terrain
+        selectedTerrainName: terrain.nom_terrain,
+        selectedTerrainPrice: terrain.prix
       }
     });
   };

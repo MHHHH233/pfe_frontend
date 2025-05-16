@@ -85,19 +85,32 @@ export default function AllTerrains() {
 
   const handleReservation = (terrain) => {
     try {
-      // Use local variables instead of directly accessing sessionStorage
+      // Store all terrain data in sessionStorage
       const terrainId = terrain.id_terrain;
       const terrainName = terrain.nom_terrain;
+      const terrainPrice = terrain.prix || "100";
       
-      // Navigate first, then try to set session storage on the next page
+      // Store in sessionStorage first
+      sessionStorage.setItem("selectedTerrainId", terrainId);
+      sessionStorage.setItem("selectedTerrainName", terrainName);
+      sessionStorage.setItem("selectedTerrainPrice", terrainPrice);
+      
+      console.log("Storing terrain data for reservation:", {
+        id: terrainId,
+        name: terrainName,
+        price: terrainPrice
+      });
+      
+      // Navigate with state as backup
       navigate("/reservation", { 
         state: { 
           selectedTerrainId: terrainId,
-          selectedTerrainName: terrainName
+          selectedTerrainName: terrainName,
+          selectedTerrainPrice: terrainPrice
         }
       });
     } catch (error) {
-      console.error("Navigation error:", error);
+      console.error("Error in reservation process:", error);
       // Fallback direct navigation
       navigate("/reservation");
     }

@@ -9,7 +9,7 @@ const tournoiTeamsEndpoints = {
   register: `${BASE_URL}/register`,
   withdraw: (id_tournoi, id_teams) => `${BASE_URL}/withdraw/${id_tournoi}/${id_teams}`,
   getStats: (id_tournoi, id_teams) => `${BASE_URL}/stats/${id_tournoi}/${id_teams}`,
-  getUserRegisteredTournaments: `${BASE_URL}/user-registered`,
+  getUserRegisteredTournaments: `${BASE_URL}`,
 };
 
 export default tournoiTeamsEndpoints; 

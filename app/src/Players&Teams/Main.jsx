@@ -33,6 +33,12 @@ const FindPlayerTeam = () => {
   
   // Get current user info on component mount
   useEffect(() => {
+    // Check if we need to show the player form based on global state
+    if (window.showPlayerForm) {
+      setShowPlayerForm(true);
+      window.showPlayerForm = false;
+    }
+    
     // Try to get user from session storage or local storage
     const userId = sessionStorage.getItem('userId') || localStorage.getItem('userId');
     const userToken = sessionStorage.getItem('token') || localStorage.getItem('token');
@@ -51,7 +57,17 @@ const FindPlayerTeam = () => {
   };
   
   const handleRegisterTeam = () => {
-    setShowTeamForm(true);
+    // Check if user is a player first
+    const isUserPlayer = sessionStorage.getItem('isPlayer') === 'true';
+    
+    if (!isUserPlayer) {
+      // If user is not a player, show player form with message
+      setError("You need to register as a player before creating a team. Please create a player profile first.");
+      setShowPlayerForm(true);
+    } else {
+      // If user is a player, show team registration form
+      setShowTeamForm(true);
+    }
   };
 
   // Toggle video play/pause
@@ -269,7 +285,7 @@ const FindPlayerTeam = () => {
             onCanPlay={() => setIsVideoPlaying(true)}
             onWaiting={() => setIsVideoPlaying(false)}
           >
-            <source src="http://127.0.0.1:8000/2249402-uhd_3840_2160_24fps.mp4" type="video/mp4" />
+            <source src="https://terranafa.moulweb.com/back/pfe_backend/2249402-uhd_3840_2160_24fps.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
           
@@ -810,7 +826,7 @@ const FindPlayerTeam = () => {
       </section>
 
       {/* Add Yourself/Team Section */}
-      <section className="py-24 bg-gradient-to-br from-[#111] to-[#171717]">
+      <section className="py-24 bg-gradient-to-br from-[#111] to-[#171717]" id="create-player-section">
         <div className="container mx-auto px-6">
           <div className="mb-16 text-center">
             <h2 className="text-4xl font-bold mb-3 inline-block relative">
@@ -875,6 +891,7 @@ const FindPlayerTeam = () => {
                         whileTap={{ scale: 0.95 }}
                         className="bg-[#07f468] text-black font-bold py-3 px-8 rounded-xl inline-flex items-center justify-center hover:bg-[#06d35a] transition-all shadow-lg shadow-[#07f468]/20 w-full"
                         onClick={handleCreatePlayerProfile}
+                        id="create-player-btn"
                       >
                         <UserPlus className="w-5 h-5 mr-2" />
                         Create Player Profile
@@ -2130,6 +2147,7 @@ const TeamForm = ({ onClose }) => {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [userIdError, setUserIdError] = useState(false);
   const [existingTeamError, setExistingTeamError] = useState(false);
+  const [isPlayerError, setIsPlayerError] = useState(false);
   const [captainInfo, setCaptainInfo] = useState(null);
 
   useEffect(() => {
@@ -2146,6 +2164,13 @@ const TeamForm = ({ onClose }) => {
     
     if (!userId) {
       setUserIdError(true);
+      return;
+    }
+    
+    // Check if user is a player
+    const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
+    if (!isPlayer) {
+      setIsPlayerError(true);
       return;
     }
     
@@ -2184,6 +2209,14 @@ const TeamForm = ({ onClose }) => {
     setIsSubmitting(true);
     setSubmitError(null);
     setUserIdError(false);
+    
+    // Double-check if user is a player
+    const isPlayer = sessionStorage.getItem('isPlayer') === 'true';
+    if (!isPlayer) {
+      setIsPlayerError(true);
+      setIsSubmitting(false);
+      return;
+    }
     
     // Check if user already has a team
     const hasTeams = sessionStorage.getItem('has_teams') === 'true';
@@ -2407,6 +2440,44 @@ const TeamForm = ({ onClose }) => {
           >
             Close
           </button>
+        </motion.div>
+      </div>
+    );
+  }
+  
+  if (isPlayerError) {
+    return (
+      <div className="text-center py-4">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-blue-500/20 border border-blue-500 text-white p-6 rounded-lg"
+        >
+          <div className="w-16 h-16 mx-auto bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
+            <UserPlus className="w-8 h-8 text-blue-500" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">Player Profile Required</h3>
+          <p className="mb-4">You need to create a player profile before you can register a team. Please create your player profile first.</p>
+          <div className="flex flex-col items-center gap-3">
+            <p className="text-sm text-blue-300 mb-2">Register as a player to unlock team creation:</p>
+            <div className="flex justify-center space-x-3">
+              <button
+                onClick={onClose}
+                className="bg-white text-blue-500 font-semibold py-2 px-4 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                Close
+              </button>
+              <a 
+                href="#create-player-section"
+                onClick={() => {
+                  onClose();
+                }}
+                className="bg-blue-500 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-400 transition-colors"
+              >
+                Go to Player Registration
+              </a>
+            </div>
+          </div>
         </motion.div>
       </div>
     );

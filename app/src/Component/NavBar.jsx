@@ -5,6 +5,7 @@ import UserIcon from "../Client/Component/Icone";
 import { Menu, Bell, Calendar, LayoutDashboard, X, ChevronRight, User, MapPin, MoreVertical, LogOut } from 'lucide-react';
 import { authService } from "../lib/services/authoServices";
 import reservationService from '../lib/services/user/reservationServices';
+import terraLogo from '../img/terraLogo.png'; // Import the new logo
 
 export const NavBar = () => {
     const [menuOpen, setMenuOpen] = useState(false);
@@ -176,15 +177,15 @@ export const NavBar = () => {
                     opacity: navbarVisible ? 1 : 0,
                 }}
                 transition={{ duration: 0.3 }}
-                className={`fixed top-0 left-0 right-0 z-50 ${
+                className={`fixed  top-0 left-0 right-0 z-50 ${
                     scrollPosition > 50 
                         ? "bg-black/80 backdrop-blur-md shadow-lg" 
                         : "bg-transparent"
                 }`}
             >
                 <div className="container mx-auto px-4">
-                    <div className="flex items-center justify-between h-20">
-                        {/* Animated Brand Name */}
+                    <div className="flex items-center justify-between h-28">
+                        {/* Logo */}
                         <motion.div
                             onClick={() => handleNavigation('/')}
                             className="cursor-pointer"
@@ -197,37 +198,11 @@ export const NavBar = () => {
                                 whileTap="tap"
                                 className="flex items-center"
                             >
-                                <motion.span 
-                                    className="text-white text-2xl font-bold flex items-center space-x-1"
-                                >
-                                    {/* Animate each letter */}
-                                    {"TERRAIN".split("").map((letter, index) => (
-                                        <motion.span
-                                            key={index}
-                                            variants={letterVariants}
-                                            className="inline-block"
-                                            style={{ 
-                                                textShadow: '0 0 10px rgba(255,255,255,0.3)'
-                                            }}
-                                        >
-                                            {letter}
-                                        </motion.span>
-                                    ))}
-                                    <motion.span 
-                                        className="text-green-400 ml-1"
-                                        variants={letterVariants}
-                                    >
-                                        {"FC".split("").map((letter, index) => (
-                                            <motion.span
-                                                key={index}
-                                                variants={letterVariants}
-                                                className="inline-block"
-                                            >
-                                                {letter}
-                                            </motion.span>
-                                        ))}
-                                    </motion.span>
-                                </motion.span>
+                                <motion.img 
+                                    src={terraLogo} 
+                                    alt="Terrana FC Logo" 
+                                    className="h-24 w-auto px-2" 
+                                />
                             </motion.div>
                         </motion.div>
 
@@ -344,7 +319,7 @@ export const NavBar = () => {
                             initial="hidden"
                             animate="visible"
                             exit="exit"
-                            className="lg:hidden fixed inset-0 bg-black/95 z-40 pt-20"
+                            className="lg:hidden fixed inset-0 bg-black/95 z-40 pt-28"
                         >
                             <motion.div variants={menuVariants} className="container mx-auto px-4">
                                 <div className="px-4 py-6 space-y-4">

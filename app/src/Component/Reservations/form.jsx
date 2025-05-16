@@ -100,6 +100,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   // Add fallback to get terrain ID from sessionStorage if not provided as prop
   const terrainId = Terrain?.id_terrain || sessionStorage.getItem("selectedTerrainId") || '';
   const terrainName = Terrain?.nom_terrain || sessionStorage.getItem("selectedTerrainName") || '';
+  const terrainPrice = Terrain?.prix || sessionStorage.getItem("selectedTerrainPrice") || '100';
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -172,10 +173,13 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       type: formData.type,
       id_client: userId, // Use null for non-logged in users
       payment_method: "cash",
+      prix: terrainPrice, // Add the terrain price
       Name: formData.Name || "Guest",
       ...(formData.email && { email: formData.email }),
       ...(formData.telephone && { telephone: formData.telephone })
     };
+    
+    console.log("Creating reservation with price:", terrainPrice);
     
     setReservationData(reservationDetails);
     setShowConfirmation(true);
@@ -285,9 +289,12 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
             <div className="p-3 bg-green-500/10 rounded-lg">
               <MapPin size={24} className="text-green-400" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-medium text-gray-400">Selected Terrain</p>
               <h4 className="text-lg font-semibold text-white mt-1">{terrainName}</h4>
+              {terrainPrice && (
+                <p className="text-green-400 text-sm mt-1">{terrainPrice} MAD per hour</p>
+              )}
             </div>
           </div>
         </motion.div>

@@ -7,13 +7,13 @@ import TerrainShowcase from "../Component/TerrainShowcase"
 
 export const LandingPage =()=>{
     return(
-        <>
+        <div className="overflow-hidden">
             <HeroSection/>
             <FeaturesSection/>
             <TerrainShowcase/>
             <EventsSection/>
             <Carousel/>
             <ContactUsFullscreen/>
-        </>
+        </div>
     )
 }

@@ -151,6 +151,12 @@ export default function Buttons({ onChange, selectedTerrainId }) {
     try {
       sessionStorage.setItem("selectedTerrainId", terrain.id_terrain);
       sessionStorage.setItem("selectedTerrainName", terrain.nom_terrain);
+      sessionStorage.setItem("selectedTerrainPrice", terrain.prix || "100");
+      console.log("Stored terrain data in sessionStorage:", {
+        id: terrain.id_terrain,
+        name: terrain.nom_terrain,
+        price: terrain.prix
+      });
     } catch (error) {
       console.warn("Could not access sessionStorage in button click", error);
     }

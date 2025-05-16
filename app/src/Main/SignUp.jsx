@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Icon } from '@iconify/react'
 import { Navigate, useNavigate } from "react-router-dom";
 import { authService } from "../lib/services/authoServices";
+import GoogleLogin from "./GoogleLogin";
 
 const SignUpForm = () => {
   const navigate = useNavigate()
@@ -11,7 +12,7 @@ const SignUpForm = () => {
   const [currentStep, setcurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     email: "",
-    name: "",
+    nom: "",
     prenom: "",
     age: "",
     telephone: "",
@@ -20,6 +21,8 @@ const SignUpForm = () => {
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
@@ -50,7 +53,7 @@ const SignUpForm = () => {
     }
 
     if (step === 2) {
-      if (!formData.name) stepErrors.name = "name est obligatoire.";
+      if (!formData.nom) stepErrors.nom = "Nom est obligatoire.";
       if (!formData.prenom) stepErrors.prenom = "Préname est obligatoire.";
 
       if (!formData.age || isNaN(formData.age)) {
@@ -124,9 +127,45 @@ const SignUpForm = () => {
     }
     return step;
   };
+  
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
+  
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
+  };
+  
+  const generateRandomPassword = () => {
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*()_+';
+    
+    const allChars = lowercase + uppercase + numbers + symbols;
+    
+    let password = '';
+    // Ensure password has at least one uppercase, one lowercase, one number
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += symbols[Math.floor(Math.random() * symbols.length)];
+    
+    // Add more random characters to make password length 10
+    for (let i = 0; i < 6; i++) {
+      password += allChars[Math.floor(Math.random() * allChars.length)];
+    }
+    
+    // Shuffle the password characters
+    password = password.split('').sort(() => 0.5 - Math.random()).join('');
+    
+    setFormData({
+      ...formData,
+      password: password,
+      password_confirmation: password
+    });
+  };
+  
   return (
     <div className="relative min-h-screen bg-blend-overlay">
       <img
@@ -214,17 +253,9 @@ const SignUpForm = () => {
               >
                 Suivant
               </button>
-              <button
-                type="button"
-                className="w-full p-3 bg-white text-gray-800 font-semibold rounded-lg flex items-center justify-center hover:bg-gray-200 transition"
-              >
-                <img
-                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                  alt="Google"
-                  className="w-5 h-5 mr-2"
-                />
-                S'inscrire avec Google
-              </button>
+              
+              {/* Google Login Component */}
+              <GoogleLogin />
             </>
           )}
 
@@ -248,20 +279,19 @@ const SignUpForm = () => {
               </div>
               <h1 className="text-2xl font-bold mb-6">Informations personnelles</h1>
               <label className="block text-left text-sm font-medium mb-1">
-                name
+                Nom
               </label>
               <input
-
                 type="text"
-                name="name"
-                placeholder="name"
-                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.name ? "border-red-500" : "border-gray-300"
+                name="nom"
+                placeholder="Nom"
+                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.nom ? "border-red-500" : "border-gray-300"
                   }`}
-                value={formData.name}
+                value={formData.nom}
                 onChange={handleChange}
               />
-              {errors.name && (
-                <div className="lg:mb-2 text-red-500 text-sm">{errors.name}</div>
+              {errors.nom && (
+                <div className="lg:mb-2 text-red-500 text-sm">{errors.nom}</div>
               )}
 
               <label className="block text-left text-sm font-medium mb-1">
@@ -339,9 +369,18 @@ const SignUpForm = () => {
 
               </div>
               <h1 className="text-2xl font-bold mb-6">Créer un mot de passe</h1>
-              <label className="block text-left text-sm font-medium mb-1">
-                Mot de passe
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-left text-sm font-medium">
+                  Mot de passe
+                </label>
+                <button
+                  type="button"
+                  onClick={generateRandomPassword}
+                  className="text-xs text-bright-green hover:underline"
+                >
+                  Générer un mot de passe
+                </button>
+              </div>
               <div className="relative w-full ">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -368,15 +407,24 @@ const SignUpForm = () => {
               <label className="block text-left text-sm font-medium mb-1">
                 Confirmez le mot de passe
               </label>
-              <input
-                type="password"
-                name="password_confirmation"
-                placeholder="Confirmez le mot de passe"
-                className={`w-full mb-4 p-3 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.password_confirmation ? "border-red-500" : "border-gray-300"
-                  }`}
-                value={formData.password_confirmation}
-                onChange={handleChange}
-              />
+              <div className="relative w-full">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="password_confirmation"
+                  placeholder="Confirmez le mot de passe"
+                  className={`w-full mb-4 p-3 pr-10 text-dark-gray focus:bg-gray-200 focus:scale-x-105 transition rounded-lg outline-none border ${errors.password_confirmation ? "border-red-500" : "border-gray-300"
+                    }`}
+                  value={formData.password_confirmation}
+                  onChange={handleChange}
+                />
+                <button
+                  type="button"
+                  onClick={toggleConfirmPasswordVisibility}
+                  className="absolute inset-y-0 right-3 bottom-4 text-gray-600 focus:outline-none"
+                >
+                  <Icon icon={showConfirmPassword ? "mdi:eye-off" : "mdi:eye"} width="1.5em" height="1.5em" />
+                </button>
+              </div>
               {errors.password_confirmation && (
                 <div className="lg:mb-2 text-red-500 text-sm">
                   {errors.password_confirmation}

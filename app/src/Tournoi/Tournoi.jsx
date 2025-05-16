@@ -1149,12 +1149,33 @@ export default function TournamentPage() {
         return;
       }
       
-      // Register directly for the tournament with the correct field names from migration
+      // Get the user's team ID (required by the backend)
+      const teamsData = sessionStorage.getItem('teams');
+      let teamId = null;
+      
+      if (teamsData) {
+        try {
+          const parsedTeams = JSON.parse(teamsData);
+          if (Array.isArray(parsedTeams) && parsedTeams.length > 0) {
+            teamId = parsedTeams[0].id_teams;
+          }
+        } catch (error) {
+          console.error("Error parsing teams data:", error);
+        }
+      }
+      
+      if (!teamId) {
+        toast.error("You must be part of a team before registering for a tournament");
+        setRegisterLoading(false);
+        return;
+      }
+      
+      // Register team with required fields matching backend validation
       const registerData = {
         id_tournoi: selectedTournament.id_tournoi,
+        id_teams: teamId,
         team_name: formData.team_name,
-        descrption: formData.description || '',  // Note the intentional typo to match the database field
-        capitain: parseInt(playerId, 10) // Use player_id instead of userId
+        capitain: parseInt(playerId, 10) // Not required by backend but keeping it
       };
       
       const response = await tournoiTeamsService.registerForTournament(registerData);
@@ -1170,7 +1191,19 @@ export default function TournamentPage() {
       fetchTournaments();
     } catch (error) {
       console.error('Failed to register team:', error);
-      toast.error(error.response?.data?.message || 'Failed to register team');
+      let errorMessage = 'Failed to register team';
+      
+      if (error.response?.data?.error) {
+        if (typeof error.response.data.error === 'object') {
+          errorMessage = Object.values(error.response.data.error).flat().join(", ");
+        } else {
+          errorMessage = error.response.data.error;
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setRegisterLoading(false);
     }

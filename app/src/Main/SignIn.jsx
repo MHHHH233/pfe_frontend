@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import background from "../img/background1.png";
 import { Icon } from '@iconify/react';
 import { authService } from "../lib/services/authoServices";
+import GoogleLogin from "./GoogleLogin";
 
 const LoginForm = () => {
   const [formData, setFormData] = useState({
@@ -13,7 +14,7 @@ const LoginForm = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectPath = location.state?.from || "/Client";
+  const redirectPath = location.state?.from || "/profile";
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -79,18 +80,25 @@ const LoginForm = () => {
           
           // Store userdetails as a JSON string
           sessionStorage.setItem("userdetails", JSON.stringify(userData));
-          const pfp = "http://127.0.0.1:8000/" + userData.pfp
+          const pfp =  userData.pfp
           sessionStorage.setItem("pfp", pfp);
 
           // Navigate based on role or redirect path
           if (userData.role === "admin") {
-            navigate("/Admin");
+            navigate("/profile");
           } else {
-            // Check if there's a redirect path from the location state
-            navigate(redirectPath);
+            navigate("/profile");
           }
         } else {
-          throw new Error(response.message || 'Login failed');
+          // Handle cases where status is false but it follows the error format with code 401
+          if (response.errors && response.errors.email) {
+            setErrors((prevErrors) => ({
+              ...prevErrors,
+              email: response.errors.email[0]
+            }));
+          } else {
+            throw new Error(response.message || 'Login failed');
+          }
         }
       } catch (error) {
         console.error("Error details:", error);
@@ -225,6 +233,9 @@ const validateFormData = ({ email, password }) => {
             </span>
             <span className="block w-1/4 h-px bg-gray-500"></span>
           </div>
+
+          {/* Google Login Component */}
+          <GoogleLogin />
 
           <div className="text-center">
             <p className="text-gray-400 text-sm">

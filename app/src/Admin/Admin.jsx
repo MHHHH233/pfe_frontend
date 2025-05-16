@@ -49,6 +49,7 @@ import {
   Check,
   Bug,
   CheckCircle,
+  Globe,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
 import Loader from "../Component/Loading";
@@ -60,11 +61,16 @@ import AcademieManagement from './components/Academie';
 import PlayersTeams from './components/Players-teams';
 import Terrains from './components/Terrains';
 import SettingsManagement from './components/Settings';
+import SocialMediaManagement from './components/SocialMedia';
 import { authService } from '../lib/services/authoServices';
 import analyticsService from '../lib/services/admin/analyticsServices';
 import compteService from '../lib/services/admin/compteServices';
 import reservationService from '../lib/services/admin/reservationServices';
 import { ReportedBugs, Reviews } from './components/Assistance';
+import NotificationCenter from './components/NotificationCenter';
+import UserMenu from './components/UserMenu';
+import AnalyticsPage from './components/Analytics';
+import ProfilePage from '../Client/Component/ProfilePage';
 
 const FootballAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -100,12 +106,14 @@ const FootballAdminDashboard = () => {
               {activeTab === "users" && <Users1 />}
               {activeTab === "reservations" && <Reservations />}
               {activeTab === "inbox" && <Inbox />}
-              {activeTab === "analytics" && <Analytics />}
+              {activeTab === "analytics" && <AnalyticsPage />}
               {activeTab === "tournoi" && <EnhancedTournamentManagement />}
               {activeTab === "academie" && <AcademieManagement />}
               {activeTab === "player-teams" && <PlayersTeams />}
               {activeTab === "terrains" && <Terrains />}
               {activeTab === "settings" && <SettingsManagement />}
+              {activeTab === "socialmedia" && <SocialMediaManagement />}
+              {activeTab === "profile" && <ProfilePage />}
               {activeTab === "bugs" && <ReportedBugs />}
               {activeTab === "reviews" && <Reviews />}
             </motion.div>
@@ -129,20 +137,6 @@ const FootballAdminDashboard = () => {
 };
 
 const Header = ({ toggleSidebar }) => {
-  const handleLogout = async () => {
-    try {
-      await authService.logout();
-      // Clear session storage and redirect regardless of response
-      sessionStorage.clear();
-      window.location.href = '/'; // Redirect to signin page
-    } catch (error) { 
-      console.error('Logout error:', error);
-      // Still clear and redirect even if there's an error
-      sessionStorage.clear();
-      window.location.href = '/sign-in';
-    }
-  };
-
   return (
     <header className="bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
       <motion.button
@@ -161,22 +155,8 @@ const Header = ({ toggleSidebar }) => {
       </Link>
 
       <div className="flex items-center space-x-4">
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="text-white focus:outline-none relative"
-        >
-          <Bell size={24} />
-          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
-        </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="text-white focus:outline-none"
-          onClick={handleLogout}
-        >
-          <User size={24} />
-        </motion.button>
+        <NotificationCenter />
+        <UserMenu />
       </div>
     </header>
   );
@@ -186,7 +166,8 @@ const Sidebar = ({ isOpen, activeTab, setActiveTab, closeSidebar }) => {
   const [dropdowns, setDropdowns] = useState({
     management: false,
     analytics: false,
-    assistance: false
+    assistance: false,
+    settings: false
   });
   const sidebarRef = useRef(null);
 
@@ -445,17 +426,50 @@ const Sidebar = ({ isOpen, activeTab, setActiveTab, closeSidebar }) => {
           </div>
 
           {/* Settings Section */}
-          <div className="pt-4 mt-4 border-t border-gray-800">
+          <div>
             <button
-              onClick={() => handleMenuClick('settings')}
-              className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
-                        ${activeTab === 'settings' 
-                          ? 'bg-[#07f468] text-gray-900' 
-                          : 'text-gray-300 hover:bg-gray-800/80'}`}
+              onClick={() => toggleDropdown('settings')}
+              className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider hover:text-white transition-colors"
             >
-              <Settings size={18} className="mr-3" />
-              Paramètres
+              <span>Settings</span>
+              <ChevronRight 
+                size={16} 
+                className={`transform transition-transform duration-200 ${dropdowns.settings ? 'rotate-90' : ''}`}
+              />
             </button>
+            <AnimatePresence>
+              {dropdowns.settings && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1 mt-2 overflow-hidden"
+                >
+                  <button
+                    onClick={() => handleMenuClick('profile')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'profile' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <User size={18} className="mr-3" />
+                    Profile
+                  </button>
+
+                  <button
+                    onClick={() => handleMenuClick('socialmedia')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'socialmedia' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <Globe size={18} className="mr-3" />
+                    Social Media
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </nav>
       </div>

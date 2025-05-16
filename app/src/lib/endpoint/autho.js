@@ -7,4 +7,6 @@ export const autho = {
   logout: () => `${BASE_URL}logout`,
   me: () => `${BASE_URL}me`,
   getUserByToken: (token) => `${BASE_URL}getUserByToken/${token}`,
+  googleRedirect: () => `${BASE_URL}auth/google`,
+  googleCallback: () => `${BASE_URL}auth/google/callback`,
 };

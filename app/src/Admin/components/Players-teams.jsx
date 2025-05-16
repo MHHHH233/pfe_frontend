@@ -1653,9 +1653,12 @@ const PlayerRequestModal = ({ request, onClose, onSave, players }) => {
       return;
     }
 
-    // Create a copy of formData with properly formatted datetime
+    // Create a copy of formData with properly formatted data
     const submissionData = {
       ...formData,
+      // Ensure sender and receiver are numbers
+      sender: Number(formData.sender),
+      receiver: Number(formData.receiver),
       // Format the time to include seconds
       starting_time: formData.starting_time + ':00'
     };
@@ -1665,10 +1668,21 @@ const PlayerRequestModal = ({ request, onClose, onSave, players }) => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Convert sender and receiver to integers
+    if (name === 'sender' || name === 'receiver') {
+      const numValue = value ? Number(value) : '';
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: numValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   return (
@@ -1703,7 +1717,7 @@ const PlayerRequestModal = ({ request, onClose, onSave, players }) => {
             >
               <option value="">Select Sender</option>
               {players.map((player) => (
-                <option key={player.id_player} value={player.id_player}>
+                <option key={player.id} value={player.id}>
                   {player.compte.nom} {player.compte.prenom}
                 </option>
               ))}
@@ -1724,7 +1738,7 @@ const PlayerRequestModal = ({ request, onClose, onSave, players }) => {
             >
               <option value="">Select Receiver</option>
               {players.map((player) => (
-                <option key={player.id_player} value={player.id_player}>
+                <option key={player.id} value={player.id}>
                   {player.compte.nom} {player.compte.prenom}
                 </option>
               ))}
@@ -1841,8 +1855,20 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
   
     const handleUpdate = async (id, playerData) => {
       try {
-        const response = await playersService.updatePlayer(id, playerData);
-        setPlayers(prev => prev.map(p => p.id_player === id ? response.data : p));
+        // Debug logging
+        console.log('Player update - Original ID:', id, 'Type:', typeof id);
+        
+        // Ensure id is a number
+        const playerId = Number(id);
+        console.log('Player update - Converted ID:', playerId, 'Type:', typeof playerId);
+        
+        if (isNaN(playerId)) {
+          console.error('Invalid player ID:', id);
+          showNotification('Failed to update player: Invalid ID', 'error');
+          return;
+        }
+        const response = await playersService.updatePlayer(playerId, playerData);
+        setPlayers(prev => prev.map(p => p.id === playerId ? response.data : p));
         showNotification('Player updated successfully');
       } catch (error) {
         console.error('Error updating player:', error);
@@ -1852,8 +1878,20 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
   
     const handleDelete = async (id) => {
       try {
-        await playersService.deletePlayer(id);
-        setPlayers(prev => prev.filter(p => p.id_player !== id));
+        // Debug logging
+        console.log('Player delete - Original ID:', id, 'Type:', typeof id);
+        
+        // Ensure id is a number
+        const playerId = Number(id);
+        console.log('Player delete - Converted ID:', playerId, 'Type:', typeof playerId);
+        
+        if (isNaN(playerId)) {
+          console.error('Invalid player ID:', id);
+          showNotification('Failed to delete player: Invalid ID', 'error');
+          return;
+        }
+        await playersService.deletePlayer(playerId);
+        setPlayers(prev => prev.filter(p => p.id !== playerId));
         showNotification('Player deleted successfully');
       } catch (error) {
         console.error('Error deleting player:', error);
@@ -1888,9 +1926,13 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
   
     const handleAddRequest = async (requestData) => {
       try {
-        // Ensure time format is correct
+        // Ensure data types are correct
         const formattedData = {
           ...requestData,
+          // Force sender and receiver to be numbers
+          sender: Number(requestData.sender),
+          receiver: Number(requestData.receiver),
+          // Format the time to include seconds
           starting_time: requestData.starting_time.includes(':00') ? 
             requestData.starting_time : 
             requestData.starting_time + ':00'
@@ -1908,9 +1950,13 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
   
     const handleUpdateRequest = async (id, requestData) => {
       try {
-        // Ensure time format is correct
+        // Ensure data types are correct
         const formattedData = {
           ...requestData,
+          // Force sender and receiver to be numbers
+          sender: Number(requestData.sender),
+          receiver: Number(requestData.receiver),
+          // Format the time to include seconds
           starting_time: requestData.starting_time.includes(':00') ? 
             requestData.starting_time : 
             requestData.starting_time + ':00'
@@ -2091,8 +2137,14 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
                   </thead>
                   <tbody className="bg-gray-800/30 divide-y divide-gray-700">
                     {playerRequests.map((request, index) => {
-                      const sender = players.find(p => p.id_player === request.sender);
-                      const receiver = players.find(p => p.id_player === request.receiver);
+                      // Find the sender and receiver players using the id field
+                      const sender = players.find(p => p.id === request.sender);
+                      const receiver = players.find(p => p.id === request.receiver);
+                      
+                      // Debug logging to help diagnose issues
+                      console.log('Request:', request);
+                      console.log('Sender found:', sender);
+                      console.log('Receiver found:', receiver);
                       
                       return (
                         <motion.tr 
@@ -2102,31 +2154,57 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
                           transition={{ delay: index * 0.1 }}
                           className="hover:bg-gray-700/50 transition-colors"
                         >
-                          {/* Always visible columns */}
+                          {/* Sender column */}
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10">
                                 <div className="h-full w-full rounded-full bg-gray-700 flex items-center justify-center">
-                                  <User className="h-3 w-3 sm:h-4 sm:w-4 md:h-6 md:w-6 text-gray-400" />
+                                  {sender?.compte?.pfp ? (
+                                    <img 
+                                      src={sender.compte.pfp} 
+                                      alt={sender.compte.nom}
+                                      className="h-full w-full rounded-full object-cover"
+                                      onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(sender?.compte?.nom || 'User')}&background=random`;
+                                      }}
+                                    />
+                                  ) : (
+                                    <User className="h-3 w-3 sm:h-4 sm:w-4 md:h-6 md:w-6 text-gray-400" />
+                                  )}
                                 </div>
                               </div>
                               <div className="ml-1 sm:ml-2 md:ml-4">
                                 <div className="text-xs sm:text-sm font-medium text-white truncate max-w-[60px] sm:max-w-xs">
-                                  {sender ? `${sender.compte.nom}` : 'Unknown'}
+                                  {sender?.compte ? `${sender.compte.nom} ${sender.compte.prenom}` : `ID: ${request.sender}`}
                                 </div>
                               </div>
                             </div>
                           </td>
+
+                          {/* Receiver column */}
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10">
                                 <div className="h-full w-full rounded-full bg-gray-700 flex items-center justify-center">
-                                  <User className="h-3 w-3 sm:h-4 sm:w-4 md:h-6 md:w-6 text-gray-400" />
+                                  {receiver?.compte?.pfp ? (
+                                    <img 
+                                      src={receiver.compte.pfp} 
+                                      alt={receiver.compte.nom}
+                                      className="h-full w-full rounded-full object-cover"
+                                      onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(receiver?.compte?.nom || 'User')}&background=random`;
+                                      }}
+                                    />
+                                  ) : (
+                                    <User className="h-3 w-3 sm:h-4 sm:w-4 md:h-6 md:w-6 text-gray-400" />
+                                  )}
                                 </div>
                               </div>
                               <div className="ml-1 sm:ml-2 md:ml-4">
                                 <div className="text-xs sm:text-sm font-medium text-white truncate max-w-[60px] sm:max-w-xs">
-                                  {receiver ? `${receiver.compte.nom}` : 'Unknown'}
+                                  {receiver?.compte ? `${receiver.compte.nom} ${receiver.compte.prenom}` : `ID: ${request.receiver}`}
                                 </div>
                               </div>
                             </div>
@@ -2203,7 +2281,7 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
             {filteredPlayers.length > 0 ? (
               filteredPlayers.map((player) => (
                 <motion.div
-                  key={player.id_player}
+                  key={player.id}
                   layout
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -2213,7 +2291,7 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
                   {/* Player Card Content */}
                   <div className="relative h-48">
                     <img
-                      src={player.compte?.pfp ? `http://127.0.0.1:8000/${player.compte.pfp}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.compte?.nom + ' ' + player.compte?.prenom)}&background=random`}
+                      src={player.compte?.pfp ? `${player.compte.pfp}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(player.compte?.nom + ' ' + player.compte?.prenom)}&background=random`}
                       alt={player.compte?.nom}
                       className="w-full h-48 object-cover"
                     />
@@ -2313,12 +2391,21 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
           }}
           onConfirm={() => {
             if (playerToDelete) {
+              // Debug logging
+              console.log('Player to delete:', playerToDelete);
+              console.log('Player ID fields:', {
+                id: playerToDelete.id,
+                id_request: playerToDelete.id_request
+              });
+              
               if (playerToDelete.id_request) {
                 // It's a player request
+                console.log('Deleting player request with ID:', playerToDelete.id_request);
                 handleDeleteRequest(playerToDelete.id_request);
               } else {
                 // It's a player
-                handleDelete(playerToDelete.id_player);
+                console.log('Deleting player with ID:', playerToDelete.id);
+                handleDelete(playerToDelete.id);
               }
             }
             setIsDeleteModalOpen(false);
@@ -2326,8 +2413,8 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
           }}
           itemName={playerToDelete ? 
             playerToDelete.id_request ? 
-              `request from ${players.find(p => p.id_player === playerToDelete.sender)?.compte?.nom || 'Unknown'} to ${players.find(p => p.id_player === playerToDelete.receiver)?.compte?.nom || 'Unknown'}` 
-              : `${playerToDelete.compte?.nom} ${playerToDelete.compte?.prenom}` 
+              `request from ${players.find(p => p.id === playerToDelete.sender)?.compte?.nom || 'Unknown'} to ${players.find(p => p.id === playerToDelete.receiver)?.compte?.nom || 'Unknown'}` 
+              : `${playerToDelete.compte?.nom || 'Unknown'} ${playerToDelete.compte?.prenom || ''}` 
             : "this item"}
         />
   
@@ -2344,7 +2431,14 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
               }}
               onSave={(playerData) => {
                 if (selectedPlayer) {
-                  handleUpdate(selectedPlayer.id_player, playerData);
+                  // Debug logging
+                  console.log('Editing player:', selectedPlayer);
+                  console.log('Player ID field:', {
+                    id: selectedPlayer.id
+                  });
+                  console.log('Using ID for update:', selectedPlayer.id);
+                  
+                  handleUpdate(selectedPlayer.id, playerData);
                 } else {
                   handleAdd(playerData);
                 }
@@ -2415,8 +2509,20 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
   
     const handleUpdate = async (id, teamData) => {
       try {
-        const response = await teamsService.updateTeam(id, teamData);
-        setTeams(prev => prev.map(t => t.id_teams === id ? response.data : t));
+        // Debug logging
+        console.log('Team update - Original ID:', id, 'Type:', typeof id);
+        
+        // Ensure id is a number and use the correct field (id_teams)
+        const teamId = Number(id);
+        console.log('Team update - Converted ID:', teamId, 'Type:', typeof teamId);
+        
+        if (isNaN(teamId)) {
+          console.error('Invalid team ID:', id);
+          showNotification('Failed to update team: Invalid ID', 'error');
+          return;
+        }
+        const response = await teamsService.updateTeam(teamId, teamData);
+        setTeams(prev => prev.map(t => t.id_teams === teamId ? response.data : t));
         showNotification('Team updated successfully');
       } catch (error) {
         console.error('Error updating team:', error);
@@ -2426,8 +2532,20 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
   
     const handleDelete = async (id) => {
       try {
-        await teamsService.deleteTeam(id);
-        setTeams(prev => prev.filter(t => t.id_teams !== id));
+        // Debug logging
+        console.log('Team delete - Original ID:', id, 'Type:', typeof id);
+        
+        // Ensure id is a number and use the correct field (id_teams)
+        const teamId = Number(id);
+        console.log('Team delete - Converted ID:', teamId, 'Type:', typeof teamId);
+        
+        if (isNaN(teamId)) {
+          console.error('Invalid team ID:', id);
+          showNotification('Failed to delete team: Invalid ID', 'error');
+          return;
+        }
+        await teamsService.deleteTeam(teamId);
+        setTeams(prev => prev.filter(t => t.id_teams !== teamId));
         showNotification('Team deleted successfully');
       } catch (error) {
         console.error('Error deleting team:', error);
@@ -2546,7 +2664,7 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
                   {/* Team Card Content */}
                   <div className="relative h-48">
                     <img
-                      src={team.captain?.pfp ? `http://127.0.0.1:8000/${team.captain.pfp}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(team.captain?.nom + ' ' + team.captain?.prenom)}&background=random`}
+                      src={team.captain?.pfp ? `${team.captain.pfp}` : `https://ui-avatars.com/api/?name=${encodeURIComponent(team.captain?.nom + ' ' + team.captain?.prenom)}&background=random`}
                       alt={team.captain?.nom}
                       className="w-full h-48 object-cover"
                     />
@@ -2643,10 +2761,19 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
           onConfirm={() => {
+            if (teamToDelete) {
+              // Debug logging
+              console.log('Team to delete:', teamToDelete);
+              console.log('Team ID fields:', {
+                id: teamToDelete.id,
+                id_teams: teamToDelete.id_teams
+              });
+              console.log('Deleting team with ID:', teamToDelete.id_teams);
+            }
             handleDelete(teamToDelete?.id_teams);
             setIsDeleteModalOpen(false);
           }}
-          itemName={teamToDelete ? `${teamToDelete.captain?.nom} ${teamToDelete.captain?.prenom}'s team` : "this team"}
+          itemName={teamToDelete ? `${teamToDelete.captain?.nom || 'Unknown'} ${teamToDelete.captain?.prenom || ''}'s team` : "this team"}
         />
   
         {/* Team Modal */}
@@ -2660,6 +2787,14 @@ const PlayersSection = ({ players, setPlayers, teams }) => {
               }}
               onSave={(teamData) => {
                 if (selectedTeam) {
+                  // Debug logging
+                  console.log('Editing team:', selectedTeam);
+                  console.log('Team ID fields:', {
+                    id: selectedTeam.id,
+                    id_teams: selectedTeam.id_teams
+                  });
+                  console.log('Using ID for update:', selectedTeam.id_teams);
+                  
                   handleUpdate(selectedTeam.id_teams, teamData);
                 } else {
                   handleAdd(teamData);
@@ -2870,9 +3005,25 @@ const validateTeamForm = (data) => {
 const validatePlayerRequestForm = (data) => {
   const errors = {};
   
-  if (!data.sender) errors.sender = 'Sender is required';
-  if (!data.receiver) errors.receiver = 'Receiver is required';
-  if (data.sender === data.receiver) errors.receiver = 'Sender and receiver must be different';
+  // Check if sender exists and is a valid number
+  if (!data.sender) {
+    errors.sender = 'Sender is required';
+  } else if (isNaN(Number(data.sender))) {
+    errors.sender = 'Sender must be a valid number';
+  }
+  
+  // Check if receiver exists and is a valid number
+  if (!data.receiver) {
+    errors.receiver = 'Receiver is required';
+  } else if (isNaN(Number(data.receiver))) {
+    errors.receiver = 'Receiver must be a valid number';
+  }
+  
+  // Check if sender and receiver are different
+  if (data.sender && data.receiver && Number(data.sender) === Number(data.receiver)) {
+    errors.receiver = 'Sender and receiver must be different';
+  }
+  
   if (!data.match_date) errors.match_date = 'Match date is required';
   if (!data.starting_time) errors.starting_time = 'Starting time is required';
   

@@ -199,7 +199,7 @@ const AboutPage = () => {
         ref={heroRef} 
         className="py-20 text-center min-h-screen flex items-center justify-center"
         style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=2936&auto=format&fit=crop')`,
+          backgroundImage: `url('https://images.unsplash.com/photo-1560272564-c83b66b1ad12?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
@@ -261,7 +261,7 @@ const AboutPage = () => {
           <div className="story-image relative">
             <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-blue-500 transform rotate-3 rounded-2xl"></div>
             <img 
-              src="https://images.unsplash.com/photo-1575361204480-aadea25e6e68?q=80&w=2071&auto=format&fit=crop" 
+              src="https://images.pexels.com/photos/3621104/pexels-photo-3621104.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1" 
               alt="Notre équipe" 
               className="relative z-10 rounded-2xl shadow-2xl transform -rotate-3 hover:rotate-0 transition-all duration-500"
             />
@@ -290,7 +290,7 @@ const AboutPage = () => {
                   <div className="timeline-marker absolute left-[-15px] md:left-1/2 md:transform md:translate-x-[-50%] w-8 h-8 rounded-full bg-green-500 border-4 border-[#222] z-10"></div>
                   <div className="md:w-1/2 md:pl-12 md:text-left">
                     <img 
-                      src="https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=2069&auto=format&fit=crop" 
+                      src="https://images.unsplash.com/photo-1459865264687-595d652de67e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80" 
                       alt="Ouverture" 
                       className="rounded-xl shadow-lg"
                     />
@@ -308,7 +308,7 @@ const AboutPage = () => {
                   <div className="timeline-marker absolute left-[-15px] md:left-1/2 md:transform md:translate-x-[-50%] w-8 h-8 rounded-full bg-green-500 border-4 border-[#222] z-10"></div>
                   <div className="md:w-1/2 md:pr-12 md:text-right">
                     <img 
-                      src="https://images.unsplash.com/photo-1555062725-a8705f2b0094?q=80&w=2070&auto=format&fit=crop" 
+                      src="https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80"
                       alt="Expansion" 
                       className="rounded-xl shadow-lg"
                     />
@@ -326,7 +326,7 @@ const AboutPage = () => {
                   <div className="timeline-marker absolute left-[-15px] md:left-1/2 md:transform md:translate-x-[-50%] w-8 h-8 rounded-full bg-green-500 border-4 border-[#222] z-10"></div>
                   <div className="md:w-1/2 md:pl-12">
                     <img 
-                      src="https://images.unsplash.com/photo-1600267175161-cfaa711b4a81?q=80&w=2070&auto=format&fit=crop" 
+                      src="https://images.unsplash.com/photo-1560520653-9e0e4c89eb11?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2073&q=80" 
                       alt="Innovation" 
                       className="rounded-xl shadow-lg"
                     />

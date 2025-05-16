@@ -14,9 +14,10 @@ import {
     Mail,
     Calendar,
     Users,
-    Trophy
+    Trophy,
+    Bug
 } from "lucide-react";
-import LogoGreen from '../img/logoGreen.PNG';
+import terraLogo from '../img/terraLogo.png';
 import { useSocialMedia } from "../contexts/SocialMediaContext";
 
 export const Footer = () => {
@@ -94,7 +95,7 @@ export const Footer = () => {
                     {/* Brand Section - 3 columns on large screens */}
                     <div className="lg:col-span-3 space-y-5">
                         <div className="transform hover:scale-105 transition-all duration-300 flex justify-center sm:justify-start">
-                            <img src={LogoGreen} alt="Logo" className="w-32 h-auto" />
+                            <img src={terraLogo} alt="Terrana FC Logo" className="w-32 h-auto" />
                         </div>
                         <p className="text-gray-300 text-sm leading-relaxed text-center sm:text-left">
                             Votre destination premium pour le football 5v5 et 6v6. 
@@ -145,6 +146,12 @@ export const Footer = () => {
                                 <Link to="/contactus" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
                                     <span className="bg-green-500 h-1.5 w-1.5 rounded-full mr-2"></span>
                                     Contact
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to="/report-bug" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                    <Bug className="w-4 h-4 mr-2 text-red-400" />
+                                    Signaler un bug
                                 </Link>
                             </li>
                         </ul>

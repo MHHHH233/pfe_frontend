@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useAnimation, AnimatePresence } from 'framer-motion';
-import { Mail, Phone, MapPin, Send, ArrowRight, CheckCircle, Clock, MessageCircle, AlertCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, ArrowRight, CheckCircle, Clock, MessageCircle, AlertCircle, Bug } from 'lucide-react';
 import { useSocialMedia } from '../contexts/SocialMediaContext';
 import { contactService } from '../lib/services/user/contactService';
 import { useLoading } from '../contexts/LoadingContext';
+import { Link } from 'react-router-dom';
 
 // Safe implementation of InView that doesn't rely on external hook
 // This avoids React version conflicts
@@ -378,6 +379,25 @@ const ContactUsFullscreen = () => {
                   </motion.div>
                 ))}
               </div>
+            </motion.div>
+
+            {/* Add Report Bug Link */}
+            <motion.div 
+              className="mt-6 text-center"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+            >
+              <p className="text-gray-300 mb-3">
+                Vous avez trouvé un bug sur notre site?
+              </p>
+              <Link 
+                to="/report-bug"
+                className="inline-flex items-center bg-red-500/20 text-red-400 hover:bg-red-500/30 px-4 py-2 rounded-full transition-colors"
+              >
+                <Bug size={16} className="mr-2" />
+                Signaler un bug
+              </Link>
             </motion.div>
           </motion.div>
 

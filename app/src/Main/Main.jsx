@@ -26,6 +26,8 @@ import PrivacyPolicy from "../Pages/PrivacyPolicy"
 import TermsOfService from "../Pages/TermsOfService"
 import AllTerrains from "../Pages/AllTerrains"
 import ScrollToTop from "../Component/ScrollToTop"
+import GoogleCallback from "./GoogleCallback"
+import ReportBug from "../Component/ReportBug"
 
 export const Main = () => {
     // useEffect(( Loading ? <Loader/> : null), [Loading])
@@ -44,7 +46,9 @@ export const Main = () => {
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/sign-in" element={<Login />} />
                     <Route path="/sign-up" element={<SignInForm />} />
+                    <Route path="/auth/google/callback" element={<GoogleCallback />} />
                     <Route path="/contactus" element={<ContactUsFullscreen />} />
+                    <Route path="/report-bug" element={<ReportBug />} />
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/players" element={<FindPlayerTeam />} />
                     <Route path="/teams" element={<FindPlayerTeam />} /> {/* Alias route */}

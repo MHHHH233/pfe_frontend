@@ -449,7 +449,7 @@ const ProfilePage = () => {
           let profilePicture = user.pfp;
           if (profilePicture && !profilePicture.startsWith('http')) {
             // Add base URL if it's a relative path
-            profilePicture = `http://127.0.0.1:8000/${profilePicture}`;
+            profilePicture = `${profilePicture}`;
           }
           
           setUserData({
