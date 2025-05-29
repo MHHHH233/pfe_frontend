@@ -4,9 +4,12 @@ import { useLocation } from "react-router-dom";
 import AnimatedCheck from "./Status/Confirmed";
 import AnimatedReserved from "./Status/Failed";
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Clock, MapPin, User, X, Mail, Phone, ChevronDown, CheckCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, X, Mail, Phone, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react';
 import userReservationService from '../../lib/services/user/reservationServices';
 import adminReservationService from '../../lib/services/admin/reservationServices';
+
+// Maximum reservations per day for regular users
+const MAX_DAILY_RESERVATIONS = 2;
 
 export default function FormResev({ Terrain, selectedHour, selectedTime, onSuccess }) {
   const location = useLocation();
@@ -14,6 +17,29 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   const userType = isAdmin ? "admin" : "client";
   const userId = sessionStorage.getItem("userId");
   const isLoggedIn = !!userId;
+  
+  // Add direct increment function
+  const incrementReservationCount = () => {
+    if (!isLoggedIn || isAdmin) return;
+    
+    try {
+      console.log("DIRECT INCREMENT FUNCTION CALLED");
+      const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+      console.log("BEFORE direct increment - Current count:", currentCount);
+      const newCount = currentCount + 1;
+      console.log("AFTER direct increment - New count:", newCount);
+      sessionStorage.setItem("today_reservations_count", newCount.toString());
+      
+      // Update component state
+      setDailyReservationCount(newCount);
+      setReachedDailyLimit(newCount >= MAX_DAILY_RESERVATIONS);
+      
+      return newCount;
+    } catch (error) {
+      console.error("Error incrementing reservation count:", error);
+      return null;
+    }
+  };
   
   // Initialize form with correct user ID
   const [formData, setFormData] = useState({
@@ -27,6 +53,42 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     telephone: '',
   });
   
+  // Add state for user's daily reservations
+  const [userDailyReservations, setUserDailyReservations] = useState([]);
+  const [dailyReservationCount, setDailyReservationCount] = useState(0);
+  const [reachedDailyLimit, setReachedDailyLimit] = useState(false);
+  const [loadingReservationCount, setLoadingReservationCount] = useState(false);
+  
+  // Use session storage reservation count
+  useEffect(() => {
+    if (isLoggedIn && !isAdmin) {
+      const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+      console.log("Reading reservation count from session storage:", count);
+      setDailyReservationCount(count);
+      setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+    }
+  }, [isLoggedIn, isAdmin]);
+  
+  // Add a refresh interval to keep the count in sync
+  useEffect(() => {
+    if (!isLoggedIn || isAdmin) return;
+    
+    // Function to update count from session storage
+    const updateCountFromSession = () => {
+      const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+      setDailyReservationCount(count);
+      setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+    };
+    
+    // Update immediately
+    updateCountFromSession();
+    
+    // Set up interval to check for changes
+    const intervalId = setInterval(updateCountFromSession, 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [isLoggedIn, isAdmin]);
+  
   // When terrain changes, update form data
   useEffect(() => {
     // Check if we need to update the form based on new terrain
@@ -38,7 +100,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     }
   }, [Terrain]);
   
-  // When hour or date changes, update form data
+  // When hour or date changes, update form data and check reservation limits
   useEffect(() => {
     if (selectedHour || selectedTime) {
       setFormData(prev => ({
@@ -131,7 +193,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     return timeString;
   };
 
-  // Modify the handleSubmit function to use null instead of 0 for id_client
+  // Modify the handleSubmit function to not increment the count yet
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -141,6 +203,12 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     // Basic validation
     if (!formData.id_terrain || !formData.date || !formData.heure) {
       setError("Please fill in all required fields");
+      return;
+    }
+    
+    // Check daily reservation limit for logged-in non-admin users
+    if (isLoggedIn && !isAdmin && dailyReservationCount >= MAX_DAILY_RESERVATIONS) {
+      setError(`You have reached the maximum limit of ${MAX_DAILY_RESERVATIONS} reservations per day.`);
       return;
     }
     
@@ -191,10 +259,22 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     setReservationData(null);
   };
 
-  // Add a function to handle successful reservation
+  // Update handleReservationSuccess to directly update the count from session storage
   const handleReservationSuccess = () => {
     setSuccess(true);
     setShowConfirmation(false);
+    
+    // IMMEDIATELY update the count from session storage
+    if (isLoggedIn && !isAdmin) {
+      try {
+        const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+        console.log("IMMEDIATE update of count in handleReservationSuccess:", count);
+        setDailyReservationCount(count);
+        setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+      } catch (error) {
+        console.error("Error reading reservation count:", error);
+      }
+    }
     
     // Clear form with the correct structure
     setFormData({
@@ -208,12 +288,17 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       telephone: ''
     });
     
-    // Dispatch event for successful reservation to trigger table refresh
-    const event = new CustomEvent('reservationSuccess');
-    document.dispatchEvent(event);
+    // Call the onSuccess callback to refresh reservations via API
+    if (onSuccess) {
+      console.log("Refreshing reservation table via API call");
+      onSuccess();
+    }
     
-    // Call the onSuccess callback to refresh reservations
-    if (onSuccess) onSuccess();
+    // Dispatch event for successful reservation to trigger table refresh
+    const event = new CustomEvent('reservationSuccess', {
+      detail: { refreshNeeded: true }
+    });
+    document.dispatchEvent(event);
     
     // Reset state to allow for new reservation
     setTimeout(() => {
@@ -246,13 +331,43 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       setTimeout(() => {
         setSuccess(false);
       }, 500);
+      
+      // Update reservation count from session storage
+      if (isLoggedIn && !isAdmin) {
+        const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+        console.log("Updating count after popup closed:", count);
+        setDailyReservationCount(count);
+        setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+      }
+    };
+
+    // Add event listener for reservation success events
+    const handleReservationSuccess = (event) => {
+      // Only increment the count if the reservation is confirmed
+      if (event.detail && event.detail.reservationConfirmed && isLoggedIn && !isAdmin) {
+        console.log("Confirmed reservation detected, incrementing count");
+        incrementReservationCount();
+      }
+      
+      // Always update from session storage as a fallback
+      setTimeout(() => {
+        if (isLoggedIn && !isAdmin) {
+          const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+          console.log("Delayed count update after reservation:", count);
+          setDailyReservationCount(count);
+          setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+        }
+      }, 500);
     };
 
     document.addEventListener('statusPopupClosed', handleStatusPopupClosed);
+    document.addEventListener('reservationSuccess', handleReservationSuccess);
+    
     return () => {
       document.removeEventListener('statusPopupClosed', handleStatusPopupClosed);
+      document.removeEventListener('reservationSuccess', handleReservationSuccess);
     };
-  }, []);
+  }, [dailyReservationCount, isLoggedIn, isAdmin]);
 
   return (
     <motion.div
@@ -277,6 +392,43 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
           </motion.div>
         )}
       </div>
+      
+      {/* Daily Reservation Limit Info for logged-in users */}
+      {isLoggedIn && !isAdmin && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-6 p-4 rounded-lg border ${
+            reachedDailyLimit 
+              ? "bg-red-500/10 border-red-500/30 text-red-400" 
+              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            {loadingReservationCount ? (
+              <div className="animate-spin h-5 w-5 border-2 border-current border-t-transparent rounded-full"></div>
+            ) : reachedDailyLimit ? (
+              <AlertCircle size={20} />
+            ) : (
+              <Calendar size={20} />
+            )}
+            <div>
+              <p className="font-medium">
+                {reachedDailyLimit 
+                  ? `Daily limit reached (${dailyReservationCount}/${MAX_DAILY_RESERVATIONS})` 
+                  : `Reservations today: ${dailyReservationCount}/${MAX_DAILY_RESERVATIONS}`
+                }
+              </p>
+              <p className="text-xs opacity-80 mt-1">
+                {reachedDailyLimit 
+                  ? "You've reached the maximum number of reservations for this day" 
+                  : `You can make ${MAX_DAILY_RESERVATIONS - dailyReservationCount} more reservation(s) today`
+                }
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
       
       {/* Selected Terrain Card */}
       {terrainId && (
@@ -491,7 +643,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             type="submit"
-            disabled={loading}
+            disabled={loading || (!isAdmin && reachedDailyLimit)}
             className={`px-5 py-2 rounded-lg font-medium transition-all duration-200
                       bg-green-500 text-white
                       hover:bg-green-600

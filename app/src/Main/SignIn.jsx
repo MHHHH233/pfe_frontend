@@ -49,6 +49,8 @@ const LoginForm = () => {
           sessionStorage.setItem("type", userData.role);
           sessionStorage.setItem("name", userData.name);
           
+          // Store today's reservation count
+          sessionStorage.setItem("today_reservations_count", response.data.today_reservations_count || 0);
           // Store academy membership status
           sessionStorage.setItem("has_academie_membership", response.data.has_academie_membership);
           
@@ -122,11 +124,8 @@ const validateFormData = ({ email, password }) => {
       errors.email = "Veuillez entrer une adresse email valide.";
   }
 
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
   if (!password) {
       errors.password = "Le mot de passe est obligatoire.";
-  } else if (!passwordRegex.test(password)) {
-      errors.password = "Au moins 6 caractères, une lettre majuscule, une lettre minuscule, un chiffre.";
   }
 
   return errors;

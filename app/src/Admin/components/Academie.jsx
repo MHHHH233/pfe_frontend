@@ -519,6 +519,8 @@ const AcademieSection = ({ academies, setAcademies }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const showNotification = useNotification();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [academieToDelete, setAcademieToDelete] = useState(null);
 
   // Fetch academies on component mount
   useEffect(() => {
@@ -568,18 +570,25 @@ const AcademieSection = ({ academies, setAcademies }) => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this academy?')) return;
+  const handleDeleteClick = (academie) => {
+    setAcademieToDelete(academie);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!academieToDelete?.id_academie) return;
     
     try {
       setLoading(true);
-      await academieService.deleteAcademie(id);
-      setAcademies(prev => prev.filter(a => a.id_academie !== id));
+      await academieService.deleteAcademie(academieToDelete.id_academie);
+      setAcademies(prev => prev.filter(a => a.id_academie !== academieToDelete.id_academie));
       showNotification('Academy deleted successfully');
+      setIsDeleteModalOpen(false);
     } catch (error) {
       showNotification('Failed to delete academy', 'error');
     } finally {
       setLoading(false);
+      setAcademieToDelete(null);
     }
   };
 
@@ -648,7 +657,7 @@ const AcademieSection = ({ academies, setAcademies }) => {
                 setSelectedAcademie(academie);
                 setIsEditModalOpen(true);
               }}
-              onDelete={() => handleDelete(academie.id_academie)}
+              onDelete={() => handleDeleteClick(academie)}
             />
           ))}
         </motion.ul>
@@ -670,6 +679,13 @@ const AcademieSection = ({ academies, setAcademies }) => {
       <Modal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} title="Add Academy">
         <AcademieForm onSubmit={handleAdd} />
       </Modal>
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName="academy"
+      />
     </section>
   );
 };
@@ -816,6 +832,8 @@ const ActivitySection = ({ activities, setActivities, academies }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const showNotification = useNotification();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [activityToDelete, setActivityToDelete] = useState(null);
 
   useEffect(() => {
     fetchActivities();
@@ -864,18 +882,25 @@ const ActivitySection = ({ activities, setActivities, academies }) => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this activity?')) return;
+  const handleDeleteClick = (activity) => {
+    setActivityToDelete(activity);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!activityToDelete?.id_activites) return;
     
     try {
       setLoading(true);
-      await academieActivitesService.deleteActivite(id);
-      setActivities(prev => prev.filter(a => a.id_activites !== id));
+      await academieActivitesService.deleteActivite(activityToDelete.id_activites);
+      setActivities(prev => prev.filter(a => a.id_activites !== activityToDelete.id_activites));
       showNotification('Activity deleted successfully');
+      setIsDeleteModalOpen(false);
     } catch (error) {
       showNotification('Failed to delete activity', 'error');
     } finally {
       setLoading(false);
+      setActivityToDelete(null);
     }
   };
 
@@ -923,7 +948,7 @@ const ActivitySection = ({ activities, setActivities, academies }) => {
                 setSelectedActivity(activity);
                 setIsEditModalOpen(true);
               }}
-              onDelete={() => handleDelete(activity.id_activites)}
+              onDelete={() => handleDeleteClick(activity)}
             />
           ))}
         </motion.ul>
@@ -949,6 +974,13 @@ const ActivitySection = ({ activities, setActivities, academies }) => {
           onSubmit={handleAdd}
         />
       </Modal>
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName="activity"
+      />
     </section>
   );
 };
@@ -1085,6 +1117,8 @@ const CoachSection = ({ coaches, setCoaches, academies }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const showNotification = useNotification();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [coachToDelete, setCoachToDelete] = useState(null);
 
   useEffect(() => {
     fetchCoaches();
@@ -1133,18 +1167,25 @@ const CoachSection = ({ coaches, setCoaches, academies }) => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this coach?')) return;
+  const handleDeleteClick = (coach) => {
+    setCoachToDelete(coach);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!coachToDelete?.id_coach) return;
     
     try {
       setLoading(true);
-      await academieCoachesService.deleteCoach(id);
-      setCoaches(prev => prev.filter(c => c.id_coach !== id));
+      await academieCoachesService.deleteCoach(coachToDelete.id_coach);
+      setCoaches(prev => prev.filter(c => c.id_coach !== coachToDelete.id_coach));
       showNotification('Coach deleted successfully');
+      setIsDeleteModalOpen(false);
     } catch (error) {
       showNotification('Failed to delete coach', 'error');
     } finally {
       setLoading(false);
+      setCoachToDelete(null);
     }
   };
 
@@ -1207,7 +1248,7 @@ const CoachSection = ({ coaches, setCoaches, academies }) => {
                 setSelectedCoach(coach);
                 setIsEditModalOpen(true);
               }}
-              onDelete={() => handleDelete(coach.id_coach)}
+              onDelete={() => handleDeleteClick(coach)}
             />
           ))}
         </ul>
@@ -1233,6 +1274,13 @@ const CoachSection = ({ coaches, setCoaches, academies }) => {
           onSubmit={handleAdd}
         />
       </Modal>
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName="coach"
+      />
     </section>
   );
 };
@@ -1498,6 +1546,8 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const showNotification = useNotification();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [programmeToDelete, setProgrammeToDelete] = useState(null);
 
   useEffect(() => {
     fetchProgrammes();
@@ -1546,18 +1596,25 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this programme?')) return;
+  const handleDeleteClick = (programme) => {
+    setProgrammeToDelete(programme);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!programmeToDelete?.id_programme) return;
     
     try {
       setLoading(true);
-      await academieProgrammesService.deleteProgramme(id);
-      setProgrammes(prev => prev.filter(p => p.id_programme !== id));
+      await academieProgrammesService.deleteProgramme(programmeToDelete.id_programme);
+      setProgrammes(prev => prev.filter(p => p.id_programme !== programmeToDelete.id_programme));
       showNotification('Programme deleted successfully');
+      setIsDeleteModalOpen(false);
     } catch (error) {
       showNotification('Failed to delete programme', 'error');
     } finally {
       setLoading(false);
+      setProgrammeToDelete(null);
     }
   };
 
@@ -1625,7 +1682,7 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
                 setSelectedProgramme(programme);
                 setIsEditModalOpen(true);
               }}
-              onDelete={() => handleDelete(programme.id_programme)}
+              onDelete={() => handleDeleteClick(programme)}
             />
           ))}
         </motion.ul>
@@ -1651,6 +1708,13 @@ const ProgrammeSection = ({ programmes, setProgrammes, academies }) => {
           onSubmit={handleAdd}
         />
       </Modal>
+
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        itemName="programme"
+      />
     </section>
   );
 };

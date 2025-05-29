@@ -18,40 +18,60 @@ const TableCell = memo(({ reservation, heure, colIndex, handleClick, isPast }) =
   let textColor = "text-white";
   let buttonClass = "bg-green-600 hover:bg-green-700 text-white";
   let statusText = "Dispo";
+  let tooltipText = "Available for booking";
   
   if (isPast) {
     bgColor = "bg-gray-600";
     textColor = "text-gray-400";
     statusText = "Passé";
+    tooltipText = "This time slot has passed";
   } else if (isReserved) {
     if (reservation.etat === "en attente") {
+      // Simplified - just show pending status without expiration logic
       bgColor = "bg-yellow-500";
       textColor = "text-black";
-      buttonClass = "bg-yellow-500 hover:bg-yellow-600 text-black";
-      statusText = "En attente";
+      statusText = "Pending";
+      tooltipText = "Pending reservation";
+    } else if (reservation.etat === "confirmed") {
+      bgColor = "bg-blue-500";
+      textColor = "text-white";
+      statusText = "Confirmed";
+      tooltipText = "This reservation is confirmed";
     } else {
       bgColor = "bg-red-500";
       textColor = "text-white";
       statusText = "Réservé";
+      tooltipText = "This time slot is reserved";
     }
   }
 
   return (
     <td className={`border border-gray-700 p-1 sm:p-2 text-center ${bgColor} ${textColor}`}>
-      {!isPast && !isReserved ? (
-        <motion.button
-          className={`text-2xs sm:text-xs font-semibold px-1 py-0.5 rounded ${buttonClass}`}
-          onClick={() => handleClick(heure, colIndex)}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          {statusText}
-        </motion.button>
-      ) : (
-        <motion.span className="text-2xs sm:text-xs font-semibold">
-          {statusText}
-        </motion.span>
-      )}
+      <div className="group relative">
+        {!isPast && !isReserved ? (
+          <motion.button
+            className={`text-2xs sm:text-xs font-semibold px-1 py-0.5 rounded ${buttonClass}`}
+            onClick={() => handleClick(heure, colIndex)}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {statusText}
+          </motion.button>
+        ) : (
+          <motion.span className="text-2xs sm:text-xs font-semibold">
+            {statusText}
+          </motion.span>
+        )}
+        
+        {/* Tooltip */}
+        <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded py-1 px-2 
+                      bottom-full left-1/2 transform -translate-x-1/2 -translate-y-1 w-32 shadow-lg">
+          {tooltipText}
+          <svg className="absolute text-gray-900 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255">
+            <polygon className="fill-current" points="0,0 127.5,127.5 255,0"/>
+          </svg>
+        </div>
+      </div>
     </td>
   );
 });
@@ -110,6 +130,29 @@ export default function Tableau({ terrain }) {
   const [selectedTerrain, setSelectedTerrain] = useState(terrain?.id_terrain || null);
   const [terrainDetails, setTerrainDetails] = useState(terrain || null);
   
+  // Add state to track current reservation count
+  const [currentReservationCount, setCurrentReservationCount] = useState(0);
+  const isAdmin = sessionStorage.getItem("type") === "admin";
+  const isLoggedIn = !!sessionStorage.getItem("userId");
+  
+  // Add effect to update reservation count from session storage
+  useEffect(() => {
+    if (isLoggedIn && !isAdmin) {
+      const updateCountFromSession = () => {
+        const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+        setCurrentReservationCount(count);
+      };
+      
+      // Update immediately
+      updateCountFromSession();
+      
+      // Set up interval to check for changes
+      const intervalId = setInterval(updateCountFromSession, 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [isLoggedIn, isAdmin]);
+  
   // Add a debouncing mechanism to prevent multiple rapid API calls
   const debounceTimeoutRef = useRef(null);
   const isInitialMount = useRef(true);
@@ -156,14 +199,14 @@ export default function Tableau({ terrain }) {
   }, [terrainDetails]);
 
   // Use useCallback to prevent recreation of this function on every render
-  const fetchReservations = useCallback(async () => {
+  const fetchReservations = useCallback(async (forceRefresh = false) => {
     if (!terrainDetails) return;
     
-    // Check cache first
+    // Check cache first (unless force refresh is requested)
     const cacheKey = `terrain_${terrainDetails.id_terrain}`;
     const cachedData = reservationsCache.get(cacheKey);
     
-    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_DURATION_MS)) {
+    if (!forceRefresh && cachedData && (Date.now() - cachedData.timestamp < CACHE_DURATION_MS)) {
       console.log("Using cached reservation data for terrain:", terrainDetails.id_terrain);
       setReservations(cachedData.data);
       setError(null);
@@ -332,8 +375,24 @@ export default function Tableau({ terrain }) {
   // Add event listeners for reservation status updates
   useEffect(() => {
     // Event listener for when a reservation is completed
-    const handleReservationComplete = () => {
-      fetchReservations();
+    const handleReservationComplete = (event) => {
+      console.log("Reservation event received, refreshing table data");
+      
+      // Always force a fresh API call by invalidating cache
+      if (event.detail && event.detail.refreshNeeded) {
+        console.log("Forced refresh requested, clearing cache");
+        // Clear cache for this terrain
+        if (terrainDetails && terrainDetails.id_terrain) {
+          const cacheKey = `terrain_${terrainDetails.id_terrain}`;
+          reservationsCache.delete(cacheKey);
+        }
+        
+        // Force refresh by passing true
+        fetchReservations(true);
+      } else {
+        // Normal refresh
+        fetchReservations();
+      }
     };
     
     // Listen for reservation success events
@@ -393,7 +452,7 @@ export default function Tableau({ terrain }) {
           sessionStorage.getItem("type") === "admin" ? "w-full" : ""
         }`}
       >
-        <div className="flex justify-between items-center mb-2 sm:mb-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
           <h2 className="text-lg sm:text-xl font-semibold text-white">
             Terrain sélectionné :{" "}
             <span className="text-green-400">
@@ -401,6 +460,36 @@ export default function Tableau({ terrain }) {
             </span>
           </h2>
         </div>
+        
+        {/* Status legend */}
+        <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-green-500 rounded"></div>
+            <span className="text-white">Available</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+            <span className="text-white">Pending</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-500 rounded"></div>
+            <span className="text-white">Réservé</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-600 rounded"></div>
+            <span className="text-white">Past</span>
+          </div>
+        </div>
+        
+        {/* Debug reservation count for non-admin users */}
+        {isLoggedIn && !isAdmin && (
+          <div className="mb-4 p-2 bg-gray-800/80 rounded-lg text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-gray-400">Today's reservations:</span>
+              <span className="font-mono font-bold text-white">{currentReservationCount}/2</span>
+            </div>
+          </div>
+        )}
         
         {!terrainDetails ? (
           <div className="text-center p-6 text-gray-400">

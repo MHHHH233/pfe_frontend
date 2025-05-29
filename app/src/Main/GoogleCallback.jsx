@@ -29,6 +29,7 @@ const GoogleCallback = () => {
           const avatar = params.get('avatar');
           const status = params.get('status');
           const role = params.get('role');
+          const todayReservationsCount = params.get('today_reservations_count');
           
           // Verify successful status
           if (status !== 'success') {
@@ -61,7 +62,8 @@ const GoogleCallback = () => {
               has_academie_membership: false,
               academie_memberships: [],
               has_teams: false,
-              teams: []
+              teams: [],
+              today_reservations_count: parseInt(todayReservationsCount || '0', 10)
             }
           };
           
@@ -106,6 +108,11 @@ const GoogleCallback = () => {
         sessionStorage.setItem("name", fullName);
         sessionStorage.setItem("nom", userData.nom);
         sessionStorage.setItem("prenom", userData.prenom);
+        
+        // Store today's reservation count
+        const todayReservationsCount = response.data.today_reservations_count || 0;
+        sessionStorage.setItem("today_reservations_count", todayReservationsCount);
+        console.log("Today's reservations count:", todayReservationsCount);
         
         // Additional user fields 
         if (userData.age) sessionStorage.setItem("age", userData.age);
@@ -162,7 +169,8 @@ const GoogleCallback = () => {
           name: fullName,
           role: userData.role,
           teams: response.data.has_teams ? response.data.teams.length : 0,
-          academie: response.data.has_academie_membership ? response.data.academie_memberships.length : 0
+          academie: response.data.has_academie_membership ? response.data.academie_memberships.length : 0,
+          today_reservations_count: response.data.today_reservations_count
         });
 
         // Navigate based on role

@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import AnimatedCheck from './Status/Confirmed';
 import AnimatedReserved from './Status/Failed';
 import AnimatedPending from './Status/Pending';
-import { CreditCard, Wallet, Calendar, Clock, MapPin, User, Lock, Star, ThumbsUp } from 'lucide-react';
+import { CreditCard, Wallet, Calendar, Clock, MapPin, User, Lock, Star, ThumbsUp, Mail } from 'lucide-react';
 import userReservationService from '../../lib/services/user/reservationServices';
 import adminReservationService from '../../lib/services/admin/reservationServices';
 import reviewsService from '../../lib/services/user/reviewsService';
@@ -84,6 +84,10 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
   });
   const isAdmin = sessionStorage.getItem("type") === "admin";
   
+  // New states for reservation expiration
+  const [expirationTime, setExpirationTime] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  
   // New states for review
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [rating, setRating] = useState(0);
@@ -99,6 +103,10 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     isAdmin: false,
     isLoggedIn: false
   });
+
+  // New state for handling new user notifications
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
 
   // Improved terrain price extraction with better fallbacks
   const getTerrain = () => {
@@ -197,6 +205,51 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     }));
   };
 
+  // Add a component to display the new user notification
+  const NewUserPopup = () => {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+        <motion.div
+          className="bg-[#1a1a1a] rounded-2xl p-6 max-w-[90%] w-[380px] text-center shadow-lg border border-gray-800"
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+        >
+          <div className="p-3 bg-blue-500/20 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <Mail size={30} className="text-blue-400" />
+          </div>
+          
+          <h3 className="text-xl font-semibold text-white mb-2">Account Created Successfully!</h3>
+          
+          <p className="text-gray-300 mb-4">
+            Your account has been automatically created. Please check your email at <span className="text-blue-400 font-medium">{newUserEmail}</span> for your password and login details.
+          </p>
+          
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-5">
+            <p className="text-blue-400 text-sm mb-2">
+              For a better experience, please log in with your credentials to manage your reservations and access more features.
+            </p>
+            <p className="text-yellow-400 text-sm flex items-center justify-center mt-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>If you don't see the email, please check your spam/junk folder and mark it as "not spam"</span>
+            </p>
+          </div>
+          
+          <button
+            onClick={() => setIsNewUser(false)}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all w-full font-medium"
+          >
+            Got It
+          </button>
+        </motion.div>
+      </div>
+    );
+  };
+  
+  // Modify the handleSubmit function to check for is_new_user flag
   const handleSubmit = async (paymentMethod, e) => {
     if (e) {
       e.preventDefault(); // Prevent any default behavior to avoid page reload
@@ -268,13 +321,39 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       const isSuccess = response.success || response.status === 'success' || !!response.data;
       
       if (isSuccess) {
+        // Check if a new user account was created
+        if (response.is_new_user) {
+          setIsNewUser(true);
+          setNewUserEmail(response.user_email || data.email || '');
+        }
+        
         // Set the reservation ID for later use with reviews
         if (response.data && response.data.id) {
           setReviewId(response.data.id);
         }
         
-        // For non-admin logged-in users, show review form immediately instead of status
+        // ALWAYS increment the reservation count for ANY successful reservation
         if (!isAdmin && isLoggedIn) {
+          try {
+            const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+            console.log("BEFORE increment - Current count:", currentCount);
+            const newCount = currentCount + 1;
+            console.log("AFTER increment - New count:", newCount);
+            sessionStorage.setItem("today_reservations_count", newCount.toString());
+          } catch (error) {
+            console.error("Error updating reservation count:", error);
+          }
+        }
+        
+        // If a new user was created, show the new user popup instead of proceeding
+        if (response.is_new_user) {
+          // Hide all other popups
+          setShowPaymentForm(false);
+          setShowReviewForm(false);
+          setStatus(null);
+        }
+        // For non-admin logged-in users, show review form immediately instead of status
+        else if (!isAdmin && isLoggedIn) {
           console.log("Showing review form immediately after successful reservation");
           setStatus(null); // Clear any previous status
           setShowReviewForm(true); // Show review form immediately
@@ -291,12 +370,23 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
             // Regular user reservations with cash payment are pending
             setStatus('pending');
             setMsg('Reservation pending! Please proceed to the store for payment.');
+            
+            // Set expiration time for pending reservations (1 hour from now)
+            const expiry = new Date();
+            expiry.setHours(expiry.getHours() + 1);
+            setExpirationTime(expiry);
           }
         }
         
         // Dispatch an event to notify about successful reservation
+        // For online payments or admin reservations, include reservationConfirmed: true
+        // For cash payments that are pending, don't include this flag
         const event = new CustomEvent('reservationSuccess', { 
-          detail: { response: response.data || response }
+          detail: { 
+            response: response.data || response,
+            refreshNeeded: true,
+            reservationConfirmed: isAdmin || paymentMethod === 'online'
+          }
         });
         document.dispatchEvent(event);
       } else {
@@ -317,6 +407,33 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       setLoading(false);
     }
   };
+  
+  // Add a countdown timer effect for pending reservations
+  useEffect(() => {
+    if (!expirationTime) return;
+    
+    const updateTimer = () => {
+      const now = new Date();
+      const diff = expirationTime - now;
+      
+      if (diff <= 0) {
+        // Just show the remaining time as 0, don't change status to expired
+        setTimeRemaining({ minutes: 0, seconds: 0 });
+        return;
+      }
+      
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      
+      setTimeRemaining({ minutes, seconds });
+    };
+    
+    // Update immediately then set interval
+    updateTimer();
+    const timerId = setInterval(updateTimer, 1000);
+    
+    return () => clearInterval(timerId);
+  }, [expirationTime]);
   
   // Add a function to validate payment form data
   const validatePaymentForm = () => {
@@ -367,7 +484,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     });
   };
   
-  // Update the handlePaymentSubmit function to improve reliability
+  // Update the handlePaymentSubmit function to handle new user creation
   const handlePaymentSubmit = async (e) => {
     if (e) {
       e.preventDefault(); // Always prevent default to avoid page reload
@@ -431,33 +548,64 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       const isSuccess = response.success || response.status === 'success' || !!response.data;
       
       if (isSuccess) {
-        // Set the reservation ID for later use with reviews
-        if (response.data && response.data.id) {
-          setReviewId(response.data.id);
-        }
-        
-        // IMPORTANT: Hide payment form first and ensure it's fully gone
-        setShowPaymentForm(false);
-        
-        // Only show review form for non-admin logged-in users
-        if (!isAdmin && isLoggedIn) {
-          console.log("Showing review form immediately after successful payment");
-          setStatus(null); // Clear any previous status
+        // Check if a new user account was created
+        if (response.is_new_user) {
+          // Hide payment form immediately
+          setShowPaymentForm(false);
           
-          // Use a small timeout to ensure the payment form is fully unmounted
-          setTimeout(() => {
-            setShowReviewForm(true); // Show review form after payment form is gone
-          }, 50); 
+          // Set new user state
+          setIsNewUser(true);
+          setNewUserEmail(response.user_email || data.email || '');
+          
+          // Don't proceed to other popups yet
+          setShowReviewForm(false);
+          setStatus(null);
         } else {
-          // Show success status for admins or non-logged in users
-          console.log("Showing success status for admin or non-logged in user");
-          setMsg('Payment successful and reservation confirmed!');
-          setStatus('success');
+          // Set the reservation ID for later use with reviews
+          if (response.data && response.data.id) {
+            setReviewId(response.data.id);
+          }
+          
+          // IMPORTANT: Hide payment form first and ensure it's fully gone
+          setShowPaymentForm(false);
+          
+          // ALWAYS increment the reservation count for ANY successful reservation
+          if (!isAdmin && isLoggedIn) {
+            try {
+              const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+              console.log("BEFORE increment - Current count:", currentCount);
+              const newCount = currentCount + 1;
+              console.log("AFTER increment - New count:", newCount);
+              sessionStorage.setItem("today_reservations_count", newCount.toString());
+            } catch (error) {
+              console.error("Error updating reservation count:", error);
+            }
+          }
+          
+          // Only show review form for non-admin logged-in users
+          if (!isAdmin && isLoggedIn) {
+            console.log("Showing review form immediately after successful payment");
+            setStatus(null); // Clear any previous status
+            
+            // Use a small timeout to ensure the payment form is fully unmounted
+            setTimeout(() => {
+              setShowReviewForm(true); // Show review form after payment form is gone
+            }, 50); 
+          } else {
+            // Show success status for admins or non-logged in users
+            console.log("Showing success status for admin or non-logged in user");
+            setMsg('Payment successful and reservation confirmed!');
+            setStatus('success');
+          }
         }
         
-        // Dispatch an event to notify about successful reservation
+        // Dispatch an event to notify about successful reservation with confirmed flag
         const event = new CustomEvent('reservationSuccess', { 
-          detail: { response: response.data || response }
+          detail: { 
+            response: response.data || response,
+            refreshNeeded: true,
+            reservationConfirmed: true // Online payment is always confirmed
+          }
         });
         document.dispatchEvent(event);
       } else {
@@ -473,6 +621,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     }
   };
   
+  // Update closePopup to also reset new user state
   const closePopup = (e) => {
     if (e) {
       e.preventDefault(); // Prevent default behavior if event is provided
@@ -486,6 +635,8 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     setStatus(null);
     setMsg('');
     setError(null);
+    setIsNewUser(false);
+    setNewUserEmail('');
     
     // Reset payment data
     setPaymentData({
@@ -767,10 +918,39 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
     }));
   };
   
+  // Add a component to render the countdown timer
+  const ExpirationCountdown = () => {
+    if (!timeRemaining) return null;
+    
+    const { minutes, seconds } = timeRemaining;
+    const isExpiringSoon = minutes === 0 && seconds <= 300; // 5 minutes or less
+    
+    return (
+      <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock size={18} className="text-yellow-400" />
+            <div>
+              <p className="text-sm font-medium text-yellow-400">
+                Payment deadline
+              </p>
+              <p className="text-xs text-gray-400">
+                Please complete payment before time expires
+              </p>
+            </div>
+          </div>
+          <div className="font-mono font-bold text-lg text-yellow-400">
+            {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <AnimatePresence>
       {/* Initial reservation confirmation form */}
-      {isVisible && status === null && !showReviewForm && (
+      {isVisible && status === null && !showReviewForm && !isNewUser && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
           onClick={(e) => {
@@ -1011,6 +1191,14 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
                   <Wallet className="mr-2" size={18} />
                   Pay In-Store (Cash)
                 </Button>
+                
+                {/* Add expiration notice */}
+                <div className="mt-2 p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
+                  <p className="text-yellow-400 text-sm flex items-center">
+                    <Clock size={16} className="mr-2 flex-shrink-0" />
+                    <span>In-store payments must be completed within 1 hour or your reservation will be automatically cancelled.</span>
+                  </p>
+                </div>
               </div>
             )}
           </motion.div>
@@ -1018,7 +1206,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       )}
       
       {/* Review form popup - completely separate component */}
-      {isVisible && showReviewForm && !isAdmin && isLoggedIn && (
+      {isVisible && showReviewForm && !isAdmin && isLoggedIn && !isNewUser && (
         <motion.div
           className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
           initial={{ opacity: 0 }}
@@ -1053,9 +1241,43 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus }) {
       )}
       
       {/* Status animations */}
-      {status === 'success' && <AnimatedCheck onClose={resetStatus} />}
-      {status === 'pending' && <AnimatedPending onClose={resetStatus} />}
-      {status === 'failed' && <AnimatedReserved onClose={resetStatus} />}
+      {status === 'success' && !isNewUser && <AnimatedCheck onClose={resetStatus} />}
+      {status === 'pending' && !isNewUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
+          <motion.div
+            className="bg-[#1a1a1a] rounded-2xl p-6 max-w-[90%] w-[380px] text-center shadow-lg border border-gray-800"
+            variants={cardVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <AnimatedPending />
+            <h3 className="text-xl font-semibold text-white mt-4">Reservation Pending</h3>
+            <p className="text-gray-400 mt-2">Please proceed to the store for payment to confirm your reservation.</p>
+            
+            {/* Countdown timer */}
+            <ExpirationCountdown />
+            
+            {/* Add prominent expiration warning */}
+            <div className="mt-4 p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
+              <p className="text-yellow-400 text-sm font-medium">
+                Important: Your reservation will be automatically cancelled if payment is not completed within the time shown above.
+              </p>
+            </div>
+            
+            <button
+              onClick={resetStatus}
+              className="mt-6 px-6 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-all"
+            >
+              Close
+            </button>
+          </motion.div>
+        </div>
+      )}
+      {status === 'failed' && !isNewUser && <AnimatedReserved onClose={resetStatus} />}
+      
+      {/* New user notification popup */}
+      {isVisible && isNewUser && <NewUserPopup />}
     </AnimatePresence>
   );
 }

@@ -28,6 +28,7 @@ import AllTerrains from "../Pages/AllTerrains"
 import ScrollToTop from "../Component/ScrollToTop"
 import GoogleCallback from "./GoogleCallback"
 import ReportBug from "../Component/ReportBug"
+import ChatBot from "./ChatBot"
 
 export const Main = () => {
     // useEffect(( Loading ? <Loader/> : null), [Loading])
@@ -104,8 +105,11 @@ export const Main = () => {
             {/* Only show footer on non-admin and non-client pages */}
             {!isAdminPage && location.pathname !== "/Client" && <Footer/>}
             
-            {/* Add ScrollToTop component */}
-            {!isAdminPage && <ScrollToTop />}
+            {/* Add ScrollToTop component on the left side */}
+            {!isAdminPage && <div className="fixed bottom-5 left-5 z-50"><ScrollToTop /></div>}
+            
+            {/* Add ChatBot component on the right side */}
+            {!isAdminPage && <ChatBot />}
         </div>
     )
 }
