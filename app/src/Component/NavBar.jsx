@@ -38,69 +38,67 @@ export const NavBar = () => {
                 } else if (currentScroll > 50 && currentScroll > lastScroll) {
                     setMenuOpen(false);
                     setNavbarVisible(false);
-                    // Close popups on scroll - removed to prevent unwanted closings
-                    // setShowNotifications(false);
-                    // setShowReservations(false);
                 }
                 lastScroll = currentScroll;
             }, 50);
         };
 
-        const handleClickOutside = (e) => {
-            if (menuOpen && menuRef.current && !menuRef.current.contains(e.target) && 
-                !burgerRef.current.contains(e.target)) {
-                setMenuOpen(false);
-            }
-        };
-    
         window.addEventListener("scroll", handleScroll);
-        document.addEventListener("mousedown", handleClickOutside);
     
         return () => {
             window.removeEventListener("scroll", handleScroll);
-            document.removeEventListener("mousedown", handleClickOutside);
             clearTimeout(timeout);
         };
     }, [menuOpen]);
 
-    // Remove the click handler that might be accidentally closing popups
+    // Improved click outside handler for menu
     useEffect(() => {
         const handleClickOutside = (event) => {
             // Close menu when clicking outside
             if (menuOpen && menuRef.current && !menuRef.current.contains(event.target) && 
-                !burgerRef.current.contains(event.target)) {
+                burgerRef.current && !burgerRef.current.contains(event.target)) {
                 setMenuOpen(false);
             }
             
-            // We'll handle popup closing in each popup component instead
-            // This prevents unwanted interactions between popups
+            // Handle notifications popup
+            if (showNotifications && notificationsRef.current && 
+                !notificationsRef.current.contains(event.target)) {
+                setShowNotifications(false);
+            }
+            
+            // Handle reservations popup
+            if (showReservations && reservationsRef.current && 
+                !reservationsRef.current.contains(event.target)) {
+                setShowReservations(false);
+            }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [menuOpen]);
+    }, [menuOpen, showNotifications, showReservations]);
 
     const menuVariants = {
         hidden: { 
+            x: "-100%",
             opacity: 0,
-            y: -20,
-            scale: 0.95
         },
         visible: { 
+            x: 0,
             opacity: 1,
-            y: 0,
-            scale: 1,
             transition: {
                 type: "spring",
-                duration: 0.3,
-                staggerChildren: 0.1
+                stiffness: 300,
+                damping: 30,
+                staggerChildren: 0.07
             }
         },
         exit: { 
+            x: "-100%",
             opacity: 0,
-            y: -20,
-            scale: 0.95,
-            transition: { duration: 0.2 }
+            transition: { 
+                duration: 0.3,
+                ease: "easeInOut" 
+            }
         }
     };
 
@@ -169,7 +167,7 @@ export const NavBar = () => {
 
     return (
         <>
-            {/* Main Navbar */}
+            {/* Main Navbar - Fixed at the top */}
             <motion.div
                 initial={false}
                 animate={{
@@ -177,59 +175,67 @@ export const NavBar = () => {
                     opacity: navbarVisible ? 1 : 0,
                 }}
                 transition={{ duration: 0.3 }}
-                className={`fixed  top-0 left-0 right-0 z-50 ${
-                    scrollPosition > 50 
-                        ? "bg-black/80 backdrop-blur-md shadow-lg" 
-                        : "bg-transparent"
-                }`}
+                className="fixed top-0 left-0 right-0 z-50"
             >
-                <div className="container mx-auto px-4">
-                    <div className="flex items-center justify-between h-28">
-                        {/* Logo */}
-                        <motion.div
-                            onClick={() => handleNavigation('/')}
-                            className="cursor-pointer"
-                        >
+                <div className={`container max-w-3xl mx-auto my-4 px-4 py-2 rounded-xl pointer-events-auto ${
+                    scrollPosition > 50 
+                        ? "bg-black/80 backdrop-blur-md shadow-xl border border-gray-800" 
+                        : "bg-black/60 backdrop-blur-sm border border-white/10"
+                }`}>
+                    <div className="flex items-center justify-between h-16">
+                        {/* Logo - Improved alignment */}
+                        <div className="flex items-center">
                             <motion.div
-                                variants={logoVariants}
-                                initial="initial"
-                                animate="animate"
-                                whileHover="hover"
-                                whileTap="tap"
-                                className="flex items-center"
+                                onClick={() => handleNavigation('/')}
+                                className="cursor-pointer flex items-center"
                             >
-                                <motion.img 
-                                    src={terraLogo} 
-                                    alt="Terrana FC Logo" 
-                                    className="h-24 w-auto px-2" 
-                                />
+                                <motion.div
+                                    variants={logoVariants}
+                                    initial="initial"
+                                    animate="animate"
+                                    whileHover="hover"
+                                    whileTap="tap"
+                                    className="flex items-center"
+                                >
+                                    <motion.img 
+                                        src={terraLogo} 
+                                        alt="Terrana FC Logo" 
+                                        className="h-14 w-auto" 
+                                    />
+                                </motion.div>
                             </motion.div>
-                        </motion.div>
+                            
+                            {/* Vertical divider - only visible on large screens */}
+                            <div className="hidden lg:block h-10 w-px bg-gray-400/30 mx-8"></div>
+                            
+                            {/* Desktop Navigation - Moved inside first div for better alignment */}
+                            <div className="hidden lg:flex items-center space-x-8">
+                                <NavLink 
+                                    to={isLoggedIn ? '/Client' : '/'} 
+                                    onClick={() => handleNavigation(isLoggedIn ? '/Client' : '/')}
+                                >
+                                    Accueil
+                                </NavLink>
+                                <NavLink 
+                                    to="/reservation"
+                                    onClick={() => handleNavigation('/reservation')}
+                                >
+                                    Reservation
+                                </NavLink>
+                                <NavLink 
+                                    to="/academie"
+                                    onClick={() => handleNavigation('/academie')}
+                                >
+                                    Academie
+                                </NavLink>
+                            </div>
+                        </div>
 
-                        {/* Desktop Navigation */}
-                        <div className="hidden lg:flex items-center space-x-8">
-                            <NavLink 
-                                to={isLoggedIn ? '/Client' : '/'} 
-                                onClick={() => handleNavigation(isLoggedIn ? '/Client' : '/')}
-                            >
-                                Accueil
-                            </NavLink>
-                            <NavLink 
-                                to="/reservation"
-                                onClick={() => handleNavigation('/reservation')}
-                            >
-                                Reservation
-                            </NavLink>
-                            <NavLink 
-                                to="/academie"
-                                onClick={() => handleNavigation('/academie')}
-                            >
-                                Academie
-                            </NavLink>
-
+                        {/* User Actions - separate from navigation links */}
+                        <div className="hidden lg:flex items-center space-x-6">
                             {/* Conditional Icons based on user type */}
                             {isLoggedIn && (
-                                <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-4 mr-2">
                                     {/* Notifications */}
                                     <div className="relative" ref={notificationsRef}>
                                         <motion.button
@@ -297,88 +303,171 @@ export const NavBar = () => {
                             )}
                         </div>
 
-                        {/* Mobile Menu Button - Only for Nav Links */}
+                        {/* Mobile Menu Button - With improved visibility */}
                         <motion.button
                             ref={burgerRef}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => setMenuOpen(!menuOpen)}
-                            className="lg:hidden p-2 rounded-full hover:bg-white/10 transition-colors"
+                            className={`lg:hidden p-3 rounded-full 
+                                ${menuOpen 
+                                ? "bg-white text-green-600 shadow-md" 
+                                : "bg-green-500/20 hover:bg-green-500/30 text-white shadow-lg"} 
+                                transition-colors duration-300`}
                         >
                             {menuOpen ? <X size={24} /> : <Menu size={24} />}
                         </motion.button>
                     </div>
                 </div>
 
-                {/* Mobile Menu - Only Navigation Links */}
+                {/* Mobile Menu - Slide in from left animation */}
                 <AnimatePresence>
                     {menuOpen && (
-                        <motion.div
-                            ref={menuRef}
-                            variants={menuVariants}
-                            initial="hidden"
-                            animate="visible"
-                            exit="exit"
-                            className="lg:hidden fixed inset-0 bg-black/95 z-40 pt-28"
-                        >
-                            <motion.div variants={menuVariants} className="container mx-auto px-4">
-                                <div className="px-4 py-6 space-y-4">
-                                    <MobileNavLink 
-                                        to="/"
-                                        variants={itemVariants}
-                                        setMenuOpen={setMenuOpen}
-                                        onClick={() => handleNavigation('/')}
-                                    >
-                                        Accueil
-                                    </MobileNavLink>
-                                    <MobileNavLink 
-                                        to="/reservation"
-                                        variants={itemVariants}
-                                        setMenuOpen={setMenuOpen}
-                                        onClick={() => handleNavigation('/reservation')}
-                                    >
-                                        Reservation
-                                    </MobileNavLink>
-                                    <MobileNavLink 
-                                        to="/academie"
-                                        variants={itemVariants}
-                                        setMenuOpen={setMenuOpen}
-                                        onClick={() => handleNavigation('/academie')}
-                                    >
-                                        Academie
-                                    </MobileNavLink>
+                        <>
+                            {/* Backdrop overlay */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                                onClick={() => setMenuOpen(false)}
+                            />
+                            
+                            {/* Slide-in menu */}
+                            <motion.div
+                                ref={menuRef}
+                                variants={menuVariants}
+                                initial="hidden"
+                                animate="visible"
+                                exit="exit"
+                                className="lg:hidden fixed inset-y-0 left-0 w-4/5 max-w-sm bg-gradient-to-br from-green-600 to-green-800 z-50 shadow-2xl overflow-y-auto"
+                            >
+                                <div className="px-8 py-6">
+                                    {/* Logo in menu */}
+                                    <div className="flex justify-center mb-8">
+                                        <motion.img 
+                                            src={terraLogo} 
+                                            alt="Terrana FC Logo" 
+                                            className="h-20 w-auto" 
+                                        />
+                                    </div>
+                                    
+                                    {/* Close button */}
+                                    <div className="absolute top-6 right-6">
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => setMenuOpen(false)}
+                                            className="p-2 rounded-full bg-white/10 text-white"
+                                        >
+                                            <X size={20} />
+                                        </motion.button>
+                                    </div>
+                                    
+                                    {/* Menu items */}
+                                    <div className="space-y-1 mt-4">
+                                        <MobileNavLink 
+                                            to={isLoggedIn ? '/Client' : '/'}
+                                            variants={itemVariants}
+                                            setMenuOpen={setMenuOpen}
+                                            onClick={() => handleNavigation(isLoggedIn ? '/Client' : '/')}
+                                            icon={<User size={20} />}
+                                        >
+                                            Accueil
+                                        </MobileNavLink>
+                                        <MobileNavLink 
+                                            to="/reservation"
+                                            variants={itemVariants}
+                                            setMenuOpen={setMenuOpen}
+                                            onClick={() => handleNavigation('/reservation')}
+                                            icon={<Calendar size={20} />}
+                                        >
+                                            Reservation
+                                        </MobileNavLink>
+                                        <MobileNavLink 
+                                            to="/academie"
+                                            variants={itemVariants}
+                                            setMenuOpen={setMenuOpen}
+                                            onClick={() => handleNavigation('/academie')}
+                                            icon={<MapPin size={20} />}
+                                        >
+                                            Academie
+                                        </MobileNavLink>
+                                        
+                                        {isLoggedIn && (
+                                            <>
+                                                <MobileNavLink 
+                                                    to="/profile"
+                                                    variants={itemVariants}
+                                                    setMenuOpen={setMenuOpen}
+                                                    onClick={() => handleNavigation('/profile')}
+                                                    icon={<User size={20} />}
+                                                >
+                                                    Profile
+                                                </MobileNavLink>
+                                                
+                                                {userType === "admin" && (
+                                                    <MobileNavLink 
+                                                        to="/Admin"
+                                                        variants={itemVariants}
+                                                        setMenuOpen={setMenuOpen}
+                                                        onClick={() => handleNavigation('/Admin')}
+                                                        icon={<LayoutDashboard size={20} />}
+                                                    >
+                                                        Dashboard Admin
+                                                    </MobileNavLink>
+                                                )}
+                                            </>
+                                        )}
 
-                                    {/* Add login/logout based on auth state */}
-                                    {isLoggedIn ? (
-                                        <motion.div variants={itemVariants}>
-                                            <div
-                                                className="block text-red-500 text-lg font-medium px-4 py-2 
-                                                         rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer"
-                                                onClick={() => {
-                                                    setMenuOpen(false);
-                                                    handleLogout();
-                                                }}
-                                            >
-                                                Se déconnecter
-                                            </div>
-                                        </motion.div>
-                                    ) : (
-                                        <motion.div variants={itemVariants}>
-                                            <LoginButton 
-                                                to="/sign-in"
-                                                onClick={() => {
-                                                    setMenuOpen(false);
-                                                    handleNavigation('/sign-in');
-                                                }}
-                                                fullWidth
-                                            >
-                                                Se connecter
-                                            </LoginButton>
-                                        </motion.div>
-                                    )}
+                                        {/* Divider */}
+                                        <div className="my-4 border-t border-white/20"></div>
+                                        
+                                        {/* Add login/logout based on auth state */}
+                                        {isLoggedIn ? (
+                                            <motion.div variants={itemVariants}>
+                                                <div
+                                                    className="flex items-center space-x-4 text-white text-lg font-medium 
+                                                           px-4 py-3 rounded-lg bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/40
+                                                           transition-colors cursor-pointer"
+                                                    onClick={() => {
+                                                        setMenuOpen(false);
+                                                        handleLogout();
+                                                    }}
+                                                >
+                                                    <LogOut size={20} />
+                                                    <span>Se déconnecter</span>
+                                                </div>
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div variants={itemVariants} className="mt-4">
+                                                <div
+                                                    onClick={() => {
+                                                        setMenuOpen(false);
+                                                        handleNavigation('/sign-in');
+                                                    }}
+                                                    className="flex items-center justify-center space-x-2
+                                                             px-6 py-3 rounded-lg
+                                                             bg-white text-green-700 font-semibold
+                                                             transform transition-all duration-200
+                                                             hover:shadow-lg hover:scale-105
+                                                             active:scale-95 cursor-pointer w-full"
+                                                >
+                                                    <span>Se connecter</span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Footer text with dynamic year */}
+                                    <div className="mt-12 text-center text-white/60 text-sm">
+                                        <p>© {new Date().getFullYear()} Terrana FC</p>
+                                        <p className="mt-1">Tous droits réservés</p>
+                                    </div>
                                 </div>
                             </motion.div>
-                        </motion.div>
+                        </>
                     )}
                 </AnimatePresence>
             </motion.div>
@@ -480,6 +569,9 @@ export const NavBar = () => {
                 </>
             )}
 
+            {/* Add spacer to prevent content from being hidden under the fixed navbar */}
+            <div className="h-28"></div>
+
             {/* Popups */}
             <NotificationsPopup isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
             <ReservationsPopup isOpen={showReservations} onClose={() => setShowReservations(false)} />
@@ -499,16 +591,19 @@ const NavLink = ({ to, children, onClick }) => (
     </div>
 );
 
-const MobileNavLink = ({ to, children, variants, setMenuOpen, onClick }) => (
+const MobileNavLink = ({ to, children, variants, setMenuOpen, onClick, icon }) => (
     <motion.div variants={variants}>
         <div
-            className="block text-white text-lg font-medium px-4 py-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            className="flex items-center space-x-4 text-white text-lg font-medium 
+                     px-4 py-3 rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30
+                     transition-colors cursor-pointer"
             onClick={() => {
                 if (onClick) onClick();
                 if (setMenuOpen) setMenuOpen(false);
             }}
         >
-            {children}
+            {icon && <span className="text-white">{icon}</span>}
+            <span>{children}</span>
         </div>
     </motion.div>
 );

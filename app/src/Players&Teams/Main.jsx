@@ -285,7 +285,7 @@ const FindPlayerTeam = () => {
             onCanPlay={() => setIsVideoPlaying(true)}
             onWaiting={() => setIsVideoPlaying(false)}
           >
-            <source src="https://terranafa.moulweb.com/back/pfe_backend/2249402-uhd_3840_2160_24fps.mp4" type="video/mp4" />
+            <source src="https://moulweb.com/back/pfe_backend/public/2249402-uhd_3840_2160_24fps.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
           

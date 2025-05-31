@@ -36,11 +36,11 @@ export const Main = () => {
     const isAdminPage = location.pathname === "/Admin";
     
     return (
-        <div className="flex flex-col min-h-screen">
+        <>
             {!isAdminPage && <NavBar />}
             
-            {/* Conditionally apply padding only when navbar is present */}
-            <div className={`flex-grow ${!isAdminPage ? 'pt-20' : ''}`}>
+            {/* Main content container */}
+            <div className="flex-grow">
                 <PopupCard/>
                 <Routes>
                     {/* Public Routes */}
@@ -106,10 +106,11 @@ export const Main = () => {
             {!isAdminPage && location.pathname !== "/Client" && <Footer/>}
             
             {/* Add ScrollToTop component on the left side */}
-            {!isAdminPage && <div className="fixed bottom-5 left-5 z-50"><ScrollToTop /></div>}
+            {!isAdminPage && <div className="fixed bottom-5 left-5 z-40"><ScrollToTop /></div>}
             
             {/* Add ChatBot component on the right side */}
             {!isAdminPage && <ChatBot />}
-        </div>
+            </>
+        
     )
 }

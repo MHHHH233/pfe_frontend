@@ -7,7 +7,7 @@ import eventsService from '../lib/services/user/eventsService';
 import EventRegistrationModal from './EventRegistrationModal';
 
 const SectionContainer = styled(motion.section)`
-  background: linear-gradient(to bottom, #1a1a1a, #111111);
+  background: #1a1a1a;
   padding: 5rem 2rem;
   min-height: 100vh;
   display: flex;

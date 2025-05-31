@@ -41,7 +41,6 @@ export default function AcademyPage() {
         className="max-w-6xl mx-auto px-4 py-12 "
       >
         <Header />
-        {/* <Navigation /> */}
         <AcademyInfo />
         <EventsSection/>
         <CoachesSection />
