@@ -30,7 +30,12 @@ import {
   ExternalLink,
   UserCheck,
   UserX,
-  ChevronLeft
+  ChevronLeft,
+  Eye,
+  EyeOff,
+  Info,
+  Circle,
+  Lock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import profileService from '../../lib/services/user/profileService';
@@ -204,6 +209,17 @@ const ProfilePage = () => {
   const [activitiesError, setActivitiesError] = useState(null);
   const [activitiesPage, setActivitiesPage] = useState(1);
   const [activitiesTotalPages, setActivitiesTotalPages] = useState(1);
+
+  // Add new state for age error
+  const [ageError, setAgeError] = useState('');
+
+  // Add new state for password validation
+  const [passwordValidation, setPasswordValidation] = useState({
+    length: false,
+    number: false,
+    special: false,
+    match: false
+  });
 
   const handleProfilePictureChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -1191,12 +1207,51 @@ const ProfilePage = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    
+    if (name === 'age') {
+      const age = parseInt(value);
+      if (isNaN(age)) {
+        setAgeError('Please enter a valid number');
+      } else if (age < 16) {
+        setAgeError('Age must be at least 16 years');
+      } else if (age > 70) {
+        setAgeError('Age must not exceed 70 years');
+      } else {
+        setAgeError('');
+      }
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordFormData({ ...passwordFormData, [name]: value });
+    setPasswordFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+
+    // Validate password requirements
+    if (name === 'new_password') {
+      setPasswordValidation(prev => ({
+        ...prev,
+        length: value.length >= 8,
+        number: /\d/.test(value),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(value),
+        match: value === passwordFormData.confirm_password
+      }));
+    }
+
+    // Check if passwords match
+    if (name === 'confirm_password') {
+      setPasswordValidation(prev => ({
+        ...prev,
+        match: value === passwordFormData.new_password
+      }));
+    }
   };
 
   const togglePasswordVisibility = (field) => {
@@ -1215,13 +1270,19 @@ const ProfilePage = () => {
       setPasswordError("New passwords don't match");
       return;
     }
+
+    // Validate password requirements
+    if (!passwordValidation.length || !passwordValidation.number || !passwordValidation.special) {
+      setPasswordError("Password doesn't meet the requirements");
+      return;
+    }
     
     try {
       // Call API to change password
       const response = await profileService.changePassword({
         current_password: passwordFormData.current_password,
         new_password: passwordFormData.new_password,
-        new_password_confirmation: passwordFormData.confirm_password // Add confirmation field for Laravel validation
+        new_password_confirmation: passwordFormData.confirm_password
       });
       
       if (response && (response.success || response.status === 'success')) {
@@ -1243,12 +1304,24 @@ const ProfilePage = () => {
       }
     } catch (error) {
       console.error('Error changing password:', error);
-      setPasswordError(error.response?.data?.message || error.message || 'Failed to change password');
+      const errorMessage = error.response?.data?.message || error.message;
+      setPasswordError(
+        errorMessage === 'Invalid current password' 
+          ? 'Current password is incorrect. If you logged in with Google, check your email (including spam/junk folder) for your temporary password.'
+          : `Failed to change password: ${errorMessage}`
+      );
     }
   };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    
+    // Validate age before submitting
+    const age = parseInt(formData.age);
+    if (isNaN(age) || age < 16 || age > 70) {
+      setAgeError('Please enter a valid age between 16 and 70');
+      return;
+    }
     
     try {
       const response = await profileService.updateProfile(formData);
@@ -2593,91 +2666,81 @@ const ProfilePage = () => {
         </div>
       ) : userData ? (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10">
-          <div className="bg-gradient-to-br from-[#1a1a1a] to-[#141414] rounded-xl shadow-2xl overflow-hidden border border-white/5">
+          {/* Fixed background for profile section */}
+          <div className="fixed inset-0 bg-gradient-to-b from-black to-transparent opacity-50 pointer-events-none z-0"></div>
+          
+          <div className="bg-gradient-to-br from-[#1a1a1a]/95 to-[#141414]/95 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden border border-white/5 relative z-10">
             {/* User info with avatar, name, etc. */}
-            <div className="p-4 sm:p-6 md:p-8 flex flex-col md:flex-row md:items-end gap-4 md:gap-6">
-              <div className="flex-shrink-0 mx-auto md:mx-0 -mt-16 sm:-mt-20 md:-mt-24 relative z-10">
-                <div className="relative inline-block">
-                  <div className="absolute -inset-1.5 bg-gradient-to-r from-[#07F468] to-[#19be59] rounded-full blur opacity-70"></div>
-                  <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-[#141414] group">
+            <div className="p-5 sm:p-7 md:p-10 flex flex-col md:flex-row md:items-end gap-6 md:gap-8 relative min-h-[200px] sm:min-h-[220px] md:min-h-[240px]">
+              {/* Background subtle gradient */}
+              <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-30"></div>
+              
+              {/* Profile picture container with improved positioning */}
+              <div className="flex-shrink-0 mx-auto md:mx-0 -mt-20 sm:-mt-24 md:-mt-28 relative z-20 w-28 sm:w-36 md:w-40">
+                <div className="relative">
+                  {/* Profile picture */}
+                  <div className="relative rounded-full overflow-hidden border-4 border-[#141414] aspect-square bg-gray-800">
                     <img
-                      src={userData.pfp || `https://ui-avatars.com/api/?name=${encodeURIComponent((userData.nom || '') + "+" + (userData.prenom || ''))}&background=07F468&color=121212&size=128`}
+                      src={userData.pfp || `https://ui-avatars.com/api/?name=${encodeURIComponent((userData.nom || '') + "+" + (userData.prenom || ''))}&background=1a1a1a&color=ffffff&size=256`}
                       alt={userData.nom ? `${userData.prenom} ${userData.nom}` : 'Profile Avatar'}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                     
-                    {/* Upload overlay */}
-                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                         onClick={() => fileInputRef.current?.click()}>
-                      <div className="text-white text-xs font-medium text-center">
-                        <Upload className="w-5 h-5 mx-auto mb-1" />
-                        Change
-                      </div>
-                    </div>
+                    {/* Hidden file input */}
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleProfilePictureChange}
+                      className="hidden"
+                      accept="image/*"
+                    />
                   </div>
-                  
-                  {/* Hidden file input */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleProfilePictureChange}
-                    className="hidden"
-                    accept="image/*"
-                  />
-                  
-                  {/* Upload button - only show when a file is selected */}
-                  {profilePicture && (
-                    <button
-                      onClick={handleProfilePictureUpload}
-                      disabled={uploadingPicture}
-                      className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#07F468] text-black text-xs font-medium py-1 px-2 rounded-full shadow-md"
-                    >
-                      {uploadingPicture ? (
-                        <span className="flex items-center">
-                          <span className="animate-spin h-3 w-3 border-2 border-black/20 border-t-black rounded-full mr-1"></span>
-                          Uploading...
-                        </span>
-                      ) : (
-                        'Upload'
-                      )}
-                    </button>
-                  )}
                 </div>
               </div>
               
-              <div className="flex-grow text-center md:text-left">
-                <h1 className="text-2xl sm:text-3xl font-bold">{userData.nom} {userData.prenom}</h1>
-                <p className="text-gray-400 mt-1">Member since {new Date(userData.created_at || userData.dateInscription || Date.now()).toLocaleDateString()}</p>
-                <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
-                  <span className="bg-[#07F468]/10 text-[#07F468] text-xs font-medium px-2.5 py-1 rounded-full border border-[#07F468]/30">
+              {/* User info with improved spacing */}
+              <div className="flex-grow text-center md:text-left z-10 mt-4 md:mt-0">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold animate-fadeIn text-white">
+                  {userData.nom} {userData.prenom}
+                </h1>
+                <p className="text-gray-400 mt-2 md:mt-3">
+                  Member since {new Date(userData.created_at || userData.dateInscription || Date.now()).toLocaleDateString()}
+                </p>
+                <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
+                  <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700">
                     {userData.role || 'Member'}
                   </span>
                   {userData.player && (
-                    <span className="bg-blue-500/10 text-blue-400 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-500/30 flex items-center">
-                      <User className="w-3 h-3 mr-1" />
+                    <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700 flex items-center">
+                      <User className="w-3.5 h-3.5 mr-1.5" />
                       Player
                     </span>
                   )}
                   {sessionStorage.getItem('has_teams') === 'true' && (
-                    <span className="bg-purple-500/10 text-purple-400 text-xs font-medium px-2.5 py-1 rounded-full border border-purple-500/30 flex items-center">
-                      <Users className="w-3 h-3 mr-1" />
+                    <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700 flex items-center">
+                      <Users className="w-3.5 h-3.5 mr-1.5" />
                       Team Captain
                     </span>
                   )}
                 </div>
               </div>
               
-              <div className="flex-shrink-0 mt-4 md:mt-0 text-center md:text-left w-full md:w-auto">
-                <Link to="/reservation" className="bg-[#07F468] text-black font-bold py-2 px-4 rounded-lg hover:bg-[#06C357] inline-flex items-center justify-center transition duration-300 w-full md:w-auto">
-                  <Calendar className="w-4 h-4 mr-2" />
+              {/* Action button with improved positioning */}
+              <div className="flex-shrink-0 mt-4 md:mt-0 text-center md:text-left w-full md:w-auto z-10">
+                <Link 
+                  to="/reservation" 
+                  className="bg-gray-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-700 inline-flex items-center justify-center transition-all duration-300 w-full md:w-auto shadow-lg group border border-gray-700"
+                >
+                  <Calendar className="w-5 h-5 mr-2 transform group-hover:scale-110 transition-transform" />
                   Book a Field
                 </Link>
               </div>
             </div>
             
-            {/* Tab Navigation */}
-            <div className="border-b border-white/10 overflow-x-auto scrollbar-hide">
-              <nav className="flex whitespace-nowrap min-w-full py-1">
+            {/* Tab Navigation with improved styling */}
+            <div className="border-t border-white/10 overflow-x-auto scrollbar-hide bg-black/20">
+              <nav className="flex whitespace-nowrap min-w-full">
                 <button
                   onClick={() => {
                     setActiveTab('info');
@@ -2688,14 +2751,19 @@ const ProfilePage = () => {
                     setMembershipsError(null);
                     setRequestsError(null);
                   }}
-                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
+                  className={`py-3 px-4 md:px-6 font-medium transition-all duration-300 relative ${
                     activeTab === 'info'
-                      ? 'text-[#07F468] border-b-2 border-[#07F468]'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <User className="w-4 h-4 inline-block mr-1 sm:mr-2" />
-                  <span>Info</span>
+                  <div className="flex items-center">
+                    <User className="w-4 h-4 mr-2" />
+                    <span>Info</span>
+                  </div>
+                  {activeTab === 'info' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fadeIn"></div>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -2707,14 +2775,19 @@ const ProfilePage = () => {
                     setMembershipsError(null);
                     setRequestsError(null);
                   }}
-                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
+                  className={`py-3 px-4 md:px-6 font-medium transition-all duration-300 relative ${
                     activeTab === 'reservations'
-                      ? 'text-[#07F468] border-b-2 border-[#07F468]'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 inline-block mr-1 sm:mr-2" />
-                  <span>Bookings</span>
+                  <div className="flex items-center">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    <span>Bookings</span>
+                  </div>
+                  {activeTab === 'reservations' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fadeIn"></div>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -2726,14 +2799,19 @@ const ProfilePage = () => {
                     setMembershipsError(null);
                     setRequestsError(null);
                   }}
-                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
+                  className={`py-3 px-4 md:px-6 font-medium transition-all duration-300 relative ${
                     activeTab === 'academies'
-                      ? 'text-[#07F468] border-b-2 border-[#07F468]'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <Award className="w-4 h-4 inline-block mr-1 sm:mr-2" />
-                  <span>Academies</span>
+                  <div className="flex items-center">
+                    <Award className="w-4 h-4 mr-2" />
+                    <span>Academies</span>
+                  </div>
+                  {activeTab === 'academies' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fadeIn"></div>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -2745,14 +2823,19 @@ const ProfilePage = () => {
                     setMembershipsError(null);
                     setRequestsError(null);
                   }}
-                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
+                  className={`py-3 px-4 md:px-6 font-medium transition-all duration-300 relative ${
                     activeTab === 'player'
-                      ? 'text-[#07F468] border-b-2 border-[#07F468]'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <UserPlus className="w-4 h-4 inline-block mr-1 sm:mr-2" />
-                  <span>Player</span>
+                  <div className="flex items-center">
+                    <UserPlus className="w-4 h-4 mr-2" />
+                    <span>Player</span>
+                  </div>
+                  {activeTab === 'player' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fadeIn"></div>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -2768,14 +2851,19 @@ const ProfilePage = () => {
                       fetchTeamInfo();
                     }
                   }}
-                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
+                  className={`py-3 px-4 md:px-6 font-medium transition-all duration-300 relative ${
                     activeTab === 'team'
-                      ? 'text-[#07F468] border-b-2 border-[#07F468]'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <Shield className="w-4 h-4 inline-block mr-1 sm:mr-2" />
-                  <span>Team</span>
+                  <div className="flex items-center">
+                    <Shield className="w-4 h-4 mr-2" />
+                    <span>Team</span>
+                  </div>
+                  {activeTab === 'team' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fadeIn"></div>
+                  )}
                 </button>
                 <button
                   onClick={() => {
@@ -2787,26 +2875,32 @@ const ProfilePage = () => {
                     setMembershipsError(null);
                     setRequestsError(null);
                   }}
-                  className={`py-2 px-3 sm:py-3 sm:px-4 font-medium transition-colors ${
+                  className={`py-3 px-4 md:px-6 font-medium transition-all duration-300 relative ${
                     activeTab === 'requests'
-                      ? 'text-[#07F468] border-b-2 border-[#07F468]'
+                      ? 'text-white'
                       : 'text-gray-400 hover:text-white'
                   }`}
                 >
-                  <MessageCircle className="w-4 h-4 inline-block mr-1 sm:mr-2" />
-                  <span>Requests</span>
+                  <div className="flex items-center">
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    <span>Requests</span>
+                  </div>
+                  {activeTab === 'requests' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white animate-fadeIn"></div>
+                  )}
                 </button>
               </nav>
             </div>
             
             {/* Tab Content */}
-            <div className="space-y-6 relative z-10">
+            <div className="space-y-8 relative z-10">
               {/* Profile Information Tab */}
               {activeTab === 'info' && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 md:p-6 shadow-lg relative z-10"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 md:p-8 shadow-lg relative z-10"
                 >
                   <h2 className="text-xl md:text-2xl font-semibold text-white mb-6">Personal Information</h2>
                   
@@ -2818,68 +2912,76 @@ const ProfilePage = () => {
                       }} 
                       className="space-y-6 relative z-10"
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">First Name</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-2">First Name</label>
                           <input
                             type="text"
                             name="prenom"
                             value={formData.prenom}
                             onChange={handleInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
                             required
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">Last Name</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-2">Last Name</label>
                           <input
                             type="text"
                             name="nom"
                             value={formData.nom}
                             onChange={handleInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
                             required
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">Email</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-2">Email</label>
                           <input
                             type="email"
                             name="email"
                             value={formData.email}
-                            onChange={handleInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            required
+                            readOnly
+                            className="w-full bg-gray-700/50 text-gray-300 rounded-lg px-4 py-3 focus:outline-none cursor-not-allowed"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">Phone Number</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-2">Phone Number</label>
                           <input
                             type="tel"
                             name="telephone"
                             value={formData.telephone}
                             onChange={handleInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
                             required
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">Age</label>
+                          <label className="block text-sm font-medium text-gray-400 mb-2">Age</label>
                           <input
                             type="number"
                             name="age"
                             value={formData.age}
                             onChange={handleInputChange}
-                            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            min="16"
+                            max="70"
+                            className={`w-full bg-gray-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 transition-all duration-300 ${
+                              ageError ? 'border-red-500 focus:ring-red-500' : 'focus:ring-gray-400'
+                            }`}
                             required
                           />
+                          {ageError && (
+                            <p className="mt-2 text-sm text-red-400 animate-fadeIn">
+                              {ageError}
+                            </p>
+                          )}
                         </div>
                       </div>
                       
-                      <div className="flex justify-center md:justify-end mt-6 md:mt-8 relative z-20">
+                      <div className="flex justify-center md:justify-end mt-8 relative z-20">
                         <button
                           type="submit"
-                          className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-colors"
+                          className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-[0_0_15px_rgba(7,244,104,0.3)]"
                           disabled={loading}
                         >
                           {loading ? (
@@ -2946,6 +3048,18 @@ const ProfilePage = () => {
                         <div className="border-t border-gray-700 pt-5 md:pt-6">
                           <h3 className="text-lg font-medium text-white mb-3 md:mb-4">Security Settings</h3>
                           
+                          {/* Google Auth Warning - Moved to top of security settings */}
+                          
+                            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-blue-400 text-sm mb-4">
+                              <div className="flex items-start gap-3">
+                                <Info className="w-5 h-5 mt-0.5 flex-shrink-0 animate-pulse" />
+                                <p>
+                                  If you created your account with Google authentication, please check your email inbox (including spam/junk folders) to find your current password. You'll need this to set up a new password.
+                                </p>
+                              </div>
+                            </div>
+                          
+                          
                           {!showPasswordForm ? (
                             <div className="flex flex-wrap gap-3">
                               <button
@@ -2953,6 +3067,7 @@ const ProfilePage = () => {
                                 onClick={() => setShowPasswordForm(true)}
                                 className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                               >
+                                <Lock className="w-4 h-4" />
                                 Change Password
                               </button>
                               
@@ -2966,137 +3081,126 @@ const ProfilePage = () => {
                               </button>
                             </div>
                           ) : (
-                            <form onSubmit={handleSubmitPasswordChange} className="space-y-3 md:space-y-4 bg-gray-800/50 p-3 md:p-4 rounded-lg">
+                            <form onSubmit={handleSubmitPasswordChange} className="space-y-4 bg-gray-800/50 p-4 md:p-6 rounded-lg">
                               {passwordError && (
-                                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 md:p-3 text-red-400 text-sm">
+                                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
                                   {passwordError}
                                 </div>
                               )}
                               
                               {passwordSuccess && (
-                                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-2 md:p-3 text-green-400 text-sm">
+                                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-green-400 text-sm">
                                   {passwordSuccess}
                                 </div>
                               )}
                               
                               <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">Current Password</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Current Password</label>
                                 <div className="relative">
                                   <input
                                     type={passwordVisibility.current ? "text" : "password"}
                                     name="current_password"
                                     value={passwordFormData.current_password}
                                     onChange={handlePasswordChange}
-                                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-gray-400"
                                     required
                                   />
                                   <button
                                     type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-white"
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
                                     onClick={() => togglePasswordVisibility('current')}
                                   >
-                                    {passwordVisibility.current ? (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                      </svg>
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                                        <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                                      </svg>
-                                    )}
+                                    {passwordVisibility.current ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                   </button>
                                 </div>
                               </div>
-                              
+
                               <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">New Password</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">New Password</label>
                                 <div className="relative">
                                   <input
                                     type={passwordVisibility.new ? "text" : "password"}
                                     name="new_password"
                                     value={passwordFormData.new_password}
                                     onChange={handlePasswordChange}
-                                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-gray-400"
                                     required
-                                    minLength={8}
                                   />
                                   <button
                                     type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-white"
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
                                     onClick={() => togglePasswordVisibility('new')}
                                   >
-                                    {passwordVisibility.new ? (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                      </svg>
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                                        <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                                      </svg>
-                                    )}
+                                    {passwordVisibility.new ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                   </button>
                                 </div>
+                                {/* Password requirements */}
+                                <div className="mt-2 space-y-1">
+                                  <p className={`text-sm flex items-center gap-1 ${passwordValidation.length ? 'text-green-400' : 'text-gray-400'}`}>
+                                    {passwordValidation.length ? <Check className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                    At least 8 characters
+                                  </p>
+                                  <p className={`text-sm flex items-center gap-1 ${passwordValidation.number ? 'text-green-400' : 'text-gray-400'}`}>
+                                    {passwordValidation.number ? <Check className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                    Contains a number
+                                  </p>
+                                  <p className={`text-sm flex items-center gap-1 ${passwordValidation.special ? 'text-green-400' : 'text-gray-400'}`}>
+                                    {passwordValidation.special ? <Check className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                    Contains a special character
+                                  </p>
+                                </div>
                               </div>
-                              
+
                               <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1 md:mb-2">Confirm New Password</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Confirm New Password</label>
                                 <div className="relative">
                                   <input
                                     type={passwordVisibility.confirm ? "text" : "password"}
                                     name="confirm_password"
                                     value={passwordFormData.confirm_password}
                                     onChange={handlePasswordChange}
-                                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 md:px-4 md:py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-gray-400"
                                     required
-                                    minLength={8}
                                   />
                                   <button
                                     type="button"
-                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-white"
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
                                     onClick={() => togglePasswordVisibility('confirm')}
                                   >
-                                    {passwordVisibility.confirm ? (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                      </svg>
-                                    ) : (
-                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                                        <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-                                      </svg>
-                                    )}
+                                    {passwordVisibility.confirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                   </button>
                                 </div>
+                                {!passwordValidation.match && passwordFormData.confirm_password && (
+                                  <p className="mt-2 text-sm text-red-400">
+                                    Passwords do not match
+                                  </p>
+                                )}
                               </div>
-                              
-                              <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-2">
+
+                              <div className="flex justify-end gap-3 mt-6">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setShowPasswordForm(false);
                                     setPasswordError(null);
                                     setPasswordSuccess(null);
+                                    setPasswordFormData({
+                                      current_password: '',
+                                      new_password: '',
+                                      confirm_password: ''
+                                    });
                                   }}
-                                  className="w-full sm:w-auto px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                                  className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
                                 >
                                   Cancel
                                 </button>
                                 <button
                                   type="submit"
-                                  className="w-full sm:w-auto px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
-                                  disabled={loading}
+                                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+                                  disabled={!passwordValidation.length || !passwordValidation.number || !passwordValidation.special || !passwordValidation.match}
                                 >
-                                  {loading ? (
-                                    <>
-                                      <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                                      Saving...
-                                    </>
-                                  ) : "Update Password"}
+                                  <Save className="w-4 h-4" />
+                                  Save Password
                                 </button>
                               </div>
                             </form>
@@ -4903,5 +5007,36 @@ const ActivityCard = ({ activity }) => {
 
 // Add function to handle account deletion
 
+
+// Add the CSS for animations before the export statement
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 1s ease-in-out;
+  }
+  
+  @keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0.6; }
+  }
+  
+  .animate-pulse {
+    animation: pulse 2s infinite ease-in-out;
+  }
+  
+  @media (max-width: 768px) {
+    .fixed-profile-bg {
+      position: fixed;
+      z-index: 1;
+    }
+  }
+`;
+document.head.appendChild(style);
 
 export default ProfilePage;
