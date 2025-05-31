@@ -15,9 +15,14 @@ const UserIcon = () => {
   const [scrollPosition, setScrollPosition] = useState(0)
 
   useEffect(() => {
-    const storedUserName = sessionStorage.getItem('nom') + " " + sessionStorage.getItem('prenom')
+    const storedUserData = sessionStorage.getItem('userdetails')
     const storedEmail = sessionStorage.getItem('email')
-    if (storedUserName) setUserName(storedUserName)
+    
+    if (storedUserData) {
+      const userData = JSON.parse(storedUserData)
+      const fullName = `${userData.nom} ${userData.prenom}`.trim()
+      setUserName(fullName)
+    }
     if (storedEmail) setEmail(storedEmail)
   }, [])
 
