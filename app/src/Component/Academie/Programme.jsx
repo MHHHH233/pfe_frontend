@@ -4,12 +4,12 @@ import { motion } from "framer-motion"
 import background from '../../img/fc24-hero-lg-motion-pitch-3x2-lg-md.webm'
 import { useEffect, useState } from "react"
 import academieProgrammesService from "../../lib/services/user/academieProgrammesService"
-
+import { useNavigate } from "react-router-dom";
 export default function ProgrammeEntrainement() {
   const [programmes, setProgrammes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const navigate = useNavigate();
   useEffect(() => {
     const fetchProgrammes = async () => {
       try {
@@ -151,6 +151,7 @@ export default function ProgrammeEntrainement() {
           </p>
 
           <motion.button
+            onClick={() => navigate('/contactus')}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="mt-8 px-6 py-3 bg-green-500 text-black rounded-full font-medium hover:bg-green-400 transition-colors"

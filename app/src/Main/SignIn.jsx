@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import background from "../img/background1.png";
 import { Icon } from '@iconify/react';
@@ -18,6 +18,7 @@ const LoginForm = () => {
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showVibration, setShowVibration] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -27,6 +28,15 @@ const LoginForm = () => {
   const HandleShowPassword = () => {
     setShowPassword(!showPassword);
   };
+
+  useEffect(() => {
+    if (showVibration) {
+      const timer = setTimeout(() => {
+        setShowVibration(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [showVibration]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -87,21 +97,50 @@ const LoginForm = () => {
             navigate("/profile");
           }
         } else {
-          // Handle cases where status is false but it follows the error format with code 401
+          // Handle error cases with vibration effect
+          setShowVibration(true);
+          
+          // Set error message from response
+          if (response.message) {
+            setErrors({
+              api: response.message
+            });
+          }
+          
+          // Set specific error for email field if available
           if (response.errors && response.errors.email) {
-            setErrors((prevErrors) => ({
-              ...prevErrors,
+            setErrors(prev => ({
+              ...prev,
               email: response.errors.email[0]
             }));
-          } else {
-            throw new Error(response.message || 'Login failed');
           }
+          
+          // Log the error response for debugging
+          console.log("Authentication Error:", response);
         }
       } catch (error) {
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          api: error.message || "An error occurred during login.",
-        }));
+        setShowVibration(true);
+        console.log("Login Error:", error);
+        
+        // Check if error response has the expected structure
+        if (error.response && error.response.data) {
+          const errorData = error.response.data;
+          
+          setErrors({
+            api: errorData.message || "An error occurred during login."
+          });
+          
+          if (errorData.errors && errorData.errors.email) {
+            setErrors(prev => ({
+              ...prev,
+              email: errorData.errors.email[0]
+            }));
+          }
+        } else {
+          setErrors({
+            api: error.message || "An error occurred during login."
+          });
+        }
       }
     }
   };
@@ -139,7 +178,7 @@ const validateFormData = ({ email, password }) => {
           Connectez-vous à votre compte
         </h1>
 
-        <div className="bg-dark-gray bg-opacity-35 p-10 rounded-lg w-11/12 max-w-md">
+        <div className={`bg-dark-gray bg-opacity-35 p-10 rounded-lg w-11/12 max-w-md ${showVibration ? 'animate-vibrate' : ''}`}>
           <form onSubmit={handleSubmit}>
             <label className="block text-left text-sm font-medium mb-1">
               Adresse email
@@ -154,10 +193,12 @@ const validateFormData = ({ email, password }) => {
               onChange={handleChange}
             />
             {errors.email && (
-              <div className="mt-1 text-red-500 text-sm">{errors.email}</div>
+              <div className="mt-1 text-red-500 text-sm font-semibold bg-red-100 bg-opacity-20 p-2 rounded border border-red-500">
+                {errors.email}
+              </div>
             )}
 
-            <label className="block text-left text-sm font-medium mb-1">
+            <label className="block text-left text-sm font-medium mb-1 mt-4">
               Mot de passe
             </label>
             <div className="relative  w-full">
@@ -176,18 +217,18 @@ const validateFormData = ({ email, password }) => {
             </div>
 
             {errors.password && (
-              <div className="mt-1 text-red-500 text-sm">
+              <div className="mt-1 text-red-500 text-sm font-semibold bg-red-100 bg-opacity-20 p-2 rounded border border-red-500">
                 {errors.password}
               </div>
             )}
 
             {errors.api && (
-              <div className="mt-1 mb-4 text-red-500 text-sm bg-red-100 border border-red-400 p-2 rounded">
+              <div className="mt-1 mb-4 text-red-500 text-sm font-semibold bg-red-100 bg-opacity-20 p-2 rounded border border-red-500">
                 {errors.api}
               </div>
             )}
 
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 mt-4">
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -243,6 +284,26 @@ const validateFormData = ({ email, password }) => {
           </div>
         </div>
       </div>
+      
+      <style jsx>{`
+        @keyframes vibrate {
+          0% { transform: translateX(0); }
+          10% { transform: translateX(-5px); }
+          20% { transform: translateX(5px); }
+          30% { transform: translateX(-5px); }
+          40% { transform: translateX(5px); }
+          50% { transform: translateX(-5px); }
+          60% { transform: translateX(5px); }
+          70% { transform: translateX(-5px); }
+          80% { transform: translateX(5px); }
+          90% { transform: translateX(-5px); }
+          100% { transform: translateX(0); }
+        }
+        
+        .animate-vibrate {
+          animation: vibrate 0.6s linear;
+        }
+      `}</style>
     </div>
   );
 };

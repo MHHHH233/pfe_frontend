@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import styled from 'styled-components';
 import AnimatedCheck from './Status/Confirmed';
 import AnimatedReserved from './Status/Failed';
 import AnimatedPending from './Status/Pending';
-import { CreditCard, Wallet, Calendar, Clock, MapPin, User, Lock, Star, ThumbsUp, Mail } from 'lucide-react';
+import { CreditCard, Wallet, Calendar, Clock, MapPin, User, Lock, Star, ThumbsUp, Mail, Printer, DollarSign, ReceiptIcon, X } from 'lucide-react';
 import userReservationService from '../../lib/services/user/reservationServices';
 import adminReservationService from '../../lib/services/admin/reservationServices';
 import reviewsService from '../../lib/services/user/reviewsService';
 import StripeWrapper from '../Payments/StripeWrapper';
 import StripePaymentModal from '../Payments/StripePaymentModal';
 import { useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import Receipt from './Receipt';
 
 const Button = styled.button`
   /* Styling for the button */
@@ -72,7 +75,7 @@ const cardVariants = {
   },
 };
 
-export default function PopupCard({ isVisible, onClose, data, resetStatus, onPayOnline, loadingStripeIntent }) {
+export default function PopupCard({ isVisible, onClose, data, resetStatus, onPayOnline, loadingStripeIntent, isAdvancePayment, advanceAmount }) {
   const [status, setStatus] = useState(null); 
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -118,6 +121,16 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
     isReservation: false,
     reservationNumber: ''
   });
+
+  // New refs for receipt printing
+  const receiptRef = useRef(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
+
+  // Add state for cash payment advance
+  const [showCashAdvance, setShowCashAdvance] = useState(false);
+  const [cashAdvanceAmount, setCashAdvanceAmount] = useState('');
+  const [cashAdvanceError, setCashAdvanceError] = useState('');
 
   // Improved terrain price extraction with better fallbacks
   const getTerrain = () => {
@@ -326,7 +339,58 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
     }
   }, [isVisible]);
   
-  // Update the handleSubmit function to handle email_sent flag
+  // Add a new function to handle receipt printing
+  const handlePrintReceipt = () => {
+    if (receiptRef.current) {
+      html2canvas(receiptRef.current, {
+        scale: 2, // Increase quality
+        logging: false,
+        useCORS: true,
+        allowTaint: true
+      }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: [80, 150] // Receipt-sized format (80mm width)
+        });
+        
+        const imgWidth = 70;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 5, 5, imgWidth, imgHeight);
+        pdf.save(`receipt-${receiptData.num_res || 'reservation'}.pdf`);
+      });
+    }
+  };
+
+  // Add a function to print the receipt directly
+  const handleDirectPrint = () => {
+    if (receiptRef.current) {
+      const originalContents = document.body.innerHTML;
+      const printContents = receiptRef.current.innerHTML;
+      
+      document.body.innerHTML = `
+        <style>
+          @page { size: 80mm 150mm; margin: 0; }
+          body { margin: 5mm; font-family: Arial, sans-serif; color: #000; background: #fff; }
+          .receipt-header { text-align: center; margin-bottom: 5mm; }
+          .receipt-header h1 { font-size: 5mm; margin: 0; }
+          .receipt-header p { font-size: 3mm; margin: 1mm 0; }
+          .receipt-details { font-size: 3mm; }
+          .receipt-details div { margin-bottom: 2mm; }
+          .receipt-footer { text-align: center; margin-top: 5mm; font-size: 3mm; }
+        </style>
+        <div>${printContents}</div>
+      `;
+      
+      window.print();
+      document.body.innerHTML = originalContents;
+      window.location.reload();
+    }
+  };
+  
+  // Update the handleSubmit function to handle advance payments for cash
   const handleSubmit = async (paymentMethod, e) => {
     if (e) {
       e.preventDefault(); // Prevent any default behavior to avoid page reload
@@ -355,6 +419,35 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
       setShowPaymentForm(true);
       return;
     }
+    
+    // If it's cash payment and admin, show advance option first
+    if (paymentMethod === 'cash' && isAdmin && !showCashAdvance) {
+      setShowCashAdvance(true);
+      return; // Stop here and wait for user to enter advance amount
+    }
+    
+    // Validate advance payment if admin is using it with cash
+    if (isAdmin && showCashAdvance && paymentMethod === 'cash') {
+      // Check if advance amount is valid
+      if (cashAdvanceAmount && cashAdvanceAmount.trim() !== '') {
+        // Validate the amount
+        const advance = parseFloat(cashAdvanceAmount);
+        const price = parseFloat(terrainPrice || 100);
+        
+        if (isNaN(advance) || advance < 0) {
+          setCashAdvanceError("Advance payment must be a positive number");
+          return;
+        }
+        
+        if (advance >= price) {
+          setCashAdvanceError("Advance payment cannot be greater than or equal to the total price");
+          return;
+        }
+      }
+    }
+    
+    // Reset advance error
+    setCashAdvanceError('');
     
     // Make sure we have the heure field
     if (!data.heure && !data.heuredebut) {
@@ -399,6 +492,16 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
       })
     };
 
+    // Add advance payment if applicable for cash payment
+    if (isAdmin && showCashAdvance && cashAdvanceAmount && paymentMethod === 'cash') {
+      formData.advance_payment = parseFloat(cashAdvanceAmount);
+      formData.payment_status = 'partially_paid';
+    } else if (isAdmin && data.advance_payment) {
+      // Or use the advance from data if already set (from form)
+      formData.advance_payment = data.advance_payment;
+      formData.payment_status = 'partially_paid';
+    }
+
     try {
       setLoading(true);
       const reservationService = isAdmin 
@@ -407,11 +510,59 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
       
       const response = await reservationService.createReservation(formData);
       
+      // Log the raw API response for debugging
+      console.log("Raw API response:", response);
+      
       // Check for success in various response formats
       const isSuccess = response.success || response.status === 'success' || !!response.data;
       
       if (isSuccess) {
-        console.log("Reservation response:", response); // Debug log
+        console.log("Reservation response data:", response.data); // Debug log
+        
+        // For admin reservations, show receipt
+        if (isAdmin) {
+          // Make sure we have a valid data object
+          const responseData = response.data || {};
+          
+          // Extract the terrain price from the response or use existing price
+          const terrainPrice = responseData.prix || formData.price || terrain.price;
+          
+          // Prepare receipt data with all necessary fields
+          const receiptDetails = {
+            // Start with all the response data
+            ...responseData,
+            // Make sure to include terrain details
+            terrain_name: terrain.name || `Terrain ${responseData.id_terrain || formData.id_terrain}`,
+            // Include price details - ensure these are present
+            prix: terrainPrice,
+            price: terrainPrice,
+            // Make sure advance_payment is correctly handled
+            advance_payment: responseData.advance_payment || formData.advance_payment || null,
+            // Ensure date and time are present
+            date: responseData.date || formData.date,
+            heure: responseData.heure || formData.heure || formData.heuredebut,
+            // Ensure client name is present
+            Name: responseData.Name || formData.Name || data.Name,
+            // Ensure ID fields are present
+            id_terrain: responseData.id_terrain || formData.id_terrain || data.id_terrain,
+            id_client: responseData.id_client || formData.id_client || data.id_client,
+            // Ensure reservation number is present
+            num_res: responseData.num_res || `RES-${Date.now()}`,
+            // Ensure status is present
+            etat: responseData.etat || 'reserver'
+          };
+          
+          // If there's an expiration warning, include it
+          if (response.expiration_warning) {
+            receiptDetails.expiration_warning = response.expiration_warning;
+          }
+          
+          console.log("Prepared receipt data:", receiptDetails);
+          
+          setReceiptData(receiptDetails);
+          setShowReceiptModal(true);
+          return; // Exit early to show receipt instead of continuing with other logic
+        }
         
         // IMPORTANT: Reset previous popup states to ensure they show again
         setIsNewUser(false);
@@ -1231,11 +1382,34 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
       document.removeEventListener('reservationSuccess', handleReservationSuccess);
     };
   }, [isAdmin, isLoggedIn]);
-  
+
+  // Add handler for advance amount input
+  const handleAdvanceChange = (e) => {
+    const value = e.target.value;
+    setCashAdvanceAmount(value);
+    
+    // Clear error when user types
+    if (cashAdvanceError) {
+      setCashAdvanceError('');
+    }
+  };
+
   return (
     <AnimatePresence>
+      {/* Receipt Modal */}
+      {showReceiptModal && receiptData && (
+        <Receipt 
+          isVisible={showReceiptModal}
+          onClose={() => {
+            setShowReceiptModal(false);
+            if (resetStatus) resetStatus();
+          }}
+          data={receiptData}
+        />
+      )}
+      
       {/* Initial reservation confirmation form */}
-      {isVisible && status === null && !showReviewForm && !isNewUser && !showEmailConfirmation && (
+      {isVisible && status === null && !showReviewForm && !isNewUser && !showEmailConfirmation && !showReceiptModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
           onClick={(e) => {
@@ -1260,6 +1434,17 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
               <div className="space-y-3">
                 {/* Only show client info if not in admin mode */}
                 {!isAdmin && data.Name && (
+                  <div className="flex items-center space-x-3">
+                    <User size={18} className="text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-400">Client Name</p>
+                      <p className="text-white">{data.Name}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin specific - show client name */}
+                {isAdmin && data.Name && (
                   <div className="flex items-center space-x-3">
                     <User size={18} className="text-gray-400" />
                     <div>
@@ -1300,10 +1485,24 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
                     </p>
                   </div>
                 </div>
+                
+                {/* Advance Payment - Only for admin */}
+                {isAdmin && data.advance_payment && (
+                  <div className="flex items-center space-x-3">
+                    <DollarSign size={18} className="text-green-400" />
+                    <div>
+                      <p className="text-xs text-gray-400">Advance Payment</p>
+                      <p className="text-white">
+                        {formatPrice(data.advance_payment)} MAD 
+                        <span className="text-xs text-gray-400 ml-1">
+                          (Remaining: {formatPrice(parseFloat(terrainPrice) - parseFloat(data.advance_payment))} MAD)
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            
-            <h3 className="text-white mb-4 text-base">Choose Payment Option</h3>
             
             {showPaymentForm ? (
               <motion.div
@@ -1458,43 +1657,115 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
                   </div>
                 )}
               </motion.div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <Button onClick={(e) => {
-                  e.preventDefault();
-                  handleSubmit('stripe', e);
-                }}
-                disabled={loadingStripeIntent}
-                >
-                  {loadingStripeIntent ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                      <span>Loading...</span>
+            ) : showCashAdvance && isAdmin ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="w-full"
+              >
+                <h3 className="text-white mb-4 text-base">Advance Payment</h3>
+                <p className="text-gray-400 text-sm mb-4">Enter an advance amount or leave blank for full payment</p>
+                
+                <div className="space-y-3">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={cashAdvanceAmount}
+                      onChange={handleAdvanceChange}
+                      placeholder={`Enter amount (Max ${parseFloat(terrainPrice) - 1} MAD)`}
+                      min="0"
+                      max={parseFloat(terrainPrice) - 1}
+                      step="0.01"
+                      className="w-full px-4 py-2 rounded-lg border border-gray-700 bg-gray-800 text-white
+                               placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                  </div>
+                  
+                  {cashAdvanceAmount && (
+                    <div className="bg-gray-700 p-3 rounded-lg text-sm">
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-300">Total Amount:</span>
+                        <span className="text-white">{formatPrice(terrainPrice)} MAD</span>
+                      </div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-gray-300">Advance:</span>
+                        <span className="text-green-400">{formatPrice(cashAdvanceAmount)} MAD</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span className="text-gray-300">Remaining:</span>
+                        <span className="text-yellow-400">
+                          {formatPrice(parseFloat(terrainPrice) - parseFloat(cashAdvanceAmount))} MAD
+                        </span>
+                      </div>
                     </div>
-                  ) : (
-                    <>
-                      <CreditCard className="mr-2" size={18} />
-                      Pay with Card
-                    </>
                   )}
-                </Button>
-                
-                <Button onClick={(e) => {
-                  e.preventDefault();
-                  handleSubmit('cash', e);
-                }}>
-                  <Wallet className="mr-2" size={18} />
-                  Pay In-Store (Cash)
-                </Button>
-                
-                {/* Add expiration notice */}
-                <div className="mt-2 p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
-                  <p className="text-yellow-400 text-sm flex items-center">
-                    <Clock size={16} className="mr-2 flex-shrink-0" />
-                    <span>In-store payments must be completed within 1 hour or your reservation will be automatically cancelled.</span>
-                  </p>
+                  
+                  {cashAdvanceError && (
+                    <div className="p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                      {cashAdvanceError}
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-3 mt-2">
+                    <button
+                      onClick={() => setShowCashAdvance(false)}
+                      className="flex-1 px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={(e) => handleSubmit('cash', e)}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      disabled={loading}
+                    >
+                      {loading ? 'Processing...' : 'Confirm'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </motion.div>
+            ) : (
+              <>
+                <h3 className="text-white mb-4 text-base">Choose Payment Option</h3>
+                
+                <div className="flex flex-col gap-3">
+                  <Button onClick={(e) => {
+                    e.preventDefault();
+                    handleSubmit('stripe', e);
+                  }}
+                  disabled={loadingStripeIntent}
+                  >
+                    {loadingStripeIntent ? (
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                        <span>Loading...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2" size={18} />
+                        Pay with Card
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button onClick={(e) => {
+                    e.preventDefault();
+                    handleSubmit('cash', e);
+                  }}>
+                    <Wallet className="mr-2" size={18} />
+                    Pay In-Store (Cash)
+                  </Button>
+                  
+                  {/* Add expiration notice for non-admin users */}
+                  {!isAdmin && (
+                    <div className="mt-2 p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg">
+                      <p className="text-yellow-400 text-sm flex items-center">
+                        <Clock size={16} className="mr-2 flex-shrink-0" />
+                        <span>In-store payments must be completed within 1 hour or your reservation will be automatically cancelled.</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </motion.div>
         </div>

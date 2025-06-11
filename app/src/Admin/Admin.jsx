@@ -50,6 +50,9 @@ import {
   Bug,
   CheckCircle,
   Globe,
+  CalendarRange,
+  Filter,
+  ChevronUp,
 } from "lucide-react";
 import { Navigate, Link } from "react-router-dom";
 import Loader from "../Component/Loading";
@@ -104,7 +107,7 @@ const FootballAdminDashboard = () => {
               transition={{ duration: 0.2 }}
             >
               {activeTab === "overview" && <Overview />}
-              {activeTab === "users" && <Users1 />}
+              {activeTab === "users" && <UsersManagement />}
               {activeTab === "reservations" && <Reservations />}
               {activeTab === "inbox" && <Inbox />}
               {activeTab === "analytics" && <AnalyticsPage />}
@@ -495,40 +498,61 @@ const Overview = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [dateRange, setDateRange] = useState({
+    startDate: '',
+    endDate: ''
+  });
+  const [isFiltered, setIsFiltered] = useState(false);
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    // Initial data fetch when component mounts
+    const fetchInitialData = async () => {
+      console.log('Fetching initial analytics data...');
       try {
+        // Clear any previous data
+        setData([]);
+        setAnalyticsData(null);
         setLoading(true);
-        const result = await analyticsService.getAnalytics();
-        setAnalyticsData(result); // Store the raw analytics data
+        setError(null);
         
-        // Transform the data into the format needed for display
+        // Make API call
+        const result = await analyticsService.getAnalytics();
+        console.log('Analytics data received:', result);
+        
+        if (!result) {
+          throw new Error('Invalid response from analytics service');
+        }
+        
+        // Process and store the data
+        setAnalyticsData(result);
+        
+        // Transform the data for display
         const transformedData = [
           { 
             label: "Total Users", 
-            value: result.total_comptes, 
+            value: result.total_comptes || 0, 
             Icon: "Users",
             color: "#07f468",
             description: "Registered accounts"
           },
           { 
             label: "Reservations", 
-            value: result.total_reservations, 
+            value: result.total_reservations || 0, 
             Icon: "Calendar",
             color: "#3b82f6",
             description: "Booked sessions"
           },
           { 
             label: "Revenue", 
-            value: `$${(result.total_reservations * 50).toLocaleString()}`, // Example calculation
+            value: `$${result.total_revenue ? parseFloat(result.total_revenue).toLocaleString() : '0'}`,
             Icon: "DollarSign",
             color: "#eab308",
-            description: "Estimated earnings"
+            description: "Total earnings"
           },
           { 
             label: "Fields", 
-            value: result.total_terrains, 
+            value: result.total_terrains || 0, 
             Icon: "TrendingUp",
             color: "#ec4899",
             description: "Available terrains"
@@ -537,15 +561,134 @@ const Overview = () => {
         
         setData(transformedData);
       } catch (err) {
-        console.error('Error fetching analytics:', err);
-        setError('Failed to load dashboard data');
+        console.error('Error fetching initial analytics data:', err);
+        setError('Failed to load dashboard data. Please try again.');
       } finally {
         setLoading(false);
       }
     };
     
-    fetchAnalytics();
+    // Execute the fetch function
+    fetchInitialData();
+    
+    // Get default date range (last 30 days)
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    setDateRange({
+      startDate: thirtyDaysAgo.toISOString().split('T')[0],
+      endDate: today.toISOString().split('T')[0]
+    });
+  }, []); // Empty dependency array to run only once on mount
+
+  const fetchAnalytics = async (start, end) => {
+    console.log('Fetching analytics with dates:', { start, end });
+    try {
+      setLoading(true);
+      setError(null);
+      let result;
+      
+      if (start && end) {
+        console.log('Using date range API endpoint');
+        result = await analyticsService.getAnalyticsByDateRange(start, end);
+        setIsFiltered(true);
+      } else {
+        console.log('Using default analytics API endpoint');
+        result = await analyticsService.getAnalytics();
+        setIsFiltered(false);
+      }
+      
+      console.log('Analytics response:', result);
+      
+      // Check if result exists and has the expected properties
+      if (!result) {
+        throw new Error('Invalid response from analytics service');
+      }
+      
+      setAnalyticsData(result); // Store the raw analytics data
+      
+      // Transform the data into the format needed for display
+      const transformedData = [
+        { 
+          label: "Total Users", 
+          value: result.total_comptes || 0, 
+          Icon: "Users",
+          color: "#07f468",
+          description: "Registered accounts"
+        },
+        { 
+          label: "Reservations", 
+          value: result.total_reservations || 0, 
+          Icon: "Calendar",
+          color: "#3b82f6",
+          description: "Booked sessions"
+        },
+        { 
+          label: "Revenue", 
+          value: `${result.total_revenue ? parseFloat(result.total_revenue).toLocaleString() : '0'} MAD`,
+          Icon: "DollarSign",
+          color: "#eab308",
+          description: "Total earnings"
+        },
+        { 
+          label: "Fields", 
+          value: result.total_terrains || 0, 
+          Icon: "TrendingUp",
+          color: "#ec4899",
+          description: "Available terrains"
+        }
+      ];
+      
+      setData(transformedData);
+    } catch (err) {
+      console.error('Error fetching analytics:', err);
+      setError('Failed to load dashboard data. Please check your network connection and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    // Initial data fetch with default date range
+    if (dateRange.startDate && dateRange.endDate) {
+      // Prevent duplicate API calls
+      const timer = setTimeout(() => {
+        fetchAnalytics();
+      }, 100);
+      
+      // Cleanup function to prevent memory leaks
+      return () => clearTimeout(timer);
+    }
   }, []);
+  
+  const handleDateChange = (e) => {
+    const { name, value } = e.target;
+    setDateRange(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const applyDateFilter = () => {
+    fetchAnalytics(dateRange.startDate, dateRange.endDate);
+    setShowDateFilter(false);
+  };
+  
+  const resetDateFilter = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    const newDateRange = {
+      startDate: thirtyDaysAgo.toISOString().split('T')[0],
+      endDate: today.toISOString().split('T')[0]
+    };
+    
+    setDateRange(newDateRange);
+    fetchAnalytics();
+    setShowDateFilter(false);
+  };
 
   // Function to dynamically return the correct icon based on the name
   const getIcon = (iconName) => {
@@ -589,21 +732,110 @@ const Overview = () => {
     );
   }
 
+  // Format currency helper function
+  const formatCurrency = (value) => {
+    if (!value) return '$0.00';
+    return `$${parseFloat(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-3xl font-bold text-[#07f468]">Dashboard Overview</h2>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center"
-          onClick={() => window.location.reload()}
-        >
-          <ArrowUp size={16} className="mr-2" />
-          Refresh
-        </motion.button>
+        <div className="flex items-center gap-3">
+          {isFiltered && (
+            <span className="text-sm bg-gray-700/60 text-gray-300 px-3 py-1 rounded-full flex items-center">
+              <CalendarRange size={14} className="mr-1" />
+              {new Date(dateRange.startDate).toLocaleDateString()} - {new Date(dateRange.endDate).toLocaleDateString()}
+            </span>
+          )}
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center"
+              onClick={() => setShowDateFilter(!showDateFilter)}
+            >
+              <Filter size={16} className="mr-2" />
+              Date Filter
+              <ChevronDown size={16} className={`ml-2 transform transition-transform duration-200 ${showDateFilter ? 'rotate-180' : ''}`} />
+            </motion.button>
+            
+            {showDateFilter && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute right-0 mt-2 p-4 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 w-72"
+              >
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium text-white">Date Range Filter</h4>
+                    <button 
+                      onClick={() => setShowDateFilter(false)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        name="startDate"
+                        value={dateRange.startDate}
+                        onChange={handleDateChange}
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#07f468]"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        name="endDate"
+                        value={dateRange.endDate}
+                        onChange={handleDateChange}
+                        min={dateRange.startDate}
+                        className="w-full p-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-[#07f468]"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between pt-2">
+                    <button
+                      onClick={resetDateFilter}
+                      className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-md text-sm"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={applyDateFilter}
+                      className="px-3 py-1.5 bg-[#07f468] hover:bg-[#06d35a] text-gray-900 font-medium rounded-md text-sm"
+                    >
+                      Apply Filter
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center"
+            onClick={() => fetchAnalytics(isFiltered ? dateRange.startDate : null, isFiltered ? dateRange.endDate : null)}
+          >
+            <ArrowUp size={16} className="mr-2" />
+            Refresh
+          </motion.button>
+        </div>
       </div>
       
+      {/* Improved Card Grid Layout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {data.map((stat, index) => (
           <motion.div
@@ -611,15 +843,15 @@ const Overview = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-gray-700 p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-[-5px]"
+            className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:translate-y-[-5px] border border-gray-600/30"
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">{stat.label}</p>
+                <p className="text-sm font-medium text-gray-300">{stat.label}</p>
                 <h3 className="text-2xl font-bold text-white mt-1">{stat.value}</h3>
                 <p className="text-xs text-gray-400 mt-1">{stat.description}</p>
               </div>
-              <div className="text-[#07f468]">
+              <div className={`p-3 rounded-full bg-gray-800/50 text-${stat.Icon === 'Users' ? '[#07f468]' : stat.Icon === 'Calendar' ? 'blue-400' : stat.Icon === 'DollarSign' ? 'yellow-400' : 'pink-400'}`}>
                 {getIcon(stat.Icon)}
               </div>
             </div>
@@ -633,14 +865,16 @@ const Overview = () => {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+          className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg border border-gray-600/30"
         >
           <h3 className="text-xl font-bold mb-6 text-white">Sports Activities</h3>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center">
-                <Trophy size={20} className="text-yellow-400 mr-2" />
-                <span>Tournaments</span>
+                <div className="p-2 rounded-full bg-gray-800/70 text-yellow-400">
+                  <Trophy size={20} />
+                </div>
+                <span className="ml-3">Tournaments</span>
               </div>
               <span className="text-xl font-semibold text-white">
                 {analyticsData?.total_tournois || 0}
@@ -648,8 +882,10 @@ const Overview = () => {
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
-                <Users size={20} className="text-blue-400 mr-2" />
-                <span>Teams</span>
+                <div className="p-2 rounded-full bg-gray-800/70 text-blue-400">
+                  <Users size={20} />
+                </div>
+                <span className="ml-3">Teams</span>
               </div>
               <span className="text-xl font-semibold text-white">
                 {analyticsData?.total_teams || 0}
@@ -657,8 +893,10 @@ const Overview = () => {
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
-                <User size={20} className="text-green-400 mr-2" />
-                <span>Players</span>
+                <div className="p-2 rounded-full bg-gray-800/70 text-green-400">
+                  <User size={20} />
+                </div>
+                <span className="ml-3">Players</span>
               </div>
               <span className="text-xl font-semibold text-white">
                 {analyticsData?.total_players || 0}
@@ -666,8 +904,10 @@ const Overview = () => {
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
-                <School size={20} className="text-purple-400 mr-2" />
-                <span>Academies</span>
+                <div className="p-2 rounded-full bg-gray-800/70 text-purple-400">
+                  <School size={20} />
+                </div>
+                <span className="ml-3">Academies</span>
               </div>
               <span className="text-xl font-semibold text-white">
                 {analyticsData?.total_academie_programmes || 0}
@@ -676,26 +916,56 @@ const Overview = () => {
           </div>
         </motion.div>
 
+        {/* Daily Revenue Chart Section */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+          className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg border border-gray-600/30"
         >
-          <h3 className="text-xl font-bold mb-4">User Activity</h3>
-          <div className="h-48 flex items-end justify-between">
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '60%' }}></div>
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '80%' }}></div>
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '40%' }}></div>
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '70%' }}></div>
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '50%' }}></div>
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '90%' }}></div>
-            <div className="w-8 bg-[#07f468] rounded-t" style={{ height: '30%' }}></div>
-          </div>
-          <div className="flex justify-between mt-2 text-sm text-gray-400">
-            <span>Mon</span> <span>Tue</span> <span>Wed</span> <span>Thu</span>
-            <span>Fri</span> <span>Sat</span> <span>Sun</span>
-          </div>
+          <h3 className="text-xl font-bold mb-4 text-white">Revenue Analysis</h3>
+          
+          {analyticsData?.daily_revenue && analyticsData.daily_revenue.length > 0 ? (
+            <>
+              <div className="h-48 flex items-end justify-between mt-4">
+                {analyticsData.daily_revenue.map((day, index) => {
+                  const maxRevenue = Math.max(...analyticsData.daily_revenue.map(d => parseFloat(d.daily_revenue) || 0));
+                  const height = maxRevenue > 0 
+                    ? `${(parseFloat(day.daily_revenue) / maxRevenue) * 100}%` 
+                    : '0%';
+                  
+                  return (
+                    <div key={index} className="flex flex-col items-center">
+                      <div className="w-8 relative" style={{ height: '100%' }}>
+                        <motion.div 
+                          initial={{ height: 0 }}
+                          animate={{ height }}
+                          transition={{ duration: 0.8, delay: index * 0.1 }}
+                          className="absolute bottom-0 w-full bg-gradient-to-t from-[#07f468] to-[#06d35a]/70 rounded-t"
+                        />
+                      </div>
+                      <span className="text-xs text-gray-400 mt-2 w-20 text-center overflow-hidden text-ellipsis whitespace-nowrap">
+                        {new Date(day.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              <div className="mt-6 pt-4 border-t border-gray-600">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Total Revenue</span>
+                  <span className="text-2xl font-bold text-[#07f468]">
+                    {formatCurrency(analyticsData.total_revenue)}
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="h-48 flex items-center justify-center">
+              <p className="text-gray-400">No revenue data available for the selected period</p>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -705,10 +975,12 @@ const Overview = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+          className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg border border-gray-600/30"
         >
           <h3 className="text-lg font-bold mb-4 flex items-center">
-            <UserRoundSearch size={20} className="text-[#07f468] mr-2" />
+            <div className="p-2 rounded-full bg-gray-800/70 text-[#07f468] mr-2">
+              <UserRoundSearch size={18} />
+            </div>
             Player Requests
           </h3>
           <div className="text-3xl font-bold text-center my-4 text-white">
@@ -721,10 +993,12 @@ const Overview = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+          className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg border border-gray-600/30"
         >
           <h3 className="text-lg font-bold mb-4 flex items-center">
-            <MapPin size={20} className="text-[#07f468] mr-2" />
+            <div className="p-2 rounded-full bg-gray-800/70 text-[#07f468] mr-2">
+              <MapPin size={18} />
+            </div>
             Fields Available
           </h3>
           <div className="text-3xl font-bold text-center my-4 text-white">
@@ -737,10 +1011,12 @@ const Overview = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.7 }}
-          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+          className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg border border-gray-600/30"
         >
           <h3 className="text-lg font-bold mb-4 flex items-center">
-            <School size={20} className="text-[#07f468] mr-2" />
+            <div className="p-2 rounded-full bg-gray-800/70 text-[#07f468] mr-2">
+              <School size={18} />
+            </div>
             Academy Coaches
           </h3>
           <div className="text-3xl font-bold text-center my-4 text-white">
@@ -753,870 +1029,20 @@ const Overview = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
-          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+          className="bg-gradient-to-br from-gray-700 to-gray-800 p-6 rounded-lg shadow-lg border border-gray-600/30"
         >
           <h3 className="text-lg font-bold mb-4 flex items-center">
-            <Trophy size={20} className="text-[#07f468] mr-2" />
+            <div className="p-2 rounded-full bg-gray-800/70 text-[#07f468] mr-2">
+              <Trophy size={18} />
+            </div>
             Active Tournaments
           </h3>
           <div className="text-3xl font-bold text-center my-4 text-white">
-            {analyticsData?.total_active_tournaments || 0}
+            {analyticsData?.total_tournois || 0}
           </div>
           <p className="text-sm text-gray-400 text-center">Ongoing competitions</p>
         </motion.div>
       </div>
-    </div>
-  );
-};
-
-const Users1 = () => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [formValues, setFormValues] = useState({
-    id: "",
-    nom: "",
-    prenom: "",
-    email: "",
-    password: "",
-    telephone: "",
-    role: "",
-    age: "",
-  });
-  const [formErrors, setFormErrors] = useState({
-    nom: "",
-    prenom: "",
-    email: "",
-    password: "",
-    role: "",
-    telephone: "",
-    age: "",
-  });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [openMenu, setOpenMenu] = useState(null);
-  const [filterRole, setFilterRole] = useState("all");
-  const menuRef = useRef(null);
-  // Add these state variables to the Users1 component
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [confirmAction, setConfirmAction] = useState({ type: null, id: null });
-  const [showNotification, setShowNotification] = useState(false);
-  const [notification, setNotification] = useState({ message: '', type: 'success' });
-
-  // Fetch users data
-  const fetchUsers = async (page = 1) => {
-    try {
-      setLoading(true);
-      const response = await compteService.getAllComptes(page);
-      setData(response.data);
-      setTotalPages(response.meta.last_page);
-      setCurrentPage(response.meta.current_page);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Handle click outside menu
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpenMenu(null);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [menuRef]);
-
-  // Filter users based on search query and role
-  const filteredData = data.filter((user) => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = 
-      user.nom?.toLowerCase().includes(searchLower) ||
-      user.prenom?.toLowerCase().includes(searchLower) ||
-      user.email?.toLowerCase().includes(searchLower) ||
-      user.telephone?.toLowerCase().includes(searchLower);
-    
-    const matchesRole = filterRole === "all" || user.role === filterRole;
-    
-    return matchesSearch && matchesRole;
-  });
-
-  // Form validation
-  const validateForm = () => {
-    const errors = {};
-    if (!formValues.nom) errors.nom = "First name is required";
-    if (!formValues.prenom) errors.prenom = "Last name is required";
-    if (!formValues.email) errors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formValues.email))
-      errors.email = "Email is invalid";
-    if (!isEditing && !formValues.password) errors.password = "Password is required";
-    if (!formValues.role) errors.role = "Role is required";
-    if (!formValues.telephone) errors.telephone = "Phone number is required";
-    if (!formValues.age) errors.age = "Age is required";
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Handle edit user
-  const handleEditClick = (user) => {
-    setSelectedUser(user);
-    setFormValues({
-      id: user.id_compte,
-      nom: user.nom,
-      prenom: user.prenom,
-      email: user.email,
-      password: "",
-      telephone: user.telephone,
-      role: user.role,
-      age: user.age,
-    });
-    setIsEditing(true);
-    setIsCreating(false);
-  };
-
-  // Handle create new user
-  const handleCreateClick = () => {
-    setSelectedUser(null);
-    setFormValues({
-      id: "",
-      nom: "",
-      prenom: "",
-      email: "",
-      password: "",
-      telephone: "",
-      role: "user",
-      age: "",
-    });
-    setIsCreating(true);
-    setIsEditing(false);
-  };
-
-  // Replace the handleDeleteClick function with this
-  const handleDeleteClick = (userId) => {
-    setConfirmAction({ type: 'delete', id: userId });
-    setShowConfirmDialog(true);
-  };
-
-  // Replace the handleResetPassword function with this
-  const handleResetPassword = (userId) => {
-    setConfirmAction({ type: 'reset', id: userId });
-    setShowConfirmDialog(true);
-  };
-
-  // Add this function to execute the confirmed action
-  const executeConfirmedAction = async () => {
-    try {
-      if (confirmAction.type === 'delete') {
-        await compteService.deleteCompte(confirmAction.id);
-        showSuccessNotification('User deleted successfully');
-        fetchUsers(currentPage);
-      } else if (confirmAction.type === 'reset') {
-        const newPassword = document.getElementById('newPassword').value;
-        if (!newPassword || newPassword.length < 8) {
-          showErrorNotification('Password must be at least 8 characters');
-          return;
-        }
-        
-        await compteService.resetPassword(confirmAction.id, { 
-          new_password: newPassword,
-          new_password_confirmation: newPassword 
-        });
-        showSuccessNotification('Password reset successfully');
-      }
-      setShowConfirmDialog(false);
-      } catch (error) {
-      console.error(`Error during ${confirmAction.type} operation:`, error);
-      showErrorNotification(`Failed to ${confirmAction.type} user: ${error.response?.data?.error || error.message}`);
-    }
-  };
-
-  // Add these helper functions for notifications
-  const showSuccessNotification = (message) => {
-    setNotification({ message, type: 'success' });
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 3000);
-  };
-
-  const showErrorNotification = (message) => {
-    setNotification({ message, type: 'error' });
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 3000);
-  };
-
-  // Handle form submission
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
-
-    try {
-      // Map form values to match the API expectations
-      const userData = {
-        nom: formValues.nom,
-        prenom: formValues.prenom,
-        email: formValues.email,
-        telephone: formValues.telephone,
-        role: formValues.role,
-        age: formValues.age || 18,
-      };
-
-      if (isCreating) {
-        // Add password for new users
-        userData.password = formValues.password;
-        await compteService.createCompte(userData);
-      } else if (isEditing) {
-        await compteService.updateCompte(formValues.id, userData);
-      }
-      
-      setIsEditing(false);
-      setIsCreating(false);
-      fetchUsers(currentPage); // Refresh the list
-    } catch (error) {
-      console.error("Error saving user:", error);
-      alert(`Failed to save user: ${error.response?.data?.error || error.message}`);
-    }
-  };
-
-  // Handle form input changes
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormValues({ ...formValues, [name]: value });
-  };
-
-  // Toggle user action menu
-  const toggleMenu = (userId) => {
-    setOpenMenu(openMenu === userId ? null : userId);
-  };
-
-  // Handle pagination
-  const handlePageChange = (page) => {
-    fetchUsers(page);
-  };
-
-  // Handle role filter change
-  const handleRoleFilterChange = (e) => {
-    setFilterRole(e.target.value);
-  };
-
-  // Handle search
-  const handleSearch = (e) => {
-    setSearchQuery(e.target.value);
-  };
-
-  // Add a new function to handle role changes specifically
-  const handleRoleChange = async (e) => {
-    // First update the form values as usual
-    handleFormChange(e);
-    
-    // If we're editing an existing user, also update the role immediately
-    if (isEditing && formValues.id) {
-      const newRole = e.target.value;
-      const originalRole = formValues.role; // Store the original role before change
-      
-      try {
-        // Pass the role as a string, not in an array
-        await compteService.updateRole(formValues.id, { role: newRole });
-        showSuccessNotification(`Role updated to ${newRole} successfully`);
-      } catch (error) {
-        console.error("Error updating role:", error);
-        showErrorNotification(`Failed to update role: ${error.response?.data?.error || error.message}`);
-        // Revert the form value if the API call fails
-        setFormValues(prev => ({
-          ...prev,
-          role: originalRole // Revert to original role
-        }));
-      }
-    }
-  };
-
-  // Add a function to toggle user role directly from the table
-  const handleRoleToggle = async (userId, currentRole) => {
-    try {
-      // Determine the new role (toggle between user and admin)
-      const newRole = currentRole === 'admin' ? 'user' : 'admin';
-      
-      // Update the UI optimistically
-      setData(prevData => 
-        prevData.map(user => 
-          user.id_compte === userId ? {...user, role: newRole} : user
-        )
-      );
-      
-      // Call the API to update the role - pass role as a string
-      await compteService.updateRole(userId, { role: newRole });
-      
-      showSuccessNotification(`User role changed to ${newRole} successfully`);
-      
-      // Refresh the data to ensure consistency
-      fetchUsers(currentPage);
-    } catch (error) {
-      console.error("Error toggling role:", error);
-      showErrorNotification(`Failed to update role: ${error.response?.data?.error || error.message}`);
-      
-      // Revert the UI change on error
-      fetchUsers(currentPage);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-[#07f468] mb-2">User Management</h2>
-          <p className="text-gray-400 text-sm">Manage user accounts, roles and permissions</p>
-        </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleCreateClick}
-          className="bg-[#07f468] hover:bg-[#06d35a] text-gray-900 px-6 py-3 rounded-lg flex items-center font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-        >
-          <Plus size={18} className="mr-2" />
-          Add New User
-        </motion.button>
-      </div>
-
-      <div className="bg-gray-800/50 p-4 sm:p-5 rounded-xl shadow-lg mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-grow">
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={handleSearch}
-              className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none shadow-inner"
-            />
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-              <Search size={18} />
-            </div>
-          </div>
-          <select
-            value={filterRole}
-            onChange={handleRoleFilterChange}
-            className="w-full sm:w-48 p-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none shadow-inner"
-          >
-            <option value="all">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
-            <option value="coach">Coach</option>
-          </select>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col justify-center items-center h-64 bg-gray-800/50 rounded-xl p-8">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-            className="w-12 h-12 border-4 border-[#07f468] border-t-transparent rounded-full mb-4"
-          />
-          <p className="text-gray-400">Loading users...</p>
-        </div>
-      ) : filteredData.length > 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="bg-gray-800/50 rounded-xl shadow-lg overflow-hidden"
-        >
-          <div className="relative overflow-x-auto">
-            <table className="w-full text-sm text-left text-gray-300">
-              <thead className="text-xs uppercase bg-gray-900 text-gray-400 border-b border-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-4 font-medium tracking-wider w-[40%] sm:w-[30%]">
-                    User
-                  </th>
-                  <th scope="col" className="px-6 py-4 font-medium tracking-wider hidden sm:table-cell w-[25%]">
-                    Contact
-                  </th>
-                  <th scope="col" className="px-6 py-4 font-medium tracking-wider hidden lg:table-cell w-[10%]">
-                    Age
-                  </th>
-                  <th scope="col" className="px-6 py-4 font-medium tracking-wider w-[20%] sm:w-[15%]">
-                    Role
-                  </th>
-                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider">
-                    <span className="md:hidden">Actions</span>
-                    <span className="hidden md:inline">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((user, index) => (
-                  <motion.tr
-                    key={user.id_compte}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    className={`border-b border-gray-700 ${index % 2 === 0 ? 'bg-gray-800/30' : 'bg-gray-800/50'} hover:bg-gray-700 transition-colors duration-200`}
-                  >
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-700 flex items-center justify-center text-[#07f468] font-bold text-xs sm:text-sm">
-                          {user.nom?.charAt(0)}{user.prenom?.charAt(0)}
-                        </div>
-                        <div className="ml-2 sm:ml-4">
-                          <div className="text-xs sm:text-sm font-medium text-white truncate max-w-[80px] sm:max-w-[150px]">{`${user.nom} ${user.prenom}`}</div>
-                          <div className="text-xs sm:text-sm text-gray-400 truncate max-w-[80px] sm:max-w-[150px]">{user.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
-                      <div className="flex items-center">
-                        <Phone size={16} className="text-[#07f468] mr-2" />
-                        <span className="text-sm text-gray-300">{user.telephone}</span>
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden lg:table-cell">
-                      <span className="text-sm text-gray-300">{user.age}</span>
-                    </td>
-                    <td className="px-2 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <button 
-                        onClick={() => handleRoleToggle(user.id_compte, user.role)}
-                        className={`px-2 sm:px-3 py-1 sm:py-1.5 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer transition-all duration-300 ${
-                          user.role === 'admin' 
-                            ? 'bg-red-900/50 text-red-300 border border-red-500/30 hover:bg-red-800/70' 
-                            : user.role === 'coach'
-                            ? 'bg-blue-900/50 text-blue-300 border border-blue-500/30 hover:bg-blue-800/70'
-                            : 'bg-green-900/50 text-green-300 border border-green-500/30 hover:bg-green-800/70'
-                        }`}
-                        title={`Click to change role from ${user.role}`}
-                      >
-                        {user.role}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="relative inline-block">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => toggleMenu(user.id_compte)}
-                          className="text-white hover:text-[#07f468] transition-colors p-2 rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:ring-opacity-50"
-                        >
-                          <MoreVertical size={16} />
-                        </motion.button>
-                        
-                        <AnimatePresence>
-                          {openMenu === user.id_compte && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                              transition={{ duration: 0.2 }}
-                              ref={menuRef}
-                              className="absolute right-0 z-10 mt-2 w-48 bg-gray-900 rounded-lg shadow-xl border border-gray-700"
-                              style={{ top: "100%" }}
-                            >
-                              <div className="py-1">
-                                <motion.button
-                                  whileHover={{ backgroundColor: "#1f2937" }}
-                                  className="flex items-center w-full px-4 py-3 text-sm text-white hover:text-[#07f468] transition-colors focus:outline-none"
-                                  onClick={() => handleEditClick(user)}
-                                >
-                                  <Edit size={16} className="mr-3" />
-                                  Edit User
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ backgroundColor: "#1f2937" }}
-                                  className="flex items-center w-full px-4 py-3 text-sm text-white hover:text-yellow-400 transition-colors focus:outline-none"
-                                  onClick={() => handleResetPassword(user.id_compte)}
-                                >
-                                  <Key size={16} className="mr-3" />
-                                  Reset Password
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ backgroundColor: "#1f2937" }}
-                                  className="flex items-center w-full px-4 py-3 text-sm text-white hover:text-red-400 transition-colors focus:outline-none"
-                                  onClick={() => handleDeleteClick(user.id_compte)}
-                                >
-                                  <Trash2 size={16} className="mr-3" />
-                                  Delete User
-                                </motion.button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      ) : (
-        <div className="flex flex-col items-center justify-center bg-gray-800/50 rounded-xl p-12 text-center">
-          <UserX size={48} className="text-gray-600 mb-4" />
-          <h3 className="text-xl font-medium text-white mb-2">No users found</h3>
-          <p className="text-gray-400 mb-6">Try adjusting your search or filter criteria</p>
-          <button 
-            onClick={() => {
-              setSearchQuery("");
-              setFilterRole("all");
-            }}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
-
-      {/* Pagination with improved styling */}
-      {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center mt-6 bg-gray-800/50 p-4 rounded-xl">
-          <div className="text-sm text-gray-400 mb-4 sm:mb-0">
-            Showing {filteredData.length > 0 ? (currentPage - 1) * 10 + 1 : 0} to {Math.min(currentPage * 10, filteredData.length)} of {filteredData.length} users
-          </div>
-          <div className="flex space-x-2">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className={`p-2 rounded-lg ${
-                currentPage === 1
-                  ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                  : "bg-gray-700 text-white hover:bg-gray-600"
-              }`}
-            >
-              <ChevronLeft size={16} />
-            </motion.button>
-            {[...Array(totalPages)].map((_, i) => (
-              <button
-                key={i}
-                onClick={() => handlePageChange(i + 1)}
-                className={`px-4 py-2 rounded-md mx-1 ${
-                  currentPage === i + 1
-                    ? 'bg-[#07f468] text-gray-900 font-medium'
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
-                } transition-colors`}
-              >
-                {i + 1}
-              </button>
-            ))}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className={`p-2 rounded-lg ${
-                currentPage === totalPages
-                  ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                  : "bg-gray-700 text-white hover:bg-gray-600"
-              }`}
-            >
-              <ChevronRight size={16} />
-            </motion.button>
-          </div>
-        </div>
-      )}
-
-      {/* User Form Modal with improved styling */}
-      {(isEditing || isCreating) && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 p-4 z-50 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="bg-gray-800 text-white p-8 rounded-xl shadow-2xl w-full max-w-md relative border border-gray-700"
-          >
-            <div className="absolute top-4 right-4">
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => {
-                  setIsEditing(false);
-                  setIsCreating(false);
-                }}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <X size={24} />
-              </motion.button>
-            </div>
-            
-            <h2 className="text-2xl font-bold text-[#07f468] mb-6">
-              {isCreating ? "Create New User" : "Edit User"}
-            </h2>
-            
-            <form onSubmit={handleFormSubmit} className="space-y-5">
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    name="nom"
-                    value={formValues.nom}
-                    onChange={handleFormChange}
-                    placeholder="First Name"
-                    className="w-full p-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                  />
-                  {formErrors.nom && (
-                    <p className="text-red-400 text-sm mt-1">{formErrors.nom}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    name="prenom"
-                    value={formValues.prenom}
-                    onChange={handleFormChange}
-                    placeholder="Last Name"
-                    className="w-full p-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                  />
-                  {formErrors.prenom && (
-                    <p className="text-red-400 text-sm mt-1">{formErrors.prenom}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail size={16} className="text-gray-400" />
-                  </div>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formValues.email}
-                    onChange={handleFormChange}
-                    placeholder="Email address"
-                    className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                  />
-                </div>
-                {formErrors.email && (
-                  <p className="text-red-400 text-sm mt-1">{formErrors.email}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Phone size={16} className="text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      name="telephone"
-                      value={formValues.telephone}
-                      onChange={handleFormChange}
-                      placeholder="Phone Number"
-                      className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                    />
-                  </div>
-                  {formErrors.telephone && (
-                    <p className="text-red-400 text-sm mt-1">{formErrors.telephone}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Age</label>
-                  <input
-                    type="number"
-                    name="age"
-                    value={formValues.age}
-                    onChange={handleFormChange}
-                    placeholder="Age"
-                    min="1"
-                    max="120"
-                    className="w-full p-3 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                  />
-                  {formErrors.age && (
-                    <p className="text-red-400 text-sm mt-1">{formErrors.age}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Role</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <UserCog size={16} className="text-gray-400" />
-                  </div>
-                  <select
-                    name="role"
-                    value={formValues.role}
-                    onChange={handleRoleChange}
-                    className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none appearance-none"
-                  >
-                    <option value="">Select a role</option>
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
-                    <option value="coach">Coach</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <ChevronDown size={16} className="text-gray-400" />
-                  </div>
-                </div>
-                {formErrors.role && (
-                  <p className="text-red-400 text-sm mt-1">{formErrors.role}</p>
-                )}
-              </div>
-
-              {isCreating && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Lock size={16} className="text-gray-400" />
-                    </div>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      name="password"
-                      value={formValues.password}
-                      onChange={handleFormChange}
-                      placeholder="Password"
-                      className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-gray-400 hover:text-white transition-colors"
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  {formErrors.password && (
-                    <p className="text-red-400 text-sm mt-1">{formErrors.password}</p>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-4 mt-8">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="button"
-                  className="px-5 py-2.5 rounded-lg border border-gray-600 text-white hover:bg-gray-700 transition-colors"
-                  onClick={() => {
-                    setIsEditing(false);
-                    setIsCreating(false);
-                  }}
-                >
-                  Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  className="px-5 py-2.5 rounded-lg bg-[#07f468] hover:bg-[#06d35a] text-gray-900 font-medium transition-colors"
-                >
-                  {isCreating ? "Create User" : "Save Changes"}
-                </motion.button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Confirmation Dialog */}
-      {showConfirmDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-gray-800 rounded-lg p-6 max-w-md w-full shadow-xl"
-          >
-            <h3 className="text-xl font-bold text-white mb-4">
-              {confirmAction.type === 'delete' ? 'Confirm Deletion' : 'Reset Password'}
-            </h3>
-            
-            {confirmAction.type === 'delete' ? (
-              <p className="text-gray-300 mb-6">
-                Are you sure you want to delete this user? This action cannot be undone.
-              </p>
-            ) : (
-              <div className="mb-6">
-                <p className="text-gray-300 mb-4">
-                  Enter a new password for this user:
-                </p>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock size={16} className="text-gray-400" />
-                  </div>
-                  <input
-                    id="newPassword"
-                    type={showPassword ? "text" : "password"}
-                    className="w-full p-3 pl-10 rounded-lg border border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-[#07f468] focus:outline-none"
-                    placeholder="New password"
-                    minLength={8}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-gray-400 hover:text-white transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-            )}
-            
-            <div className="flex justify-end space-x-3">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                onClick={() => setShowConfirmDialog(false)}
-              >
-                Cancel
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`px-4 py-2 rounded-lg text-white transition-colors ${
-                  confirmAction.type === 'delete' 
-                    ? 'bg-red-600 hover:bg-red-700' 
-                    : 'bg-[#07f468] hover:bg-[#06d35a] text-gray-900'
-                }`}
-                onClick={executeConfirmedAction}
-              >
-                {confirmAction.type === 'delete' ? 'Delete' : 'Reset Password'}
-              </motion.button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {showNotification && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-[9999] flex items-center ${
-              notification.type === 'success' 
-                ? 'bg-green-800 text-green-100' 
-                : 'bg-red-800 text-red-100'
-            }`}
-          >
-            {notification.type === 'success' ? (
-              <CheckCircle className="mr-2" size={20} />
-            ) : (
-              <X className="mr-2" size={20} />
-            )}
-            <span>{notification.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -2281,85 +1707,21 @@ const Reservations = () => {
               >
                 <ChevronLeft size={16} />
               </motion.button>
-              {totalClientSidePages <= 5 ? (
-                // If fewer than 5 pages, show all page numbers
-                [...Array(totalClientSidePages)].map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleClientSidePageChange(i + 1)}
-                    className={`px-4 py-2 rounded-md mx-1 ${
-                      clientSidePage === i + 1
-                        ? 'bg-[#07f468] text-gray-900 font-medium'
-                        : 'bg-gray-700 text-white hover:bg-gray-600'
-                    } transition-colors`}
-                  >
-                    {i + 1}
-                  </button>
-                ))
-              ) : (
-                // If more than 5 pages, show a limited set with ellipsis
-                <>
-                  {/* First page */}
-                  <button
-                    onClick={() => handleClientSidePageChange(1)}
-                    className={`px-4 py-2 rounded-md mx-1 ${
-                      clientSidePage === 1
-                        ? 'bg-[#07f468] text-gray-900 font-medium'
-                        : 'bg-gray-700 text-white hover:bg-gray-600'
-                    } transition-colors`}
-                  >
-                    1
-                  </button>
-                  
-                  {/* Ellipsis or 2nd page */}
-                  {clientSidePage > 3 && (
-                    <span className="px-4 py-2 text-gray-400">...</span>
-                  )}
-                  
-                  {/* Pages around current page */}
-                  {[...Array(3)].map((_, i) => {
-                    const pageNumber = clientSidePage > 3 
-                      ? clientSidePage - 1 + i 
-                      : 1 + i + 1;
-                    
-                    // Skip if outside valid range or is first/last page (already shown)
-                    if (pageNumber <= 1 || pageNumber >= totalClientSidePages) {
-                      return null;
-                    }
-                    
-                    return (
-                      <button
-                        key={pageNumber}
-                        onClick={() => handleClientSidePageChange(pageNumber)}
-                        className={`px-4 py-2 rounded-md mx-1 ${
-                          clientSidePage === pageNumber
-                            ? 'bg-[#07f468] text-gray-900 font-medium'
-                            : 'bg-gray-700 text-white hover:bg-gray-600'
-                        } transition-colors`}
-                      >
-                        {pageNumber}
-                      </button>
-                    );
-                  })}
-                  
-                  {/* Ellipsis before last page */}
-                  {clientSidePage < totalClientSidePages - 2 && (
-                    <span className="px-4 py-2 text-gray-400">...</span>
-                  )}
-                  
-                  {/* Last page */}
-                  <button
-                    onClick={() => handleClientSidePageChange(totalClientSidePages)}
-                    className={`px-4 py-2 rounded-md mx-1 ${
-                      clientSidePage === totalClientSidePages
-                        ? 'bg-[#07f468] text-gray-900 font-medium'
-                        : 'bg-gray-700 text-white hover:bg-gray-600'
-                    } transition-colors`}
-                  >
-                    {totalClientSidePages}
-                  </button>
-                </>
-              )}
+              {Array.from({ length: Math.min(5, totalClientSidePages) }, (_, i) => (
+                <motion.button
+                  key={i}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleClientSidePageChange(i + 1)}
+                  className={`px-3 py-1 rounded-md ${
+                    clientSidePage === i + 1
+                      ? 'bg-[#07f468] text-gray-900 font-medium'
+                      : 'bg-gray-700 text-white hover:bg-gray-600'
+                  }`}
+                >
+                  {i + 1}
+                </motion.button>
+              ))}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -2876,4 +2238,1236 @@ const menuItems = [
   { id: "analytics", icon: BarChart2, label: "Statistiques" },
   { id: "settings", icon: Settings, label: "Paramètres" }
 ];
+
+// Add Users component implementation
+const UsersManagement = () => {
+  const searchDebounceTimer = useRef(null);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [selectedRole, setSelectedRole] = useState('all');
+  const [sortBy, setSortBy] = useState('id_compte');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [formData, setFormData] = useState({
+    nom: '',
+    prenom: '',
+    email: '',
+    telephone: '',
+    age: '',
+    password: '',
+    password_confirmation: '',
+    role: 'user'
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [showNotification, setShowNotification] = useState(false);
+  const [notification, setNotification] = useState({ message: '', type: 'success' });
+  const [passwordData, setPasswordData] = useState({
+    new_password: '',
+    new_password_confirmation: ''
+  });
+  const [showPassword, setShowPassword] = useState({
+    password: false,
+    password_confirmation: false,
+    new_password: false,
+    new_password_confirmation: false
+  });
+  const [passwordStrength, setPasswordStrength] = useState({
+    password: 0, // 0 = none, 1 = weak, 2 = medium, 3 = strong
+    new_password: 0
+  });
+  
+  // Notification utility functions
+  const showSuccessNotification = (message) => {
+    setNotification({ message, type: 'success' });
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  };
+
+  const showErrorNotification = (message) => {
+    setNotification({ message, type: 'error' });
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000);
+  };
+
+  // Fetch users with pagination, filtering, and sorting
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Use the compteService instead of direct URL call
+      const params = {
+        page: currentPage,
+        per_page: 10,
+        sort_by: sortBy,
+        sort_order: sortOrder
+      };
+      
+      // Add role filter if selected
+      if (selectedRole !== 'all') {
+        params.role = selectedRole;
+      }
+      
+      // Add search query if present
+      if (searchQuery.trim() !== '') {
+        params.search = searchQuery;
+      }
+      
+      const response = await compteService.getAllComptes(params.page, params.per_page, params);
+      
+      if (response && response.success) {
+        setUsers(response.data || []);
+        
+        // Update pagination state if available
+        if (response.meta) {
+          // Use the last_page value for pagination
+          const { total, last_page } = response.meta;
+          // Store total pages for pagination component
+          setTotalPages(last_page || 1);
+        }
+      } else {
+        setError('Failed to load users data');
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setError('Failed to load users data');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, sortBy, sortOrder, selectedRole, searchQuery]);
+  
+  // Create a new user
+  const createUser = async (userData) => {
+    try {
+      setLoading(true);
+      const response = await compteService.createCompte(userData);
+      showSuccessNotification('User created successfully');
+      fetchUsers(); // Refresh the user list
+      return true;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      showErrorNotification(error.response?.data?.message || 'Failed to create user');
+      setFormErrors(error.response?.data?.error || {});
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Update user
+  const updateUser = async (id, userData) => {
+    try {
+      setLoading(true);
+      const response = await compteService.updateCompte(id, userData);
+      showSuccessNotification('User updated successfully');
+      fetchUsers(); // Refresh the user list
+      return true;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      showErrorNotification(error.response?.data?.message || 'Failed to update user');
+      setFormErrors(error.response?.data?.error || {});
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Update user role
+  const updateUserRole = async (id, role) => {
+    try {
+      setLoading(true);
+      const response = await compteService.updateRole(id, { role });
+      showSuccessNotification('User role updated successfully');
+      fetchUsers(); // Refresh the user list
+      return true;
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      showErrorNotification(error.response?.data?.message || 'Failed to update user role');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Delete user
+  const deleteUser = async (id) => {
+    try {
+      setLoading(true);
+      const response = await compteService.deleteCompte(id);
+      showSuccessNotification('User deleted successfully');
+      fetchUsers(); // Refresh the user list
+      return true;
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showErrorNotification(error.response?.data?.message || 'Failed to delete user');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Reset user password
+  const resetPassword = async (id, passwordData) => {
+    try {
+      setLoading(true);
+      const response = await compteService.resetPassword(id, passwordData);
+      showSuccessNotification('Password reset successfully');
+      return true;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      showErrorNotification(error.response?.data?.message || 'Failed to reset password');
+      setFormErrors(error.response?.data?.error || {});
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+          className="w-12 h-12 border-4 border-[#07f468] border-t-transparent rounded-full"
+        />
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="bg-red-900/20 border border-red-500 p-4 rounded-lg text-center">
+        <p className="text-red-500">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+  
+  // Form event handlers
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Calculate password strength for password field
+    if (name === 'password') {
+      calculatePasswordStrength(value, 'password');
+    }
+    
+    // Clear the error for this field when user types
+    if (formErrors[name]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: null
+      }));
+    }
+  };
+  
+  const handlePasswordInputChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Calculate password strength for new_password field
+    if (name === 'new_password') {
+      calculatePasswordStrength(value, 'new_password');
+    }
+    
+    // Clear the error for this field when user types
+    if (formErrors[name]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: null
+      }));
+    }
+  };
+  
+  // Calculate password strength
+  const calculatePasswordStrength = (password, field) => {
+    let strength = 0;
+    
+    if (password.length > 0) {
+      // Start with 1 (weak) if any password is entered
+      strength = 1;
+      
+      // Medium if length >= 8 and has a number
+      if (password.length >= 8 && /\d/.test(password)) {
+        strength = 2;
+      }
+      
+      // Strong if medium criteria + uppercase + lowercase
+      if (strength === 2 && /[A-Z]/.test(password) && /[a-z]/.test(password)) {
+        strength = 3;
+      }
+    }
+    
+    setPasswordStrength(prev => ({
+      ...prev,
+      [field]: strength
+    }));
+  };
+  
+  // Modal management
+  const openAddUserModal = () => {
+    setFormData({
+      nom: '',
+      prenom: '',
+      email: '',
+      telephone: '',
+      age: '',
+      password: '',
+      password_confirmation: '',
+      role: 'user'
+    });
+    setFormErrors({});
+    setModalType('add');
+    setShowModal(true);
+    // Reset password visibility
+    setShowPassword({
+      password: false,
+      password_confirmation: false,
+      new_password: false,
+      new_password_confirmation: false
+    });
+  };
+  
+  const openEditUserModal = (user) => {
+    setSelectedUser(user);
+    setFormData({
+      nom: user.nom || '',
+      prenom: user.prenom || '',
+      email: user.email || '',
+      telephone: user.telephone || '',
+      age: user.age || '',
+      role: user.role || 'user'
+    });
+    setFormErrors({});
+    setModalType('edit');
+    setShowModal(true);
+  };
+  
+  const openDeleteConfirmation = (user) => {
+    setSelectedUser(user);
+    setShowDeleteConfirm(true);
+  };
+  
+  const openResetPasswordModal = (user) => {
+    setSelectedUser(user);
+    setPasswordData({
+      new_password: '',
+      new_password_confirmation: ''
+    });
+    setFormErrors({});
+    setShowResetPasswordModal(true);
+    // Reset password visibility
+    setShowPassword({
+      password: false,
+      password_confirmation: false,
+      new_password: false,
+      new_password_confirmation: false
+    });
+  };
+  
+  const closeModal = () => {
+    setShowModal(false);
+    setShowDeleteConfirm(false);
+    setShowResetPasswordModal(false);
+    setFormErrors({});
+    // Reset password visibility
+    setShowPassword({
+      password: false,
+      password_confirmation: false,
+      new_password: false,
+      new_password_confirmation: false
+    });
+  };
+  
+  // Password visibility toggle functions
+  const togglePasswordVisibility = (field) => {
+    setShowPassword(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
+  };
+  
+  // Password complexity validation
+  const validatePasswordStrength = (password) => {
+    // Password should be at least 8 characters
+    if (password.length < 8) {
+      return 'Le mot de passe doit contenir au moins 8 caractères';
+    }
+    
+    // Check for at least one number
+    if (!/\d/.test(password)) {
+      return 'Le mot de passe doit contenir au moins un chiffre';
+    }
+    
+    // Check for at least one uppercase letter
+    if (!/[A-Z]/.test(password)) {
+      return 'Le mot de passe doit contenir au moins une lettre majuscule';
+    }
+    
+    // Check for at least one lowercase letter
+    if (!/[a-z]/.test(password)) {
+      return 'Le mot de passe doit contenir au moins une lettre minuscule';
+    }
+    
+    return null; // Password is strong
+  };
+  
+  // Form submission handlers
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    
+    // Validate passwords match
+    if (formData.password !== formData.password_confirmation) {
+      setFormErrors({
+        ...formErrors,
+        password_confirmation: ['Les mots de passe ne correspondent pas']
+      });
+      return;
+    }
+    
+    // Validate password strength
+    const passwordError = validatePasswordStrength(formData.password);
+    if (passwordError) {
+      setFormErrors({
+        ...formErrors,
+        password: [passwordError]
+      });
+      return;
+    }
+    
+    const success = await createUser(formData);
+    if (success) {
+      closeModal();
+    }
+  };
+  
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    
+    const success = await updateUser(selectedUser.id_compte, formData);
+    if (success) {
+      closeModal();
+    }
+  };
+  
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    
+    const success = await deleteUser(selectedUser.id_compte);
+    if (success) {
+      setShowDeleteConfirm(false);
+    }
+  };
+  
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    
+    // Validate passwords match
+    if (passwordData.new_password !== passwordData.new_password_confirmation) {
+      setFormErrors({
+        ...formErrors,
+        new_password_confirmation: ['Les mots de passe ne correspondent pas']
+      });
+      return;
+    }
+    
+    // Validate password strength
+    const passwordError = validatePasswordStrength(passwordData.new_password);
+    if (passwordError) {
+      setFormErrors({
+        ...formErrors,
+        new_password: [passwordError]
+      });
+      return;
+    }
+    
+    const success = await resetPassword(selectedUser.id_compte, passwordData);
+    if (success) {
+      setShowResetPasswordModal(false);
+    }
+  };
+  
+  const handleRoleChange = async (userId, newRole) => {
+    const success = await updateUserRole(userId, newRole);
+    if (success) {
+      // Update the local state to reflect the change immediately
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id_compte === userId ? { ...user, role: newRole } : user
+        )
+      );
+    }
+  };
+  
+  // Search and filter functions with debounce
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1); // Reset to first page when search changes
+    
+    // Use debouncing to prevent too many API calls while typing
+    clearTimeout(searchDebounceTimer.current);
+    searchDebounceTimer.current = setTimeout(() => {
+      fetchUsers();
+    }, 500);
+  };
+
+  // Remove the duplicate declaration here
+  
+  const handleRoleFilterChange = (e) => {
+    setSelectedRole(e.target.value);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+  
+  const handleSortChange = (field) => {
+    if (sortBy === field) {
+      // If already sorting by this field, toggle the order
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Otherwise, sort by the new field in ascending order
+      setSortBy(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1); // Reset to first page when sort changes
+  };
+  
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <h2 className="text-2xl sm:text-3xl font-bold text-[#07f468]">Gestion des Utilisateurs</h2>
+        
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={openAddUserModal}
+          className="flex items-center gap-2 bg-[#07f468] hover:bg-[#05c757] text-gray-900 font-medium px-4 py-2 rounded-lg shadow-lg transition duration-200"
+        >
+          <Plus size={18} />
+          <span>Ajouter Utilisateur</span>
+        </motion.button>
+      </div>
+      
+      {/* <div className="bg-gray-800/50 p-4 sm:p-6 rounded-xl shadow-lg mb-6">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-grow">
+            <input
+              type="text"
+              placeholder="Rechercher par nom, prénom ou email..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+            />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          </div>
+          
+          <select
+            value={selectedRole}
+            onChange={handleRoleFilterChange}
+            className="w-full sm:w-48 pl-10 pr-4 py-2.5 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent appearance-none"
+          >
+            <option value="all">Tous les rôles</option>
+            <option value="admin">Admin</option>
+            <option value="user">Utilisateur</option>
+          </select>
+        </div>
+      </div> */}
+      
+      <div className="bg-gray-700 rounded-xl shadow-lg overflow-hidden border border-gray-600/50">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-600">
+            <thead className="bg-gray-800">
+              <tr>
+                <th 
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                  onClick={() => handleSortChange('nom')}
+                >
+                  <div className="flex items-center">
+                    Utilisateur
+                    {sortBy === 'nom' && (
+                      <span className="ml-1">
+                        {sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-700"
+                  onClick={() => handleSortChange('email')}
+                >
+                  <div className="flex items-center">
+                    Email
+                    {sortBy === 'email' && (
+                      <span className="ml-1">
+                        {sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    )}
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                  Téléphone
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  Rôle
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-gray-700 divide-y divide-gray-600">
+              {users.length > 0 ? (
+                users.map((user, index) => (
+                  <motion.tr 
+                    key={user.id_compte || index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: index * 0.05 }}
+                    className="hover:bg-gray-600/50 transition-colors"
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 bg-gray-600 rounded-full flex items-center justify-center overflow-hidden">
+                          {user.pfp ? (
+                            <img src={user.pfp} alt={user.nom} className="h-full w-full object-cover" />
+                          ) : (
+                            <User size={20} className="text-gray-300" />
+                          )}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-white">{user.nom} {user.prenom}</div>
+                          <div className="text-xs text-gray-400 sm:hidden">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell">
+                      <div className="text-sm text-white">{user.email}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap hidden md:table-cell">
+                      <div className="text-sm text-white">{user.telephone || 'N/A'}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                        user.role === 'admin' 
+                          ? 'bg-purple-900/50 text-purple-300 border border-purple-500/30' 
+                          : 'bg-blue-900/50 text-blue-300 border border-blue-500/30'
+                      }`}>
+                        {user.role === 'admin' ? 'Admin' : 'Utilisateur'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
+                      <div className="flex justify-center space-x-2">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => openEditUserModal(user)}
+                          className="text-indigo-400 hover:text-indigo-300 p-1.5 rounded-full hover:bg-gray-600 transition-colors"
+                          title="Modifier"
+                        >
+                          <Edit size={16} />
+                        </motion.button>
+                        
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => openResetPasswordModal(user)}
+                          className="text-yellow-400 hover:text-yellow-300 p-1.5 rounded-full hover:bg-gray-600 transition-colors"
+                          title="Réinitialiser le mot de passe"
+                        >
+                          <Key size={16} />
+                        </motion.button>
+                        
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => handleRoleChange(user.id_compte, user.role === 'admin' ? 'user' : 'admin')}
+                          className="text-blue-400 hover:text-blue-300 p-1.5 rounded-full hover:bg-gray-600 transition-colors"
+                          title="Changer le rôle"
+                        >
+                          <UserCog size={16} />
+                        </motion.button>
+                        
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => openDeleteConfirmation(user)}
+                          className="text-red-400 hover:text-red-300 p-1.5 rounded-full hover:bg-gray-600 transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash size={16} />
+                        </motion.button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                    <div className="flex flex-col items-center">
+                      <UserRoundSearch size={40} className="text-gray-500 mb-2" />
+                      <p>Aucun utilisateur trouvé</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {users.length > 0 && (
+          <div className="bg-gray-800 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs sm:text-sm text-gray-400">
+              Affichage de {(currentPage - 1) * 10 + 1} à {Math.min(currentPage * 10, (currentPage - 1) * 10 + users.length)} sur {users.length} utilisateurs
+            </div>
+            <div className="flex space-x-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`p-2 rounded-lg ${
+                  currentPage === 1
+                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                <ChevronLeft size={16} />
+              </motion.button>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                // Calculate the correct page number to show, centered around the current page
+                let pageNum = currentPage;
+                if (totalPages <= 5) {
+                  // If we have 5 or fewer pages, just show them all in order
+                  pageNum = i + 1;
+                } else {
+                  // Otherwise, center around current page
+                  if (currentPage <= 3) {
+                    // At the beginning, show pages 1-5
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    // At the end, show the last 5 pages
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    // In the middle, show current page and 2 pages on each side
+                    pageNum = currentPage - 2 + i;
+                  }
+                }
+                
+                return (
+                  <motion.button
+                    key={i}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-1 rounded-md ${
+                      currentPage === pageNum
+                        ? 'bg-[#07f468] text-gray-900 font-medium'
+                        : 'bg-gray-700 text-white hover:bg-gray-600'
+                    }`}
+                  >
+                    {pageNum}
+                  </motion.button>
+                );
+              })}
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className={`p-2 rounded-lg ${
+                  currentPage === totalPages
+                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                <ChevronRight size={16} />
+              </motion.button>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Add User Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4"
+            onClick={closeModal}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-auto border border-gray-700"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">
+                  {modalType === 'add' ? 'Ajouter un utilisateur' : 'Modifier l\'utilisateur'}
+                </h3>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={modalType === 'add' ? handleAddUser : handleUpdateUser} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="nom" className="block text-sm font-medium text-gray-300 mb-1">
+                      Nom
+                    </label>
+                    <input
+                      type="text"
+                      id="nom"
+                      name="nom"
+                      value={formData.nom}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                      required
+                    />
+                    {formErrors.nom && (
+                      <p className="text-red-500 text-xs mt-1">{formErrors.nom}</p>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="prenom" className="block text-sm font-medium text-gray-300 mb-1">
+                      Prénom
+                    </label>
+                    <input
+                      type="text"
+                      id="prenom"
+                      name="prenom"
+                      value={formData.prenom}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                      required
+                    />
+                    {formErrors.prenom && (
+                      <p className="text-red-500 text-xs mt-1">{formErrors.prenom}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                    required
+                  />
+                  {formErrors.email && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="telephone" className="block text-sm font-medium text-gray-300 mb-1">
+                    Téléphone
+                  </label>
+                  <input
+                    type="text"
+                    id="telephone"
+                    name="telephone"
+                    value={formData.telephone}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                    required
+                  />
+                  {formErrors.telephone && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.telephone}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="age" className="block text-sm font-medium text-gray-300 mb-1">
+                    Âge
+                  </label>
+                  <input
+                    type="number"
+                    id="age"
+                    name="age"
+                    min="1"
+                    max="120"
+                    value={formData.age}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                    required
+                  />
+                  {formErrors.age && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.age}</p>
+                  )}
+                </div>
+
+                {modalType === 'add' && (
+                  <>
+                    <div>
+                      <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
+                        Mot de passe
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword.password ? "text" : "password"}
+                          id="password"
+                          name="password"
+                          value={formData.password}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                          onClick={() => togglePasswordVisibility('password')}
+                        >
+                          {showPassword.password ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {formErrors.password && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>
+                      )}
+                      {/* Password strength meter */}
+                      {formData.password && (
+                        <div className="mt-1">
+                          <div className="flex items-center gap-1">
+                            <div className={`h-1 flex-1 rounded-full ${
+                              passwordStrength.password >= 1 ? 'bg-red-500' : 'bg-gray-600'
+                            }`}></div>
+                            <div className={`h-1 flex-1 rounded-full ${
+                              passwordStrength.password >= 2 ? 'bg-yellow-500' : 'bg-gray-600'
+                            }`}></div>
+                            <div className={`h-1 flex-1 rounded-full ${
+                              passwordStrength.password >= 3 ? 'bg-green-500' : 'bg-gray-600'
+                            }`}></div>
+                          </div>
+                          <p className="text-xs mt-1 text-gray-400">
+                            {passwordStrength.password === 1 && 'Mot de passe faible'}
+                            {passwordStrength.password === 2 && 'Mot de passe moyen'}
+                            {passwordStrength.password === 3 && 'Mot de passe fort'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label htmlFor="password_confirmation" className="block text-sm font-medium text-gray-300 mb-1">
+                        Confirmer le mot de passe
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showPassword.password_confirmation ? "text" : "password"}
+                          id="password_confirmation"
+                          name="password_confirmation"
+                          value={formData.password_confirmation}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                          required
+                        />
+                        <button
+                          type="button"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                          onClick={() => togglePasswordVisibility('password_confirmation')}
+                        >
+                          {showPassword.password_confirmation ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {formErrors.password_confirmation && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.password_confirmation}</p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div>
+                  <label htmlFor="role" className="block text-sm font-medium text-gray-300 mb-1">
+                    Rôle
+                  </label>
+                  <select
+                    id="role"
+                    name="role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                  >
+                    <option value="user">Utilisateur</option>
+                    <option value="admin">Administrateur</option>
+                  </select>
+                  {formErrors.role && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.role}</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="button"
+                    onClick={closeModal}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    Annuler
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="submit"
+                    className="px-4 py-2 bg-[#07f468] hover:bg-[#06d35a] text-gray-900 font-medium rounded-lg transition-colors"
+                  >
+                    {modalType === 'add' ? 'Ajouter' : 'Mettre à jour'}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-auto border border-gray-700"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">Confirmation de suppression</h3>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <p className="text-gray-300 mb-6">
+                Êtes-vous sûr de vouloir supprimer cet utilisateur? Cette action ne peut pas être annulée.
+              </p>
+
+              <div className="flex justify-end space-x-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                >
+                  Annuler
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleDeleteUser}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                >
+                  Supprimer
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reset Password Modal */}
+      <AnimatePresence>
+        {showResetPasswordModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4"
+            onClick={() => setShowResetPasswordModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-auto border border-gray-700"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">Réinitialiser le mot de passe</h3>
+                <button
+                  onClick={() => setShowResetPasswordModal(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div>
+                  <label htmlFor="new_password" className="block text-sm font-medium text-gray-300 mb-1">
+                    Nouveau mot de passe
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword.new_password ? "text" : "password"}
+                      id="new_password"
+                      name="new_password"
+                      value={passwordData.new_password}
+                      onChange={handlePasswordInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                      onClick={() => togglePasswordVisibility('new_password')}
+                    >
+                      {showPassword.new_password ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {formErrors.new_password && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.new_password}</p>
+                  )}
+                  {/* Password strength meter */}
+                  {passwordData.new_password && (
+                    <div className="mt-1">
+                      <div className="flex items-center gap-1">
+                        <div className={`h-1 flex-1 rounded-full ${
+                          passwordStrength.new_password >= 1 ? 'bg-red-500' : 'bg-gray-600'
+                        }`}></div>
+                        <div className={`h-1 flex-1 rounded-full ${
+                          passwordStrength.new_password >= 2 ? 'bg-yellow-500' : 'bg-gray-600'
+                        }`}></div>
+                        <div className={`h-1 flex-1 rounded-full ${
+                          passwordStrength.new_password >= 3 ? 'bg-green-500' : 'bg-gray-600'
+                        }`}></div>
+                      </div>
+                      <p className="text-xs mt-1 text-gray-400">
+                        {passwordStrength.new_password === 1 && 'Mot de passe faible'}
+                        {passwordStrength.new_password === 2 && 'Mot de passe moyen'}
+                        {passwordStrength.new_password === 3 && 'Mot de passe fort'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="new_password_confirmation" className="block text-sm font-medium text-gray-300 mb-1">
+                    Confirmer le nouveau mot de passe
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword.new_password_confirmation ? "text" : "password"}
+                      id="new_password_confirmation"
+                      name="new_password_confirmation"
+                      value={passwordData.new_password_confirmation}
+                      onChange={handlePasswordInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                      onClick={() => togglePasswordVisibility('new_password_confirmation')}
+                    >
+                      {showPassword.new_password_confirmation ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {formErrors.new_password_confirmation && (
+                    <p className="text-red-500 text-xs mt-1">{formErrors.new_password_confirmation}</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="button"
+                    onClick={() => setShowResetPasswordModal(false)}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    Annuler
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    type="submit"
+                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    Réinitialiser
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {showNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            transition={{ duration: 0.3 }}
+            className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 flex items-center space-x-2 ${
+              notification.type === 'success' 
+                ? 'bg-green-800 text-green-100' 
+                : 'bg-red-800 text-red-100'
+            }`}
+          >
+            {notification.type === 'success' ? (
+              <CheckCircle size={20} />
+            ) : (
+              <X size={20} />
+            )}
+            <span>{notification.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default FootballAdminDashboard;

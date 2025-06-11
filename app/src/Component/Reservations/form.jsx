@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import AnimatedCheck from "./Status/Confirmed";
 import AnimatedReserved from "./Status/Failed";
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Clock, MapPin, User, X, Mail, Phone, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, X, Mail, Phone, ChevronDown, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
 import userReservationService from '../../lib/services/user/reservationServices';
 import adminReservationService from '../../lib/services/admin/reservationServices';
 import StripeWrapper from '../Payments/StripeWrapper';
@@ -239,7 +239,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     return timeString;
   };
 
-  // Modify the handleSubmit function to not increment the count yet
+  // Modify the handleSubmit function to remove advance payment validation
   const handleSubmit = async (e) => {
     e.preventDefault();
     

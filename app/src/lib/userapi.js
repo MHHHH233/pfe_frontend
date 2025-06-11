@@ -8,6 +8,9 @@ const apiClient = axios.create({
   Authorization: `Bearer ${sessionStorage.getItem('token')}`
 });
 
+// Add request debugging in development
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 // Add a request interceptor
 apiClient.interceptors.request.use(
   (config) => {
@@ -19,17 +22,47 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
+    // Log request details in development mode
+    if (isDevelopment) {
+      console.log(`🚀 API Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`, {
+        params: config.params,
+        headers: config.headers,
+        data: config.data
+      });
+    }
+    
     return config;
   },
   (error) => {
+    if (isDevelopment) {
+      console.error('❌ API Request Error:', error);
+    }
     return Promise.reject(error);
   }
 );
 
 // Add a response interceptor
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log response in development mode
+    if (isDevelopment) {
+      console.log(`✅ API Response: ${response.config.method.toUpperCase()} ${response.config.url}`, {
+        status: response.status,
+        data: response.data
+      });
+    }
+    return response;
+  },
   (error) => {
+    // Log error response in development mode
+    if (isDevelopment) {
+      console.error('❌ API Response Error:', {
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+    }
+    
     // Handle 401 (Unauthorized) responses
     if (error.response && error.response.status === 401) {
       // Clear session storage

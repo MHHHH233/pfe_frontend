@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import { useState, useEffect, useRef } from "react"
 import academieService from "../../lib/services/user/academieServices"
 import { FaTrophy, FaUsers, FaFutbol, FaGraduationCap } from "react-icons/fa"
+import { useNavigate } from "react-router-dom"
 
 const infoVariants = {
   hidden: { opacity: 0 },
@@ -64,6 +65,7 @@ export function AcademyInfo() {
   const [error, setError] = useState(null);
   const [inView, setInView] = useState(false);
   const sectionRef = useRef(null);
+  const navigate = useNavigate();
 
   const stats = [
     {
@@ -319,6 +321,12 @@ export function AcademyInfo() {
             }}
             whileTap={{ scale: 0.95 }}
             className="px-8 py-3 bg-gradient-to-r from-green-500 to-green-400 text-black rounded-full font-medium text-lg shadow-md hover:shadow-xl transition-shadow group relative overflow-hidden"
+            onClick={() => {
+              const tarifsSection = document.getElementById('tarifs');
+              if (tarifsSection) {
+                tarifsSection.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
           >
             <motion.span 
               initial={{ x: "-100%" }}

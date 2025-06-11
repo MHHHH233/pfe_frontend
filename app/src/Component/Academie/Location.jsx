@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import Separateur from '../../img/curved.png'
-
+import { Link } from "react-router-dom";
 const LocationSection = () => {
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -96,7 +96,7 @@ const LocationSection = () => {
           transition={{ type: "spring", stiffness: 400 }}
         >
           <iframe
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3397.2586039210205!2d-8.047830000000001!3d31.6267691!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xdafe94a941672ed%3A0xde67cdd2a606be45!2sUrbain%205!5e0!3m2!1sen!2sma!4v1734877839713!5m2!1sen!2sma"
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3397.2586039210205!2d-8.0478300!3d31.6267691!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xdafe94a941672ed%3A0xde67cdd2a606be45!2sUrbain%205!5e0!3m2!1sen!2sma!4v1734877839713!5m2!1sen!2sma"
             width="100%"
             height="450"
             style={{ border: 0 }}
@@ -104,6 +104,7 @@ const LocationSection = () => {
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
             title="Google Maps"
+            className="block h-full"
           ></iframe>
         </motion.div>
 
@@ -207,10 +208,10 @@ const LocationSection = () => {
               className="absolute inset-0 bg-black/10 z-0"
             />
             <span className="relative z-10 flex items-center justify-center gap-2">
+              <Link to="/contactus">
               Contactez-nous
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
+              
+              </Link>
             </span>
           </motion.button>
         </motion.div>

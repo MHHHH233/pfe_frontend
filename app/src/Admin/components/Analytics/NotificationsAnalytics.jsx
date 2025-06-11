@@ -10,21 +10,32 @@ import {
   User,
   Trophy,
   Users,
-  PieChart
+  PieChart,
+  Bug,
+  Star,
+  ChevronDown,
+  School
 } from 'lucide-react';
 import notificationsService from '../../../lib/services/admin/notificationsService';
+import analyticsService from '../../../lib/services/admin/analyticsServices';
 
 const NotificationsAnalytics = () => {
   const [notificationData, setNotificationData] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchNotificationAnalytics = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await notificationsService.getNotifications();
-        setNotificationData(response);
+        const [notificationsResponse, analyticsResponse] = await Promise.all([
+          notificationsService.getNotifications(),
+          analyticsService.getAnalytics()
+        ]);
+        
+        setNotificationData(notificationsResponse);
+        setAnalyticsData(analyticsResponse);
       } catch (err) {
         setError('Failed to load notification data');
       } finally {
@@ -32,7 +43,7 @@ const NotificationsAnalytics = () => {
       }
     };
 
-    fetchNotificationAnalytics();
+    fetchData();
   }, []);
 
   if (loading) {
@@ -62,7 +73,7 @@ const NotificationsAnalytics = () => {
   }
 
   // If no notification data
-  if (!notificationData) {
+  if (!notificationData || !analyticsData) {
     return null;
   }
 
@@ -89,7 +100,7 @@ const NotificationsAnalytics = () => {
       <h3 className="text-2xl font-bold text-white">Notification Analytics</h3>
       
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -129,13 +140,29 @@ const NotificationsAnalytics = () => {
           className="bg-gray-700 p-6 rounded-lg shadow-lg"
         >
           <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-semibold text-white">Unread</h4>
-            <AlertCircle size={24} className="text-yellow-400" />
+            <h4 className="text-lg font-semibold text-white">Bug Reports</h4>
+            <Bug size={24} className="text-red-400" />
           </div>
           <div className="text-3xl font-bold mb-2 text-white">
-            {notificationData.unread_count || 0}
+            {analyticsData?.total_reported_bugs || 0}
           </div>
-          <div className="text-sm text-gray-400">Unread notifications</div>
+          <div className="text-sm text-gray-400">Reported issues</div>
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+          className="bg-gray-700 p-6 rounded-lg shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-semibold text-white">Ratings</h4>
+            <Star size={24} className="text-yellow-400" />
+          </div>
+          <div className="text-3xl font-bold mb-2 text-white">
+            {analyticsData?.total_ratings || 0}
+          </div>
+          <div className="text-sm text-gray-400">User reviews</div>
         </motion.div>
       </div>
       
@@ -208,7 +235,7 @@ const NotificationsAnalytics = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-gray-400">Reservations</div>
-                  <div className="text-xl font-semibold text-white">{notificationData.activity_counts.reservations || 0}</div>
+                  <div className="text-xl font-semibold text-white">{analyticsData?.total_reservations || 0}</div>
                 </div>
               </div>
               
@@ -218,7 +245,7 @@ const NotificationsAnalytics = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-gray-400">Player Requests</div>
-                  <div className="text-xl font-semibold text-white">{notificationData.activity_counts.player_requests || 0}</div>
+                  <div className="text-xl font-semibold text-white">{analyticsData?.total_player_requests || 0}</div>
                 </div>
               </div>
               
@@ -228,7 +255,7 @@ const NotificationsAnalytics = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-gray-400">Matches</div>
-                  <div className="text-xl font-semibold text-white">{notificationData.activity_counts.matches || 0}</div>
+                  <div className="text-xl font-semibold text-white">{analyticsData?.total_matches || 0}</div>
                 </div>
               </div>
               
@@ -237,8 +264,8 @@ const NotificationsAnalytics = () => {
                   <Users size={20} className="text-[#07f468]" />
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-gray-400">New Teams</div>
-                  <div className="text-xl font-semibold text-white">{notificationData.activity_counts.new_teams || 0}</div>
+                  <div className="text-xs text-gray-400">Teams</div>
+                  <div className="text-xl font-semibold text-white">{analyticsData?.total_teams || 0}</div>
                 </div>
               </div>
             </div>
@@ -249,6 +276,88 @@ const NotificationsAnalytics = () => {
           )}
         </motion.div>
       </div>
+      
+      {/* Expanded Data Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.5 }}
+        className="bg-gray-700 p-6 rounded-lg shadow-lg"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h4 className="text-lg font-semibold text-white">Activity Data Summary</h4>
+          <BarChart2 size={24} className="text-[#07f468]" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-gray-800/50 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy size={18} className="text-yellow-400" />
+              <h5 className="font-medium">Tournaments & Matches</h5>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Tournaments</span>
+                <span className="font-medium">{analyticsData?.total_tournois || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Matches</span>
+                <span className="font-medium">{analyticsData?.total_matches || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Stages</span>
+                <span className="font-medium">{analyticsData?.total_stages || 0}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-800/50 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <User size={18} className="text-green-400" />
+              <h5 className="font-medium">Players & Teams</h5>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Players</span>
+                <span className="font-medium">{analyticsData?.total_players || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Teams</span>
+                <span className="font-medium">{analyticsData?.total_teams || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Player Requests</span>
+                <span className="font-medium">{analyticsData?.total_player_requests || 0}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gray-800/50 p-4 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <School size={18} className="text-purple-400" />
+              <h5 className="font-medium">Academy</h5>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Programmes</span>
+                <span className="font-medium">{analyticsData?.total_academie_programmes || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Coaches</span>
+                <span className="font-medium">{analyticsData?.total_academie_coaches || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Activities</span>
+                <span className="font-medium">{analyticsData?.total_academie_activites || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Activity Members</span>
+                <span className="font-medium">{analyticsData?.total_activites_members || 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
       
       {/* Recent Notifications */}
       <motion.div

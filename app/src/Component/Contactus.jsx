@@ -568,24 +568,35 @@ const ContactUsFullscreen = () => {
       {/* Map Section */}
       <motion.div 
         ref={mapRef}
-        className="w-full h-96 mt-16 relative overflow-hidden"
+        className="w-full h-[450px] mt-16 relative overflow-hidden"
         initial={{ opacity: 0, y: 50 }}
         animate={mapInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
         transition={{ duration: 0.8 }}
       >
-        <iframe 
-          src={socialMedia?.localisation || "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d106376.72692390395!2d-4.997941442968747!3d34.03330999999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xd9f8b484d445777%3A0x10e6aaaeedd802ef!2zRsOocywgTWFyb2M!5e0!3m2!1sfr!2sma!4v1652360704295!5m2!1sfr!2sma"}
-          width="100%" 
-          height="100%" 
-          style={{ border: 0 }} 
-          allowFullScreen="" 
-          loading="lazy" 
-          referrerPolicy="no-referrer-when-downgrade"
-          title="Map Location"
-          className="filter grayscale contrast-125 z-0"
-        ></iframe>
+        <motion.div
+          className="w-full h-full rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(7,244,104,0.15)] border border-gray-800"
+          whileHover={{ 
+            scale: 1.01, 
+            boxShadow: "0px 25px 50px rgba(7, 244, 104, 0.2)" 
+          }}
+          transition={{ type: "spring", stiffness: 300 }}
+        >
+          <iframe 
+            src={socialMedia?.localisation ? 
+              "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3397.2586039210205!2d-8.0478300!3d31.6267691!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xdafe94a941672ed%3A0xde67cdd2a606be45!2sUrbain%205!5e0!3m2!1sen!2sma!4v1734877839713!5m2!1sen!2sma" 
+              : "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d106376.72692390395!2d-4.997941442968747!3d34.03330999999999!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xd9f8b484d445777%3A0x10e6aaaeedd802ef!2zRsOocywgTWFyb2M!5e0!3m2!1sfr!2sma!4v1652360704295!5m2!1sfr!2sma"}
+            width="100%" 
+            height="100%" 
+            style={{ border: 0 }} 
+            allowFullScreen 
+            loading="lazy" 
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Map Location"
+            className="block filter grayscale contrast-125 z-0"
+          ></iframe>
+        </motion.div>
         
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#1a1a1a] to-transparent z-10"></div>
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#1a1a1a] to-transparent z-10 rounded-2xl"></div>
         
         <div className="absolute bottom-0 left-0 right-0 p-6 text-center z-20">
           <motion.div
@@ -597,7 +608,7 @@ const ContactUsFullscreen = () => {
               href={socialMedia?.localisation || "https://maps.google.com/?q=Fès,Maroc"}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center px-6 py-3 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors duration-300"
+              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-full hover:shadow-lg hover:shadow-green-500/20 transition-all duration-300 transform hover:-translate-y-1"
             >
               <MapPin size={18} className="mr-2" />
               Obtenir l'itinéraire

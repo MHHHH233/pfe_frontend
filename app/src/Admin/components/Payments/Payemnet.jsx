@@ -160,7 +160,7 @@ const PaymentManagement = () => {
         }
         
         // Format amount (convert from cents to currency format)
-        const amount = parseFloat(payment.amount) / 100;
+        const amount = parseFloat(payment.amount);
         
         return {
           id: payment.id,
@@ -182,6 +182,24 @@ const PaymentManagement = () => {
       
       setPayments(transformedData);
     } catch (error) {
+      console.error('Error fetching payments:', error);
+      // Log detailed error information
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('Error request:', error.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error('Error message:', error.message);
+      }
+      
+      // Set payments to empty array to avoid using stale data
+      setPayments([]);
     } finally {
       setLoading(false);
     }
@@ -193,6 +211,17 @@ const PaymentManagement = () => {
       fetchPayments();
       setShowModal(false);
     } catch (error) {
+      console.error(`Error updating payment status for ID ${id}:`, error);
+      // Log detailed error information
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+      } else if (error.request) {
+        console.error('Error request:', error.request);
+      } else {
+        console.error('Error message:', error.message);
+      }
+      // Could add a toast notification here for user feedback
     }
   };
 
@@ -202,6 +231,17 @@ const PaymentManagement = () => {
       fetchPayments();
       setShowModal(false);
     } catch (error) {
+      console.error(`Error deleting payment ID ${id}:`, error);
+      // Log detailed error information
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+      } else if (error.request) {
+        console.error('Error request:', error.request);
+      } else {
+        console.error('Error message:', error.message);
+      }
+      // Could add a toast notification here for user feedback
     }
   };
 
@@ -210,6 +250,7 @@ const PaymentManagement = () => {
       const response = await paymentService.getPayment(id);
       
       if (!response.success || !response.data) {
+        console.error(`Invalid payment data for ID ${id}:`, response);
         return;
       }
       
@@ -233,8 +274,8 @@ const PaymentManagement = () => {
         description = `${paymentData.academie.nom} - ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan`;
       }
       
-      // Format amount (convert from cents to currency format)
-      const amount = parseFloat(paymentData.amount) / 100;
+      // Format amount
+      const amount = parseFloat(paymentData.amount);
       
       // Transform the API response to match the component's expected structure
       const transformedData = {
@@ -258,7 +299,17 @@ const PaymentManagement = () => {
       setModalType('view');
       setShowModal(true);
     } catch (error) {
-     
+      console.error(`Error fetching payment details for ID ${id}:`, error);
+      // Log detailed error information
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+      } else if (error.request) {
+        console.error('Error request:', error.request);
+      } else {
+        console.error('Error message:', error.message);
+      }
+      // Could add a toast notification here for user feedback
     }
   };
 
@@ -423,6 +474,22 @@ const PaymentManagement = () => {
     }
   };
 
+  // Helper function to get currency symbol
+  const getCurrencySymbol = (currencyCode) => {
+    switch(currencyCode.toLowerCase()) {
+      case 'mad':
+        return 'MAD';
+      case 'usd':
+        return '$';
+      case 'eur':
+        return '€';
+      case 'gbp':
+        return '£';
+      default:
+        return currencyCode.toUpperCase();
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -445,7 +512,7 @@ const PaymentManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-400">Total Revenue</p>
-              <p className="text-2xl font-bold text-white">${totalRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-white">MAD {totalRevenue.toFixed(2)}</p>
               <p className="text-xs text-gray-400 mt-1">{payments.length} total payments</p>
             </div>
             <div className="h-12 w-12 bg-[#07f468]/10 rounded-full flex items-center justify-center">
@@ -458,7 +525,7 @@ const PaymentManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-400">Completed</p>
-              <p className="text-2xl font-bold text-green-400">${completedRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-400">MAD {completedRevenue.toFixed(2)}</p>
               <div className="flex items-center mt-1">
                 <span className="text-xs text-gray-400">{completedPayments} payments</span>
                 <span className="text-xs text-green-400 ml-2">({completedPercentage}%)</span>
@@ -474,7 +541,7 @@ const PaymentManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-400">Pending</p>
-              <p className="text-2xl font-bold text-yellow-400">${pendingRevenue.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-yellow-400">MAD {pendingRevenue.toFixed(2)}</p>
               <div className="flex items-center mt-1">
                 <span className="text-xs text-gray-400">{pendingPayments} payments</span>
                 <span className="text-xs text-yellow-400 ml-2">({pendingPercentage}%)</span>
@@ -490,7 +557,7 @@ const PaymentManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-400">Failed</p>
-              <p className="text-2xl font-bold text-red-400">${failedPayments > 0 ? '0.00' : '0.00'}</p>
+              <p className="text-2xl font-bold text-red-400">MAD {failedPayments > 0 ? '0.00' : '0.00'}</p>
               <div className="flex items-center mt-1">
                 <span className="text-xs text-gray-400">{failedPayments} payments</span>
                 <span className="text-xs text-red-400 ml-2">({failedPercentage}%)</span>
@@ -526,7 +593,7 @@ const PaymentManagement = () => {
                 <YAxis stroke="#9CA3AF" />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff' }}
-                  formatter={(value) => [`$${value.toFixed(2)}`, 'Amount']}
+                  formatter={(value) => [`MAD ${value.toFixed(2)}`, 'Amount']}
                 />
                 <Legend />
                 <Line type="monotone" dataKey="total" name="Total Revenue" stroke="#07f468" strokeWidth={2} />
@@ -764,7 +831,7 @@ const PaymentManagement = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-white">
-                          ${typeof payment.amount === 'number' ? payment.amount.toFixed(2) : parseFloat(payment.amount).toFixed(2)}
+                          {getCurrencySymbol(payment.currency)} {typeof payment.amount === 'number' ? payment.amount.toFixed(2) : parseFloat(payment.amount).toFixed(2)}
                         </span>
                         <span className="text-xs flex items-center text-gray-400">
                           {getPaymentMethodIcon(payment.method)}
@@ -890,8 +957,7 @@ const PaymentManagement = () => {
                     <div className="flex justify-between items-center">
                       <div className="text-sm text-gray-400">Amount</div>
                       <div className="text-xl font-bold text-white">
-                        ${typeof selectedPayment.amount === 'number' ? selectedPayment.amount.toFixed(2) : parseFloat(selectedPayment.amount).toFixed(2)}
-                        <span className="text-xs text-gray-400 ml-1 uppercase">{selectedPayment.currency}</span>
+                        {getCurrencySymbol(selectedPayment.currency)} {typeof selectedPayment.amount === 'number' ? selectedPayment.amount.toFixed(2) : parseFloat(selectedPayment.amount).toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -931,28 +997,78 @@ const PaymentManagement = () => {
                     <div className="bg-gray-700/30 p-4 rounded-lg">
                       <div className="text-sm text-white mb-2">{selectedPayment.description}</div>
                       
-                      {selectedPayment.reservation && (
+                      {/* Payment breakdown section */}
+                      {selectedPayment.paymentDetails && selectedPayment.paymentDetails.full_price && (
                         <div className="mt-3 pt-3 border-t border-gray-600/50">
-                          <div className="text-xs text-gray-400 mb-1">Reservation Information</div>
-                          <div className="text-sm text-white">Terrain #{selectedPayment.reservation.id_terrain}</div>
-                          <div className="text-sm text-white">Date: {selectedPayment.reservation.date}</div>
-                          <div className="text-sm text-white">Time: {selectedPayment.reservation.heure?.substring(0, 5)}</div>
+                          <div className="text-xs text-gray-400 mb-2 font-semibold">Payment Breakdown</div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-400">Full Price:</span>
+                              <span className="text-sm text-white">
+                                {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.full_price).toFixed(2)}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-400">Amount Paid:</span>
+                              <span className="text-sm text-green-400">
+                                {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.advance_payment).toFixed(2)}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-400">Remaining Balance:</span>
+                              <span className={`text-sm font-medium ${selectedPayment.paymentDetails.remaining > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                                {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.remaining).toFixed(2)}
+                              </span>
+                            </div>
+                            
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-400">Payment Type:</span>
+                              <span className="text-sm text-white capitalize">
+                                {selectedPayment.paymentDetails.type?.replace('_', ' ') || 'Standard'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* Payment progress bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-600 rounded-full h-2.5">
+                              <div 
+                                className="bg-green-400 h-2.5 rounded-full" 
+                                style={{ 
+                                  width: `${Math.min(100, (selectedPayment.paymentDetails.advance_payment / selectedPayment.paymentDetails.full_price) * 100)}%` 
+                                }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between mt-1">
+                              <span className="text-xs text-gray-400">
+                                {Math.round((selectedPayment.paymentDetails.advance_payment / selectedPayment.paymentDetails.full_price) * 100)}% paid
+                              </span>
+                              {selectedPayment.paymentDetails.remaining > 0 && (
+                                <span className="text-xs text-gray-400">
+                                  {Math.round((selectedPayment.paymentDetails.remaining / selectedPayment.paymentDetails.full_price) * 100)}% remaining
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
                       
-                      {selectedPayment.academie && (
-                        <div className="mt-3 pt-3 border-t border-gray-600/50">
-                          <div className="text-xs text-gray-400 mb-1">Academy Information</div>
-                          <div className="text-sm text-white">{selectedPayment.academie.nom}</div>
-                          <div className="text-sm text-white">Plan: {selectedPayment.paymentDetails?.subscription_plan || 'Standard'}</div>
-                          <div className="text-sm text-white">Member ID: {selectedPayment.paymentDetails?.member_id || 'N/A'}</div>
+                      {/* Warning for completed payments with remaining balance */}
+                      {selectedPayment.status === 'completed' && selectedPayment.paymentDetails.remaining > 0 && (
+                        <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-500/30 rounded text-xs text-yellow-400">
+                          <div className="flex items-start">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <span>
+                              This payment is marked as completed but still has a remaining balance of {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.remaining).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       )}
-                      
-                      <div className="mt-3 pt-3 border-t border-gray-600/50">
-                        <div className="text-xs text-gray-400 mb-1">Stripe Payment ID</div>
-                        <div className="text-xs text-gray-300 break-all">{selectedPayment.stripeId}</div>
-                      </div>
                     </div>
                   </div>
                 </>
@@ -971,10 +1087,59 @@ const PaymentManagement = () => {
                         <div>
                           <div className="text-sm text-gray-400 text-right">Amount</div>
                           <div className="text-white font-medium">
-                            ${typeof selectedPayment.amount === 'number' ? selectedPayment.amount.toFixed(2) : parseFloat(selectedPayment.amount).toFixed(2)}
+                            {getCurrencySymbol(selectedPayment.currency)} {typeof selectedPayment.amount === 'number' ? selectedPayment.amount.toFixed(2) : parseFloat(selectedPayment.amount).toFixed(2)}
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Payment breakdown for edit view */}
+                      {selectedPayment.paymentDetails && selectedPayment.paymentDetails.full_price && (
+                        <div className="mt-3 pt-3 border-t border-gray-600/50">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-xs text-gray-400">Full Price</div>
+                              <div className="text-sm font-medium text-white">
+                                {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.full_price).toFixed(2)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-400">Paid Amount</div>
+                              <div className="text-sm font-medium text-green-400">
+                                {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.advance_payment).toFixed(2)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-400">Remaining</div>
+                              <div className={`text-sm font-medium ${selectedPayment.paymentDetails.remaining > 0 ? 'text-yellow-400' : 'text-green-400'}`}>
+                                {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.remaining).toFixed(2)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-400">Payment Type</div>
+                              <div className="text-sm text-white capitalize">
+                                {selectedPayment.paymentDetails.type?.replace('_', ' ') || 'Standard'}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Payment progress bar */}
+                          <div className="mt-3">
+                            <div className="w-full bg-gray-600 rounded-full h-2 mb-1">
+                              <div 
+                                className="bg-green-400 h-2 rounded-full" 
+                                style={{ 
+                                  width: `${Math.min(100, (selectedPayment.paymentDetails.advance_payment / selectedPayment.paymentDetails.full_price) * 100)}%` 
+                                }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-400">
+                                {Math.round((selectedPayment.paymentDetails.advance_payment / selectedPayment.paymentDetails.full_price) * 100)}% paid
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <div>
@@ -995,6 +1160,26 @@ const PaymentManagement = () => {
                         <p>Changing the status to "completed" will mark the payment as successful.</p>
                         <p className="mt-1">Changing to "failed" will mark the payment as unsuccessful.</p>
                       </div>
+                      
+                      {/* Warning for completing payment with remaining balance */}
+                      {selectedPayment.status === 'completed' && selectedPayment.paymentDetails && selectedPayment.paymentDetails.remaining > 0 && (
+                        <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-500/30 rounded-md">
+                          <div className="flex items-start">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-400 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            <div className="text-sm text-yellow-400">
+                              <p className="font-medium">Warning: Remaining Balance</p>
+                              <p className="mt-1">
+                                You are marking this payment as completed, but there is still a remaining balance of {getCurrencySymbol(selectedPayment.currency)} {parseFloat(selectedPayment.paymentDetails.remaining).toFixed(2)}
+                              </p>
+                              <p className="mt-1">
+                                Make sure the customer has made arrangements to pay the remaining amount.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -1029,7 +1214,7 @@ const PaymentManagement = () => {
                       <div>
                         <div className="text-sm text-gray-400">Amount</div>
                         <div className="text-white font-medium">
-                          ${typeof selectedPayment.amount === 'number' ? selectedPayment.amount.toFixed(2) : parseFloat(selectedPayment.amount).toFixed(2)}
+                          {getCurrencySymbol(selectedPayment.currency)} {typeof selectedPayment.amount === 'number' ? selectedPayment.amount.toFixed(2) : parseFloat(selectedPayment.amount).toFixed(2)}
                         </div>
                       </div>
                       <div>
