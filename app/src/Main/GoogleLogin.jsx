@@ -11,11 +11,11 @@ const GoogleLogin = () => {
     setError(null);
     
     try {
-      const response = await authService.googleRedirect();
+      const redirectUrl = await authService.googleRedirect();
       
-      if (response && response.url) {
+      if (redirectUrl) {
         // Redirect to Google OAuth
-        window.location.href = response.url;
+        window.location.href = redirectUrl;
       } else {
         throw new Error('Failed to get Google authentication URL');
       }

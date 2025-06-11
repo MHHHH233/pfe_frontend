@@ -363,8 +363,6 @@ const ProfilePage = () => {
       if (filterStatus !== 'all') historyParams.etat = filterStatus;
       if (searchQuery) historyParams.search = searchQuery;
 
-      console.log("Fetching history with params:", historyParams);
-
       // Fetch history reservations with pagination
       const historyResponse = await reservationService.getReservationHistory(historyParams);
       
@@ -2671,70 +2669,71 @@ const ProfilePage = () => {
           
           <div className="bg-gradient-to-br from-[#1a1a1a]/95 to-[#141414]/95 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden border border-white/5 relative z-10">
             {/* User info with avatar, name, etc. */}
-            <div className="p-5 sm:p-7 md:p-10 flex flex-col md:flex-row md:items-end gap-6 md:gap-8 relative min-h-[200px] sm:min-h-[220px] md:min-h-[240px]">
+            <div className="p-5 sm:p-7 md:p-10 relative">
               {/* Background subtle gradient */}
               <div className="absolute inset-0 bg-gradient-to-r from-white/5 to-transparent opacity-30"></div>
               
-              {/* Profile picture container with improved positioning */}
-              <div className="flex-shrink-0 mx-auto md:mx-0 -mt-20 sm:-mt-24 md:-mt-28 relative z-20 w-28 sm:w-36 md:w-40">
-                <div className="relative">
-                  {/* Profile picture */}
-                  <div className="relative rounded-full overflow-hidden border-4 border-[#141414] aspect-square bg-gray-800">
+              <div className="flex flex-col items-center md:flex-row md:items-center gap-6 md:gap-8 relative z-10">
+                {/* Profile picture */}
+                <div className="flex-shrink-0">
+                  <div className="rounded-full overflow-hidden border-4 border-[#141414] shadow-lg w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40">
                     <img
                       src={userData.pfp || `https://ui-avatars.com/api/?name=${encodeURIComponent((userData.nom || '') + "+" + (userData.prenom || ''))}&background=1a1a1a&color=ffffff&size=256`}
                       alt={userData.nom ? `${userData.prenom} ${userData.nom}` : 'Profile Avatar'}
                       className="w-full h-full object-cover"
                       loading="lazy"
                     />
-                    
-                    {/* Hidden file input */}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleProfilePictureChange}
-                      className="hidden"
-                      accept="image/*"
-                    />
+                  </div>
+                  
+                  {/* Hidden file input */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleProfilePictureChange}
+                    className="hidden"
+                    accept="image/*"
+                  />
+                </div>
+                
+                {/* User info */}
+                <div className="flex-grow text-center md:text-left">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold animate-fadeIn text-white">
+                    {userData.nom} {userData.prenom}
+                  </h1>
+                  <p className="text-gray-400 mt-2 md:mt-3">
+                    Member since {new Date(userData.created_at || userData.dateInscription || Date.now()).toLocaleDateString()}
+                  </p>
+                  
+                  {/* Role badges */}
+                  <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
+                    <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700">
+                      {userData.role || 'Member'}
+                    </span>
+                    {userData.player && (
+                      <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700 flex items-center">
+                        <User className="w-3.5 h-3.5 mr-1.5" />
+                        Player
+                      </span>
+                    )}
+                    {sessionStorage.getItem('has_teams') === 'true' && (
+                      <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700 flex items-center">
+                        <Users className="w-3.5 h-3.5 mr-1.5" />
+                        Team Captain
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Action button */}
+                  <div className="mt-4 md:mt-6">
+                    <Link 
+                      to="/reservation" 
+                      className="bg-gray-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-700 inline-flex items-center justify-center transition-all duration-300 w-full md:w-auto shadow-lg group border border-gray-700"
+                    >
+                      <Calendar className="w-5 h-5 mr-2 transform group-hover:scale-110 transition-transform" />
+                      Book a Field
+                    </Link>
                   </div>
                 </div>
-              </div>
-              
-              {/* User info with improved spacing */}
-              <div className="flex-grow text-center md:text-left z-10 mt-4 md:mt-0">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold animate-fadeIn text-white">
-                  {userData.nom} {userData.prenom}
-                </h1>
-                <p className="text-gray-400 mt-2 md:mt-3">
-                  Member since {new Date(userData.created_at || userData.dateInscription || Date.now()).toLocaleDateString()}
-                </p>
-                <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
-                  <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700">
-                    {userData.role || 'Member'}
-                  </span>
-                  {userData.player && (
-                    <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700 flex items-center">
-                      <User className="w-3.5 h-3.5 mr-1.5" />
-                      Player
-                    </span>
-                  )}
-                  {sessionStorage.getItem('has_teams') === 'true' && (
-                    <span className="bg-gray-800 text-gray-300 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-700 flex items-center">
-                      <Users className="w-3.5 h-3.5 mr-1.5" />
-                      Team Captain
-                    </span>
-                  )}
-                </div>
-              </div>
-              
-              {/* Action button with improved positioning */}
-              <div className="flex-shrink-0 mt-4 md:mt-0 text-center md:text-left w-full md:w-auto z-10">
-                <Link 
-                  to="/reservation" 
-                  className="bg-gray-800 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-700 inline-flex items-center justify-center transition-all duration-300 w-full md:w-auto shadow-lg group border border-gray-700"
-                >
-                  <Calendar className="w-5 h-5 mr-2 transform group-hover:scale-110 transition-transform" />
-                  Book a Field
-                </Link>
               </div>
             </div>
             

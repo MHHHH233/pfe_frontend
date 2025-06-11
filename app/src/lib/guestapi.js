@@ -9,11 +9,8 @@ const apiGuest = axios.create({
   },
 });
 
-console.log('Using API URL:', API_URL); // Debug log
-
 // Request interceptor (e.g., add auth token)
 apiGuest.interceptors.request.use((config) => {
-  console.log('Making request to:', config.baseURL + config.url); // Debug log
   return config;
 });
 

@@ -29,8 +29,6 @@ const profileService = {
         }
       };
       
-      console.log('Sending data to API:', data);
-      
       // Convert age to number if it's a string
       const formattedData = { ...data };
       if (formattedData.age && typeof formattedData.age === 'string') {
@@ -38,7 +36,6 @@ const profileService = {
       }
       
       const response = await apiClient.put(profileEndpoints.updateProfile, formattedData, config);
-      console.log('Update response:', response);
       return response.data;
     } catch (error) {
       console.error('Error updating user profile:', error);

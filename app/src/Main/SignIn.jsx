@@ -36,7 +36,6 @@ const LoginForm = () => {
     if (Object.keys(fieldErrors).length === 0) {
       try {
         const response = await authService.login(formData);
-        console.log('Login response:', response);
         
         if (response.status && response.data) {
           // Store token
@@ -62,8 +61,6 @@ const LoginForm = () => {
             // Store the first membership's ID for backward compatibility
             const firstMembership = response.data.academie_memberships[0];
             sessionStorage.setItem("academy_member_id", firstMembership.id_member);
-            
-            console.log("Academy membership data stored:", response.data.academie_memberships);
           }
           
           // Store team information
@@ -76,8 +73,6 @@ const LoginForm = () => {
             // Store the first team's ID for easy access
             const firstTeam = response.data.teams[0];
             sessionStorage.setItem("id_teams", firstTeam.id_teams);
-            
-            console.log("Team data stored:", response.data.teams);
           }
           
           // Store userdetails as a JSON string
@@ -103,7 +98,6 @@ const LoginForm = () => {
           }
         }
       } catch (error) {
-        console.error("Error details:", error);
         setErrors((prevErrors) => ({
           ...prevErrors,
           api: error.message || "An error occurred during login.",

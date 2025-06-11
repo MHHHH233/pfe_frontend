@@ -26,7 +26,6 @@ const NotificationsAnalytics = () => {
         const response = await notificationsService.getNotifications();
         setNotificationData(response);
       } catch (err) {
-        console.error('Error fetching notification analytics:', err);
         setError('Failed to load notification data');
       } finally {
         setLoading(false);

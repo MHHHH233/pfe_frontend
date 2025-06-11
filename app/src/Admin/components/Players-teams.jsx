@@ -235,10 +235,8 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
         reader.onload = (e) => {
           try {
             const data = JSON.parse(e.target.result);
-            console.log('Parsed JSON data:', data);
             const formattedData = section === 'Teams' ? 
               data.map(team => {
-                console.log('Processing team:', team);
                 return {
                   id: Date.now() + Math.random(),
                   name: team.name || '',
@@ -255,7 +253,6 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
                 };
               }) :
               data.map(player => {
-                console.log('Processing player:', player);
                 return {
                   id: Date.now() + Math.random(),
                   name: player.name || '',
@@ -267,7 +264,6 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
                   image: player.image || player.img || player.avatar || player.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name || 'Unknown')}&background=random`
                 };
               });
-            console.log('Formatted data:', formattedData);
             onImport(formattedData);
             onClose();
           } catch (err) {
@@ -284,7 +280,6 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
             const workbook = XLSX.read(e.target.result, { type: 'array' });
             const sheetName = workbook.SheetNames[0];
             const rawData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-            console.log('Parsed Excel data:', rawData);
             const formattedData = section === 'Teams' ? 
               rawData.map(team => ({
                 id: Date.now() + Math.random(),
@@ -310,7 +305,6 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
                 status: player.status || 'active',
                 image: player.image || player.img || player.avatar || player.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name || 'Unknown')}&background=random`
               }));
-            console.log('Formatted data:', formattedData);
             onImport(formattedData);
             onClose();
           } catch (err) {
@@ -324,10 +318,8 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
         reader.onload = (e) => {
           try {
             const csvText = e.target.result;
-            console.log('Raw CSV text:', csvText);
             const lines = csvText.split('\n');
             const headers = lines[0].split(',').map(header => header.trim().toLowerCase()); // Convert headers to lowercase
-            console.log('CSV headers:', headers);
             
             const rawData = lines.slice(1)
               .filter(line => line.trim())
@@ -391,7 +383,6 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
                 return obj;
               });
 
-            console.log('Parsed CSV data:', rawData);
             const formattedData = section === 'Teams' ? 
               rawData.map(team => ({
                 id: Date.now() + Math.random(),
@@ -418,7 +409,6 @@ const ImportModal = ({ isOpen, onClose, onImport, section }) => {
                 image: player.image || player.img || player.avatar || player.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(player.name || 'Unknown')}&background=random`
               }));
             
-            console.log('Formatted data:', formattedData);
             onImport(formattedData);
             onClose();
           } catch (err) {

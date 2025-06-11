@@ -112,7 +112,6 @@ const GoogleCallback = () => {
         // Store today's reservation count
         const todayReservationsCount = response.data.today_reservations_count || 0;
         sessionStorage.setItem("today_reservations_count", todayReservationsCount);
-        console.log("Today's reservations count:", todayReservationsCount);
         
         // Additional user fields 
         if (userData.age) sessionStorage.setItem("age", userData.age);
@@ -162,16 +161,6 @@ const GoogleCallback = () => {
         
         // Store userdetails as a JSON string (complete user object)
         sessionStorage.setItem("userdetails", JSON.stringify(userData));
-
-        console.log("Authentication successful - user data stored in session");
-        console.log("User:", {
-          id: userData.id_compte,
-          name: fullName,
-          role: userData.role,
-          teams: response.data.has_teams ? response.data.teams.length : 0,
-          academie: response.data.has_academie_membership ? response.data.academie_memberships.length : 0,
-          today_reservations_count: response.data.today_reservations_count
-        });
 
         // Navigate based on role
         if (userData.role === "admin") {

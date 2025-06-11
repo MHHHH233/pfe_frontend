@@ -51,7 +51,6 @@ const playerRequestsService = {
         team_id: formData.team_id || null
       };
 
-      console.log("Sending request payload:", payload);
       const response = await apiClient.post(playerRequestsEndpoints.createPlayerRequest, payload);
       return response.data;
     } catch (error) {

@@ -64,11 +64,9 @@ export default function Reservations() {
           
           // Check cache first
           if (terrainCache.has(id)) {
-            console.log("Using cached terrain data for ID:", id);
             setSelectedTerrain(terrainCache.get(id));
           } else {
             // Only make API call if not in cache
-            console.log("Fetching terrain data for ID:", id);
             const response = await terrainService.getTerrain(id);
             
             if (response.data) {
@@ -96,7 +94,6 @@ export default function Reservations() {
             }
           }
         } catch (error) {
-          console.error("Error loading terrain details:", error);
           // Fallback to basic info
           const fallbackData = {
             id_terrain: terrainFromState || storedTerrainId,
@@ -119,8 +116,6 @@ export default function Reservations() {
   }, [location]);
 
   const handleTerrainChange = (terrain) => {
-    console.log("Terrain selected:", terrain);
-    
     // Only update if it's a different terrain to avoid re-rendering
     if (!selectedTerrain || selectedTerrain.id_terrain !== terrain.id_terrain) {
       // Store in cache to prevent future API calls

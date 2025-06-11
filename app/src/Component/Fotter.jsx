@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
     MessageSquare,
@@ -24,6 +24,7 @@ export const Footer = () => {
     const [email, setEmail] = useState('');
     const [subscribed, setSubscribed] = useState(false);
     const { socialMedia, isLoading } = useSocialMedia();
+    const navigate = useNavigate();
 
     const handleSubscribe = (e) => {
         e.preventDefault();
@@ -34,6 +35,12 @@ export const Footer = () => {
             setTimeout(() => setSubscribed(false), 3000);
             setEmail('');
         }
+    };
+
+    // Function to handle navigation and scroll to top
+    const handleNavigation = (path) => {
+        navigate(path);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const currentYear = new Date().getFullYear();
@@ -125,34 +132,49 @@ export const Footer = () => {
                         </h3>
                         <ul className="space-y-3">
                             <li>
-                                <Link to="/" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <span className="bg-green-500 h-1.5 w-1.5 rounded-full mr-2"></span>
                                     Accueil
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/about" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/about")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <span className="bg-green-500 h-1.5 w-1.5 rounded-full mr-2"></span>
                                     À propos
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/reservation" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/reservation")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <span className="bg-green-500 h-1.5 w-1.5 rounded-full mr-2"></span>
                                     Réservation
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/contactus" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/contactus")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <span className="bg-green-500 h-1.5 w-1.5 rounded-full mr-2"></span>
                                     Contact
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/report-bug" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/report-bug")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <Bug className="w-4 h-4 mr-2 text-red-400" />
                                     Signaler un bug
-                                </Link>
+                                </div>
                             </li>
                         </ul>
                     </div>
@@ -165,28 +187,40 @@ export const Footer = () => {
                         </h3>
                         <ul className="space-y-3">
                             <li>
-                                <Link to="/reservation" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/reservation")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <Calendar className="w-4 h-4 mr-2" />
                                     Location de Terrains
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/academie" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/academie")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <Users className="w-4 h-4 mr-2" />
                                     Académie de Football
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/tournoi" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/tournoi")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <Trophy className="w-4 h-4 mr-2" />
                                     Organisation de Tournois
-                                </Link>
+                                </div>
                             </li>
                             <li>
-                                <Link to="/events" className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform">
+                                <div
+                                    onClick={() => handleNavigation("/events")}
+                                    className="text-gray-300 hover:text-green-400 transition-colors duration-300 hover:translate-x-2 inline-flex items-center transform cursor-pointer"
+                                >
                                     <Calendar className="w-4 h-4 mr-2" />
                                     Événements Sportifs
-                                </Link>
+                                </div>
                             </li>
                         </ul>
                     </div>
@@ -269,18 +303,27 @@ export const Footer = () => {
                             © {currentYear} <span className="text-green-400">Terrana FC</span>. Tous droits réservés.
                         </div>
                         <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
-                            <Link to="/privacy" className="hover:text-green-400 transition-colors relative group">
+                            <div 
+                                onClick={() => handleNavigation("/privacy")}
+                                className="hover:text-green-400 transition-colors relative group cursor-pointer"
+                            >
                                 Politique de confidentialité
                                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-green-400 group-hover:w-full transition-all duration-300"></span>
-                            </Link>
-                            <Link to="/terms" className="hover:text-green-400 transition-colors relative group">
+                            </div>
+                            <div
+                                onClick={() => handleNavigation("/terms")}
+                                className="hover:text-green-400 transition-colors relative group cursor-pointer"
+                            >
                                 Conditions d'utilisation
                                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-green-400 group-hover:w-full transition-all duration-300"></span>
-                            </Link>
-                            <Link to="/faq" className="hover:text-green-400 transition-colors relative group">
+                            </div>
+                            <div
+                                onClick={() => handleNavigation("/faq")}
+                                className="hover:text-green-400 transition-colors relative group cursor-pointer"
+                            >
                                 FAQ
                                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-green-400 group-hover:w-full transition-all duration-300"></span>
-                            </Link>
+                            </div>
                         </div>
                     </div>
                 </div>

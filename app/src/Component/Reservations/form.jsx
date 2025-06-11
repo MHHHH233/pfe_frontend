@@ -1,18 +1,24 @@
 import React, { useState, useEffect } from "react";
 import PopupCard from "./Confirmation";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import AnimatedCheck from "./Status/Confirmed";
 import AnimatedReserved from "./Status/Failed";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Clock, MapPin, User, X, Mail, Phone, ChevronDown, CheckCircle, AlertCircle } from 'lucide-react';
 import userReservationService from '../../lib/services/user/reservationServices';
 import adminReservationService from '../../lib/services/admin/reservationServices';
+import StripeWrapper from '../Payments/StripeWrapper';
+import StripePaymentModal from '../Payments/StripePaymentModal';
+import stripeService from '../../lib/services/stripeService';
 
 // Maximum reservations per day for regular users
 const MAX_DAILY_RESERVATIONS = 2;
+// Refresh interval for reservation count (in milliseconds): 1 hour
+const REFRESH_INTERVAL = 60 * 60 * 1000;
 
 export default function FormResev({ Terrain, selectedHour, selectedTime, onSuccess }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdmin = sessionStorage.getItem("type") === "admin";
   const userType = isAdmin ? "admin" : "client";
   const userId = sessionStorage.getItem("userId");
@@ -20,24 +26,61 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   
   // Add direct increment function
   const incrementReservationCount = () => {
-    if (!isLoggedIn || isAdmin) return;
+    if (!isLoggedIn || isAdmin) return null;
     
     try {
-      console.log("DIRECT INCREMENT FUNCTION CALLED");
       const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-      console.log("BEFORE direct increment - Current count:", currentCount);
       const newCount = currentCount + 1;
-      console.log("AFTER direct increment - New count:", newCount);
+      
+      // Immediately update both session storage and component state
       sessionStorage.setItem("today_reservations_count", newCount.toString());
       
-      // Update component state
+      // Immediately update UI state for immediate visual feedback
       setDailyReservationCount(newCount);
       setReachedDailyLimit(newCount >= MAX_DAILY_RESERVATIONS);
       
+      // Dispatch an event to notify other components about count change
+      const countUpdateEvent = new CustomEvent('reservationCountUpdated', {
+        detail: { count: newCount }
+      });
+      document.dispatchEvent(countUpdateEvent);
+      
       return newCount;
     } catch (error) {
-      console.error("Error incrementing reservation count:", error);
       return null;
+    }
+  };
+  
+  // Function to update count from session storage
+  const updateCountFromSession = () => {
+    const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+    setDailyReservationCount(count);
+    setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+  };
+  
+  // Function to refresh count from API
+  const refreshCountFromAPI = async () => {
+    try {
+      setLoadingReservationCount(true);
+      const count = await userReservationService.refreshReservationCount();
+      
+      // Get additional data from session storage
+      const lastRefresh = sessionStorage.getItem('last_count_refresh');
+      const recentReservations = sessionStorage.getItem('recent_reservations');
+      
+      if (recentReservations) {
+        try {
+        } catch (e) {
+        }
+      }
+      
+      setDailyReservationCount(count);
+      setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+    } catch (error) {
+      // Fallback to session storage
+      updateCountFromSession();
+    } finally {
+      setLoadingReservationCount(false);
     }
   };
   
@@ -59,11 +102,16 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   const [reachedDailyLimit, setReachedDailyLimit] = useState(false);
   const [loadingReservationCount, setLoadingReservationCount] = useState(false);
   
+  // Add state for Stripe payment
+  const [showStripePayment, setShowStripePayment] = useState(false);
+  const [reservationData, setReservationData] = useState(null);
+  const [stripeClientSecret, setStripeClientSecret] = useState(null);
+  const [loadingStripeIntent, setLoadingStripeIntent] = useState(false);
+  
   // Use session storage reservation count
   useEffect(() => {
     if (isLoggedIn && !isAdmin) {
       const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-      console.log("Reading reservation count from session storage:", count);
       setDailyReservationCount(count);
       setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
     }
@@ -73,20 +121,19 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   useEffect(() => {
     if (!isLoggedIn || isAdmin) return;
     
-    // Function to update count from session storage
-    const updateCountFromSession = () => {
-      const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-      setDailyReservationCount(count);
-      setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+    // Refresh count immediately on component mount
+    refreshCountFromAPI();
+    
+    // Set up interval to refresh count from API hourly
+    const apiIntervalId = setInterval(refreshCountFromAPI, REFRESH_INTERVAL);
+    
+    // Set up more frequent session storage check for UI updates
+    const sessionIntervalId = setInterval(updateCountFromSession, 5000);
+    
+    return () => {
+      clearInterval(apiIntervalId);
+      clearInterval(sessionIntervalId);
     };
-    
-    // Update immediately
-    updateCountFromSession();
-    
-    // Set up interval to check for changes
-    const intervalId = setInterval(updateCountFromSession, 1000);
-    
-    return () => clearInterval(intervalId);
   }, [isLoggedIn, isAdmin]);
   
   // When terrain changes, update form data
@@ -120,7 +167,6 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
 
   // Add a new state to control the confirmation popup
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [reservationData, setReservationData] = useState(null);
 
   // Add state to store client ID when admin selects a name
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -242,15 +288,74 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       id_client: userId, // Use null for non-logged in users
       payment_method: "cash",
       prix: terrainPrice, // Add the terrain price
-      Name: formData.Name || "Guest",
-      ...(formData.email && { email: formData.email }),
-      ...(formData.telephone && { telephone: formData.telephone })
+      Name: formData.Name || sessionStorage.getItem("name") || "Guest",
+      email: formData.email || sessionStorage.getItem("email") || '',
+      telephone: formData.telephone || '',
     };
-    
-    console.log("Creating reservation with price:", terrainPrice);
     
     setReservationData(reservationDetails);
     setShowConfirmation(true);
+  };
+  
+  // Modify the handleStripePayment function to use our new components
+  const handleStripePayment = async () => {
+    if (!reservationData) {
+      setError("Reservation data is missing. Please try again.");
+      return;
+    }
+    
+    setLoadingStripeIntent(true);
+    setError(null);
+    
+    try {
+      // Process the price correctly - IMPORTANT to store the original price
+      const price = parseFloat(reservationData.price || reservationData.prix || terrainPrice || 100);
+      console.log('Original price for Stripe payment:', price);
+      
+      // Ensure all required fields are included
+      if (reservationData) {
+        // Store the original price
+        reservationData.price = price;
+        
+        // Add amount for online payments - use price directly WITHOUT multiplying by 100
+        reservationData.amount = Math.round(price); // Keep the original price value
+        reservationData.currency = 'mad';
+        reservationData.payment_method = 'stripe';
+      }
+      
+      // Ensure admin data is properly included
+      if (isAdmin) {
+        // Make sure Name is included for admin reservations
+        if (!reservationData.Name && formData.Name) {
+          reservationData.Name = formData.Name;
+        }
+      }
+      
+      // Set metadata for tracking
+      const metadata = {
+        type: 'reservation',
+        id_terrain: reservationData.id_terrain,
+        date: reservationData.date,
+        heure: reservationData.heure,
+        id_client: reservationData.id_client || null,
+        is_admin: isAdmin ? 'true' : 'false',
+        // Add the original price to metadata
+        price: price,
+        // Add terrain details
+        terrain_name: Terrain?.nom_terrain || sessionStorage.getItem("selectedTerrainName") || 'Selected terrain',
+      };
+      
+      console.log('Reservation data before payment:', reservationData);
+      console.log('Metadata for payment:', metadata);
+      
+      // Hide the confirmation modal and show the Stripe payment modal
+      setShowConfirmation(false);
+      setShowStripePayment(true);
+    } catch (error) {
+      setError("Failed to initiate payment. Please try again.");
+    } finally {
+      setLoadingStripeIntent(false);
+    }
   };
 
   // Add a function to handle closing the confirmation
@@ -259,20 +364,40 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     setReservationData(null);
   };
 
+  // Handle closing the Stripe payment modal
+  const handleCloseStripePayment = () => {
+    setShowStripePayment(false);
+    setStripeClientSecret(null);
+    setReservationData(null); // Reset reservation data to allow new reservations
+    
+    // Reset any error state
+    setError(null);
+    
+    // Check if we need to refresh the UI
+    const refreshNeeded = sessionStorage.getItem("stripe_payment_success") === "true";
+    if (refreshNeeded) {
+      // Clear the flag
+      sessionStorage.removeItem("stripe_payment_success");
+      
+      // Call success handler to refresh data
+      handleReservationSuccess();
+    }
+  };
+
   // Update handleReservationSuccess to directly update the count from session storage
   const handleReservationSuccess = () => {
     setSuccess(true);
     setShowConfirmation(false);
+    setShowStripePayment(false);
+    setReservationData(null); // Reset reservation data to allow new reservations
     
     // IMMEDIATELY update the count from session storage
     if (isLoggedIn && !isAdmin) {
       try {
         const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-        console.log("IMMEDIATE update of count in handleReservationSuccess:", count);
         setDailyReservationCount(count);
         setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
       } catch (error) {
-        console.error("Error reading reservation count:", error);
       }
     }
     
@@ -290,13 +415,15 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     
     // Call the onSuccess callback to refresh reservations via API
     if (onSuccess) {
-      console.log("Refreshing reservation table via API call");
       onSuccess();
     }
     
     // Dispatch event for successful reservation to trigger table refresh
     const event = new CustomEvent('reservationSuccess', {
-      detail: { refreshNeeded: true }
+      detail: { 
+        refreshNeeded: true,
+        timestamp: Date.now() // Add timestamp to make each event unique
+      }
     });
     document.dispatchEvent(event);
     
@@ -335,7 +462,6 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       // Update reservation count from session storage
       if (isLoggedIn && !isAdmin) {
         const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-        console.log("Updating count after popup closed:", count);
         setDailyReservationCount(count);
         setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
       }
@@ -343,21 +469,50 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
 
     // Add event listener for reservation success events
     const handleReservationSuccess = (event) => {
-      // Only increment the count if the reservation is confirmed
-      if (event.detail && event.detail.reservationConfirmed && isLoggedIn && !isAdmin) {
-        console.log("Confirmed reservation detected, incrementing count");
-        incrementReservationCount();
-      }
+      // Check for is_new_user and email_sent flags
+      const { is_new_user, user_email, email_sent, num_res, reservationConfirmed } = event.detail || {};
       
-      // Always update from session storage as a fallback
-      setTimeout(() => {
+      console.log('Reservation success event with details:', {
+        is_new_user, user_email, email_sent, num_res, reservationConfirmed
+      });
+      
+      // Always update the UI if there was a confirmed reservation
+      if (reservationConfirmed) {
+        setSuccess(true);
+        
+        // Update reservation count from session storage immediately
         if (isLoggedIn && !isAdmin) {
-          const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-          console.log("Delayed count update after reservation:", count);
-          setDailyReservationCount(count);
-          setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+          try {
+            const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+            setDailyReservationCount(count);
+            setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+          } catch (error) {
+            console.error('Error updating count from session:', error);
+          }
         }
-      }, 500);
+        
+        // Reset the form data
+        setFormData({
+          id_terrain: Terrain?.id_terrain || '',
+          date: selectedTime || '',
+          heure: selectedHour || '',
+          type: userType,
+          id_client: parseInt(sessionStorage.getItem("userId")) || null,
+          Name: '',
+          email: '',
+          telephone: ''
+        });
+        
+        // Hide confirmation and payment modals
+        setShowConfirmation(false);
+        setShowStripePayment(false);
+        setReservationData(null);
+        
+        // Call the onSuccess callback to refresh reservations via API
+        if (onSuccess) {
+          onSuccess();
+        }
+      }
     };
 
     document.addEventListener('statusPopupClosed', handleStatusPopupClosed);
@@ -367,7 +522,71 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
       document.removeEventListener('statusPopupClosed', handleStatusPopupClosed);
       document.removeEventListener('reservationSuccess', handleReservationSuccess);
     };
-  }, [dailyReservationCount, isLoggedIn, isAdmin]);
+  }, [dailyReservationCount, isLoggedIn, isAdmin, Terrain, selectedTime, selectedHour, userType, onSuccess]);
+
+  // Add event listener for confirmation popup closed events
+  useEffect(() => {
+    const handleConfirmationPopupClosed = (event) => {
+      setReservationData(null);
+      setShowConfirmation(false);
+    };
+    
+    document.addEventListener('confirmationPopupClosed', handleConfirmationPopupClosed);
+    
+    return () => {
+      document.removeEventListener('confirmationPopupClosed', handleConfirmationPopupClosed);
+    };
+  }, []);
+
+  // Add navigation event listener
+  useEffect(() => {
+    const handleNavigateToProfile = (event) => {
+      const { redirectAfterDelay, delay = 2000 } = event.detail;
+      
+      if (redirectAfterDelay) {
+        // Set a timeout to navigate after the specified delay
+        setTimeout(() => {
+          navigate('/profile');
+        }, delay);
+      } else {
+        // Navigate immediately
+        navigate('/profile');
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener('navigateToProfile', handleNavigateToProfile);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('navigateToProfile', handleNavigateToProfile);
+    };
+  }, [navigate]);
+
+  // Add event listener for successful Stripe payments
+  useEffect(() => {
+    const handlePaymentSuccess = (event) => {
+      // Store success flag for when modal closes
+      sessionStorage.setItem("stripe_payment_success", "true");
+      
+      // Reset reservation data to allow new reservations
+      setReservationData(null);
+      
+      // Close the Stripe payment modal after a short delay
+      setTimeout(() => {
+        setShowStripePayment(false);
+        
+        // Call success handler to refresh data
+        handleReservationSuccess();
+      }, 1500);
+    };
+    
+    document.addEventListener('paymentSuccess', handlePaymentSuccess);
+    
+    return () => {
+      document.removeEventListener('paymentSuccess', handlePaymentSuccess);
+    };
+  }, []);
 
   return (
     <motion.div
@@ -663,9 +882,45 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
             onClose={handleCloseConfirmation}
             data={reservationData}
             resetStatus={handleReservationSuccess}
+            onPayOnline={handleStripePayment}
+            loadingStripeIntent={loadingStripeIntent}
           />
         )}
       </AnimatePresence>
+      
+      {/* Stripe Payment Modal */}
+      <StripeWrapper>
+        <StripePaymentModal
+          show={showStripePayment}
+          onClose={handleCloseStripePayment}
+          onSuccess={handleReservationSuccess}
+          amount={(() => {
+            // Get the price from either reservationData or terrain price
+            const price = parseFloat(reservationData?.price || reservationData?.prix || terrainPrice || 100);
+            
+            // Ensure we're working with a valid number
+            if (isNaN(price)) return 10000; // Default to 100.00 in cents
+            
+            // IMPORTANT: Do NOT multiply by 100 - use the price value directly
+            // as the API is expecting the actual price value
+            return Math.round(price);
+          })()}
+          currency="mad"
+          metadata={{
+            type: 'reservation',
+            id_terrain: reservationData?.id_terrain,
+            date: reservationData?.date,
+            heure: reservationData?.heure,
+            id_client: reservationData?.id_client || null,
+            // Add the original price to metadata
+            price: reservationData?.price || reservationData?.prix || terrainPrice || 100,
+            // Add terrain details
+            terrain_name: Terrain?.nom_terrain || sessionStorage.getItem("selectedTerrainName") || 'Selected terrain',
+          }}
+          title="Complete Reservation Payment"
+          description={`Reservation for ${Terrain?.nom_terrain || 'Selected terrain'} on ${reservationData?.date || 'selected date'} at ${reservationData?.heure || 'selected time'}`}
+        />
+      </StripeWrapper>
     </motion.div>
   );
 }

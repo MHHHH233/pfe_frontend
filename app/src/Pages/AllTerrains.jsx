@@ -95,12 +95,6 @@ export default function AllTerrains() {
       sessionStorage.setItem("selectedTerrainName", terrainName);
       sessionStorage.setItem("selectedTerrainPrice", terrainPrice);
       
-      console.log("Storing terrain data for reservation:", {
-        id: terrainId,
-        name: terrainName,
-        price: terrainPrice
-      });
-      
       // Navigate with state as backup
       navigate("/reservation", { 
         state: { 

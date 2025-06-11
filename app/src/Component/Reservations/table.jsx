@@ -172,7 +172,6 @@ export default function Tableau({ terrain }) {
     
     // Skip if it's the same terrain we already fetched for
     if (lastTerrainId.current === terrainDetails.id_terrain) {
-      console.log("Skipping reservation fetch - same terrain:", terrainDetails.id_terrain);
       return;
     }
     
@@ -207,13 +206,11 @@ export default function Tableau({ terrain }) {
     const cachedData = reservationsCache.get(cacheKey);
     
     if (!forceRefresh && cachedData && (Date.now() - cachedData.timestamp < CACHE_DURATION_MS)) {
-      console.log("Using cached reservation data for terrain:", terrainDetails.id_terrain);
       setReservations(cachedData.data);
       setError(null);
       return;
     }
     
-    console.log("Fetching fresh reservation data for terrain:", terrainDetails.id_terrain);
     setLoading(true);
     try {
       // Check if user is admin - ensure consistent check throughout the app
@@ -269,7 +266,6 @@ export default function Tableau({ terrain }) {
         // Handle pagination if available in the response
         if (response.pagination) {
           // Store pagination info if needed in the future
-          console.log("Pagination info:", response.pagination);
         }
       } else if (response.status === "error" && response.message === "No reservations found.") {
         // If no reservations found, set empty array and clear error
@@ -376,11 +372,8 @@ export default function Tableau({ terrain }) {
   useEffect(() => {
     // Event listener for when a reservation is completed
     const handleReservationComplete = (event) => {
-      console.log("Reservation event received, refreshing table data");
-      
       // Always force a fresh API call by invalidating cache
       if (event.detail && event.detail.refreshNeeded) {
-        console.log("Forced refresh requested, clearing cache");
         // Clear cache for this terrain
         if (terrainDetails && terrainDetails.id_terrain) {
           const cacheKey = `terrain_${terrainDetails.id_terrain}`;

@@ -55,7 +55,6 @@ const Reviews = () => {
         setAllUsers(response.data);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
     } finally {
       setLoadingUsers(false);
     }
@@ -76,7 +75,6 @@ const Reviews = () => {
       const response = await compteService.getCompte(userId);
       setUserDetails(prev => ({ ...prev, [userId]: response.data }));
     } catch (error) {
-      console.error('Error fetching user details:', error);
     }
   };
 
@@ -104,11 +102,9 @@ const Reviews = () => {
         
         setError(null);
       } else {
-        console.error('Invalid response format:', response);
         setError('Invalid response format from server');
       }
     } catch (err) {
-      console.error('Error fetching reviews:', err);
       setError('Failed to load reviews. Please try again.');
     } finally {
       setLoading(false);
@@ -160,7 +156,6 @@ const Reviews = () => {
       showSuccessNotification(`Review status updated to ${status}`);
       fetchReviews();
     } catch (error) {
-      console.error('Error updating review status:', error);
       showErrorNotification('Failed to update review status');
     }
   };
@@ -171,7 +166,6 @@ const Reviews = () => {
       showSuccessNotification('Review deleted successfully');
       fetchReviews();
     } catch (error) {
-      console.error('Error deleting review:', error);
       showErrorNotification('Failed to delete review');
     }
   };

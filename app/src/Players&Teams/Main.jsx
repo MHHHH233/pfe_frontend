@@ -103,7 +103,6 @@ const FindPlayerTeam = () => {
         
         // Fetch players
         const playersResponse = await playersService.getAllPlayers();
-        console.log('Players API response:', playersResponse);
         
         // Handle the new response format with data property
         let playersData = [];
@@ -155,7 +154,6 @@ const FindPlayerTeam = () => {
         
         // Fetch teams
         const teamsResponse = await teamsService.getAllTeams();
-        console.log('Teams API response:', teamsResponse);
         
         // Handle the new response format with data property
         let teamsData = [];

@@ -17,9 +17,8 @@ import tournoiTeamsService from '../lib/services/user/tournoiTeamsService'
 import matchesService from '../lib/services/user/matchesService'
 import teamsService from '../lib/services/user/teamsService'
 import TeamForm from './TeamForm'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { TournamentsSection } from '../Client/ClientDashboard'
-import { useNavigate } from 'react-router-dom'
 // Define an array of tournament images to use for tournaments that don't have their own images
 const tournamentImages = [tournament1, tournament2, tournament3, tournament4, tournament5, tournament6, tournament7]
 
@@ -851,6 +850,14 @@ function TournamentSection({ tournaments, isLoading, searchQuery, setSelectedTou
 }
 
 function OrganizeTournamentSection() {
+  const navigate = useNavigate();
+  
+  // Function to handle navigation and scroll to top
+  const handleNavigation = (path) => {
+    navigate(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  
   return (
     <section className="py-16 bg-gradient-to-b from-[#222] to-[#1a1a1a] relative">
       {/* Top gradient border */}
@@ -923,7 +930,7 @@ function OrganizeTournamentSection() {
               <p className="mb-6 text-sm text-gray-300 leading-relaxed">
                 Book your field for tournaments, practice sessions, or friendly matches. Our network includes the best fields in the city.
               </p>
-              <Link to='/reservation'>
+              <div onClick={() => handleNavigation('/reservation')}>
                 <motion.button
                   className="w-full bg-[#07f468] text-[#1a1a1a] border-none rounded-lg px-6 py-3 text-sm font-bold tracking-wide 
                   cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#06d35a] relative overflow-hidden group"
@@ -938,7 +945,7 @@ function OrganizeTournamentSection() {
                   {/* Shine effect */}
                   <div className="absolute top-0 -left-[100%] w-[250%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:left-[100%] transition-all duration-700 ease-in-out z-0"></div>
                 </motion.button>
-              </Link>
+              </div>
             </div>
           </motion.div>
 
@@ -972,7 +979,7 @@ function OrganizeTournamentSection() {
               <p className="mb-6 text-sm text-gray-300 leading-relaxed">
                 Connect with players and teams in your area. Find teammates, opponents, or join existing teams for upcoming tournaments.
               </p>
-              <Link to='/players'>
+              <div onClick={() => handleNavigation('/players')}>
                 <motion.button
                   className="w-full bg-[#4a65ff] text-white border-none rounded-lg px-6 py-3 text-sm font-bold tracking-wide 
                   cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#3f56d9] relative overflow-hidden group"
@@ -987,7 +994,7 @@ function OrganizeTournamentSection() {
                   {/* Shine effect */}
                   <div className="absolute top-0 -left-[100%] w-[250%] h-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:left-[100%] transition-all duration-700 ease-in-out z-0"></div>
                 </motion.button>
-              </Link>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -1010,6 +1017,13 @@ export default function TournamentPage() {
   })
   const [registerLoading, setRegisterLoading] = useState(false)
   const [userRegisteredTournaments, setUserRegisteredTournaments] = useState([])
+  const navigate = useNavigate();
+
+  // Function to handle navigation and scroll to top
+  const handleNavigation = (path) => {
+    navigate(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     fetchTournaments()
@@ -1021,7 +1035,6 @@ export default function TournamentPage() {
     try {
       setIsLoading(true);
       const response = await tournoiService.getAllTournois();
-      console.log('Tournament API response:', response);
       
       if (response && response.data) {
         // Format tournaments from the API response
@@ -1107,8 +1120,6 @@ export default function TournamentPage() {
         sort_order: 'desc',
         limit: 6 // Limit to 6 matches
       });
-      
-      console.log('Match results API response:', result);
       
       if (result.data && result.data.length > 0) {
         const formattedMatches = result.data.map(match => ({
@@ -1208,7 +1219,7 @@ export default function TournamentPage() {
       setRegisterLoading(false);
     }
   }
-  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white font-sans">
       {/* Hero Section */}
@@ -1250,7 +1261,7 @@ export default function TournamentPage() {
             >
               <button 
                 className="text-sm text-[#07f468] hover:underline flex items-center group"
-                onClick={() => navigate("/all-matches")}
+                onClick={() => handleNavigation("/all-matches")}
               >
                 View All Matches
                 <svg 

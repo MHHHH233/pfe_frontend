@@ -44,7 +44,10 @@ const reservationEndpoints = {
     
     // Pagination helpers
     getReservationsPage: (page, perPage = 10) => 
-        `${BASE_URL}?page=${page}&per_page=${perPage}`
+        `${BASE_URL}?page=${page}&per_page=${perPage}`,
+    
+    // Refresh reservation count
+    refreshReservationCount: '/api/refresh-reservation-count',
 };
 
 export default reservationEndpoints; 

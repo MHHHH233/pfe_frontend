@@ -59,7 +59,6 @@ const AnalyticsOverview = () => {
         
         setData(transformedData);
       } catch (err) {
-        console.error('Error fetching analytics:', err);
         setError('Failed to load dashboard data');
       } finally {
         setLoading(false);

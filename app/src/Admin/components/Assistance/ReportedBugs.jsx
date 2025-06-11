@@ -73,7 +73,6 @@ const ReportedBugs = () => {
       const response = await compteService.getCompte(userId);
       setUserDetails(prev => ({ ...prev, [userId]: response.data }));
     } catch (error) {
-      console.error('Error fetching user details:', error);
     }
   };
 
@@ -85,7 +84,6 @@ const ReportedBugs = () => {
         setAllUsers(response.data);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
     } finally {
       setLoadingUsers(false);
     }
@@ -115,11 +113,9 @@ const ReportedBugs = () => {
         
         setError(null);
       } else {
-        console.error('Invalid response format:', response);
         setError('Invalid response format from server');
       }
     } catch (err) {
-      console.error('Error fetching bugs:', err);
       setError('Failed to load reported bugs. Please try again.');
     } finally {
       setLoading(false);
@@ -175,7 +171,6 @@ const ReportedBugs = () => {
       showSuccessNotification(`Bug report status updated to ${status}`);
       fetchBugs();
     } catch (error) {
-      console.error('Error updating bug status:', error);
       showErrorNotification('Failed to update bug status');
     }
   };
@@ -186,7 +181,6 @@ const ReportedBugs = () => {
       showSuccessNotification('Bug report deleted successfully');
       fetchBugs();
     } catch (error) {
-      console.error('Error deleting bug:', error);
       showErrorNotification('Failed to delete bug report');
     }
   };

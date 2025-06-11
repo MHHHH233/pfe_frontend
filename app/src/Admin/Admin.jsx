@@ -62,6 +62,7 @@ import PlayersTeams from './components/Players-teams';
 import Terrains from './components/Terrains';
 import SettingsManagement from './components/Settings';
 import SocialMediaManagement from './components/SocialMedia';
+import PaymentManagement from './components/Payments/Payemnet';
 import { authService } from '../lib/services/authoServices';
 import analyticsService from '../lib/services/admin/analyticsServices';
 import compteService from '../lib/services/admin/compteServices';
@@ -116,6 +117,7 @@ const FootballAdminDashboard = () => {
               {activeTab === "profile" && <ProfilePage />}
               {activeTab === "bugs" && <ReportedBugs />}
               {activeTab === "reviews" && <Reviews />}
+              {activeTab === "payments" && <PaymentManagement />}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -336,6 +338,17 @@ const Sidebar = ({ isOpen, activeTab, setActiveTab, closeSidebar }) => {
                   >
                     <MapPin size={18} className="mr-3" />
                     Terrains
+                  </button>
+
+                  <button
+                    onClick={() => handleMenuClick('payments')}
+                    className={`w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200
+                              ${activeTab === 'payments' 
+                                ? 'bg-[#07f468] text-gray-900' 
+                                : 'text-gray-300 hover:bg-gray-800/80'}`}
+                  >
+                    <DollarSign size={18} className="mr-3" />
+                    Payments
                   </button>
                 </motion.div>
               )}
@@ -1016,7 +1029,6 @@ const Users1 = () => {
       try {
         // Pass the role as a string, not in an array
         await compteService.updateRole(formValues.id, { role: newRole });
-        console.log(`Role updated to ${newRole} successfully`);
         showSuccessNotification(`Role updated to ${newRole} successfully`);
       } catch (error) {
         console.error("Error updating role:", error);
