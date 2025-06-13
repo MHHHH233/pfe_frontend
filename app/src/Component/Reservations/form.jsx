@@ -389,6 +389,33 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     setSuccess(true);
     setShowConfirmation(false);
     setShowStripePayment(false);
+    
+    // Check if we need to show a receipt for admin
+    if (isAdmin && sessionStorage.getItem("show_admin_receipt") === "true") {
+      try {
+        // Get receipt data from session storage
+        const receiptDataStr = sessionStorage.getItem("admin_receipt_data");
+        if (receiptDataStr) {
+          const receiptData = JSON.parse(receiptDataStr);
+          
+          // Create and dispatch an event to show the receipt
+          const receiptEvent = new CustomEvent('showAdminReceipt', {
+            detail: { 
+              receiptData,
+              isAdmin: true
+            }
+          });
+          document.dispatchEvent(receiptEvent);
+          
+          // Clear the session storage flags
+          sessionStorage.removeItem("show_admin_receipt");
+          sessionStorage.removeItem("admin_receipt_data");
+        }
+      } catch (e) {
+        console.error("Error processing receipt data:", e);
+      }
+    }
+    
     setReservationData(null); // Reset reservation data to allow new reservations
     
     // IMMEDIATELY update the count from session storage
@@ -397,7 +424,22 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
         const count = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
         setDailyReservationCount(count);
         setReachedDailyLimit(count >= MAX_DAILY_RESERVATIONS);
+        
+        // Always call refreshReservationCount to ensure server-side count is updated
+        userReservationService.refreshReservationCount()
+          .then(serverCount => {
+            console.log("Server count after refresh:", serverCount);
+            // Update with server count if different from local count
+            if (serverCount !== count) {
+              setDailyReservationCount(serverCount);
+              setReachedDailyLimit(serverCount >= MAX_DAILY_RESERVATIONS);
+            }
+          })
+          .catch(error => {
+            console.error("Error refreshing reservation count:", error);
+          });
       } catch (error) {
+        console.error("Error updating reservation count:", error);
       }
     }
     
@@ -422,7 +464,8 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     const event = new CustomEvent('reservationSuccess', {
       detail: { 
         refreshNeeded: true,
-        timestamp: Date.now() // Add timestamp to make each event unique
+        timestamp: Date.now(), // Add timestamp to make each event unique
+        refreshAPI: isLoggedIn && !isAdmin // Flag to refresh from API
       }
     });
     document.dispatchEvent(event);
@@ -566,8 +609,38 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
   // Add event listener for successful Stripe payments
   useEffect(() => {
     const handlePaymentSuccess = (event) => {
+      const { reservationData, paymentIntent } = event.detail || {};
+      
       // Store success flag for when modal closes
       sessionStorage.setItem("stripe_payment_success", "true");
+      
+      // For admin users, show receipt after successful payment
+      if (isAdmin && reservationData) {
+        const responseData = reservationData.data || {};
+        
+        // Prepare receipt data for admin
+        const receiptData = {
+          reservationNumber: responseData.num_res || '',
+          date: responseData.date || '',
+          time: responseData.heure || '',
+          terrainName: Terrain?.nom_terrain || 'Selected terrain',
+          price: responseData.prix || terrainPrice,
+          paymentMethod: 'stripe',
+          paymentStatus: responseData.etat || 'paid',
+          clientName: responseData.Name || '',
+          advancePayment: responseData.advance_payment || 0,
+          etat: responseData.etat || 'reserver',
+          expiration_warning: reservationData.expiration_warning || ''
+        };
+        
+        // Store receipt data in session storage for retrieval
+        try {
+          sessionStorage.setItem("admin_receipt_data", JSON.stringify(receiptData));
+          sessionStorage.setItem("show_admin_receipt", "true");
+        } catch (e) {
+          console.error("Error storing receipt data:", e);
+        }
+      }
       
       // Reset reservation data to allow new reservations
       setReservationData(null);
@@ -586,7 +659,7 @@ export default function FormResev({ Terrain, selectedHour, selectedTime, onSucce
     return () => {
       document.removeEventListener('paymentSuccess', handlePaymentSuccess);
     };
-  }, []);
+  }, [isAdmin, Terrain, terrainPrice]);
 
   return (
     <motion.div

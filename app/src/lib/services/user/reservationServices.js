@@ -61,7 +61,7 @@ const reservationService = {
       
       const response = await apiGuest.post(reservationEndpoints.createReservation, reservationData);
       
-      // If the response was successful, store some data in sessionStorage for recovery
+      // If the response was successful, store data in sessionStorage and update counts
       if (response.data && response.data.id) {
         try {
           // Store last successful reservation ID
@@ -73,24 +73,29 @@ const reservationService = {
           // Store timestamp
           sessionStorage.setItem('last_reservation_timestamp', Date.now().toString());
           
-          // If the user is logged in, refresh the reservation count from the server
-          if (sessionStorage.getItem("userId") && 
-              sessionStorage.getItem("type") !== "admin" && 
-              (reservationData.payment_method === 'online' || reservationData.payment_status === 'paid')) {
+          // If the user is logged in and not an admin, refresh the reservation count
+          // This is done for ALL successful reservations, regardless of payment method
+          if (sessionStorage.getItem("userId") && sessionStorage.getItem("type") !== "admin") {
+            console.log("User is logged in and not admin - refreshing reservation count");
             
             // Call the refreshReservationCount method directly using 'this'
             await this.refreshReservationCount();
             
-            // Dispatch an event to navigate to the profile page
-            // This will be caught by components to handle the navigation
-            const navigationEvent = new CustomEvent('navigateToProfile', {
-              detail: { 
-                reservationId: response.data.id,
-                redirectAfterDelay: true,
-                delay: 2000 // Navigate after 2 seconds to allow confirmation message to be seen
-              }
-            });
-            document.dispatchEvent(navigationEvent);
+            // For paid reservations, also navigate to profile page
+            if (reservationData.payment_method === 'online' || 
+                reservationData.payment_method === 'stripe' || 
+                reservationData.payment_status === 'paid') {
+              
+              // Dispatch an event to navigate to the profile page
+              const navigationEvent = new CustomEvent('navigateToProfile', {
+                detail: { 
+                  reservationId: response.data.id,
+                  redirectAfterDelay: true,
+                  delay: 2000 // Navigate after 2 seconds to allow confirmation message to be seen
+                }
+              });
+              document.dispatchEvent(navigationEvent);
+            }
           }
         } catch (storageError) {
           console.warn('Could not store reservation data in sessionStorage:', storageError);
@@ -236,11 +241,14 @@ const reservationService = {
 
   async refreshReservationCount() {
     try {
+      console.log('Calling refreshReservationCount endpoint:', reservationEndpoints.refreshReservationCount);
       const response = await apiGuest.get(reservationEndpoints.refreshReservationCount);
+      console.log('Refresh count response:', response);
       
       // Update the session storage with the latest count
       // The response has today_reservations_count instead of count
       if (response.data && response.data.today_reservations_count !== undefined) {
+        console.log('Updating session storage with new count:', response.data.today_reservations_count);
         sessionStorage.setItem('today_reservations_count', response.data.today_reservations_count.toString());
         
         // Also store the server timestamp for reference
@@ -262,9 +270,19 @@ const reservationService = {
           }
         }
         
+        // Dispatch an event to notify components about the updated count
+        const event = new CustomEvent('reservationCountUpdated', { 
+          detail: { 
+            count: response.data.today_reservations_count,
+            fromServer: true
+          }
+        });
+        document.dispatchEvent(event);
+        
         return response.data.today_reservations_count;
       }
       
+      console.log('No count in response, using current session storage value');
       return parseInt(sessionStorage.getItem('today_reservations_count') || '0');
     } catch (error) {
       console.error('Error refreshing reservation count:', error);

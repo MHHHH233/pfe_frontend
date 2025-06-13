@@ -611,19 +611,15 @@ const StripePaymentForm = ({
         });
         document.dispatchEvent(event);
         
-        // Also call the API to refresh the count from the server
-        try {
-          console.log("Calling refreshReservationCount API after successful payment");
-          userReservationService.refreshReservationCount()
-            .then(serverCount => {
-              console.log("Server count after refresh:", serverCount);
-            })
-            .catch(error => {
-              console.error("Error refreshing count from server:", error);
-            });
-        } catch (apiError) {
-          console.error("Error calling refresh API:", apiError);
-        }
+        // ALWAYS call the API to refresh the count from the server
+        console.log("Calling refreshReservationCount API after successful payment");
+        userReservationService.refreshReservationCount()
+          .then(serverCount => {
+            console.log("Server count after refresh:", serverCount);
+          })
+          .catch(error => {
+            console.error("Error refreshing count from server:", error);
+          });
         
         return newCount;
       } else {

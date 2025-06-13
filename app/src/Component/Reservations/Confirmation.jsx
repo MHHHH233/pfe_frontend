@@ -300,8 +300,11 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
         // Ensure reservation count is incremented if not already done
         if (!isAdmin && isLoggedIn) {
           try {
+            console.log("Updating reservation count for user...");
+            // First increment the local count
             const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
             const newCount = currentCount + 1;
+            // Immediately update session storage
             sessionStorage.setItem("today_reservations_count", newCount.toString());
             
             // Dispatch count update event
@@ -309,6 +312,16 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
               detail: { count: newCount }
             });
             document.dispatchEvent(event);
+            
+            console.log("Calling refreshReservationCount...");
+            // Call refreshReservationCount to sync with API
+            userReservationService.refreshReservationCount()
+              .then(refreshResponse => {
+                console.log("Refresh response:", refreshResponse);
+              })
+              .catch(error => {
+                console.error("Error updating reservation count:", error);
+              });
           } catch (error) {
             console.error("Error updating reservation count:", error);
           }
@@ -393,7 +406,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
   // Update the handleSubmit function to handle advance payments for cash
   const handleSubmit = async (paymentMethod, e) => {
     if (e) {
-      e.preventDefault(); // Prevent any default behavior to avoid page reload
+      e.preventDefault();
     }
     
     // If using Stripe for online payment
@@ -434,13 +447,15 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
         const advance = parseFloat(cashAdvanceAmount);
         const price = parseFloat(terrainPrice || 100);
         
+        console.log("Validating advance payment:", { advance, price });
+        
         if (isNaN(advance) || advance < 0) {
           setCashAdvanceError("Advance payment must be a positive number");
           return;
         }
         
-        if (advance >= price) {
-          setCashAdvanceError("Advance payment cannot be greater than or equal to the total price");
+        if (advance > price) {
+          setCashAdvanceError("Advance payment cannot exceed the total price");
           return;
         }
       }
@@ -521,50 +536,109 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
         
         // For admin reservations, show receipt
         if (isAdmin) {
-          // Make sure we have a valid data object
-          const responseData = response.data || {};
+          console.log("FULL RAW API RESPONSE:", JSON.stringify(response, null, 2));
+          
+          // IMPORTANT: Directly extract the reservation number from the latest API response
+          // This ensures we're using the most recent reservation number
+          let directNumRes = null;
+          
+          // First check response.data.data.num_res which is the most reliable source based on the API structure
+          if (response && response.data && response.data.data && response.data.data.num_res) {
+            directNumRes = response.data.data.num_res;
+          } else if (response && response.data && response.data.num_res) {
+            // Fallback to response.data.num_res if the nested structure isn't present
+            directNumRes = response.data.num_res;
+          } else {
+            console.error("ERROR: Could not find num_res in API response");
+          }
+          
+          // Make sure we have a valid data object - DIRECTLY use response.data.data if available, otherwise use response.data
+          const responseData = (response.data && response.data.data) || response.data || {};
           
           // Extract the terrain price from the response or use existing price
           const terrainPrice = responseData.prix || formData.price || terrain.price;
           
-          // Prepare receipt data with all necessary fields
-          const receiptDetails = {
-            // Start with all the response data
-            ...responseData,
-            // Make sure to include terrain details
-            terrain_name: terrain.name || `Terrain ${responseData.id_terrain || formData.id_terrain}`,
-            // Include price details - ensure these are present
-            prix: terrainPrice,
+          // Get advance payment from response or form data
+          const advancePayment = responseData.advance_payment || formData.advance_payment || 0;
+          
+          // Get payment status DIRECTLY from response.data.etat
+          const paymentStatus = responseData.etat;
+          
+          // Get expiration warning if present - it might be in different locations in the response
+          const expirationWarning = response.expiration_warning || 
+                                   (response.data && response.data.expiration_warning) || 
+                                   '';
+          
+          console.log('FINAL VALUES FOR RECEIPT:', {
+            directNumRes,
+            paymentStatus,
+            advancePayment,
+            expirationWarning
+          });
+          
+          // IMPORTANT: Create a fresh receipt data object with the latest reservation number
+          const receiptData = {
+            id_reservation: responseData.id_reservation,
+            num_res: directNumRes, // Use the latest reservation number
+            reservationNumber: directNumRes, // Add redundant field for compatibility
+            date: responseData.date,
+            time: responseData.heure,
+            heure: responseData.heure,
+            terrainName: terrain.name || 'Selected terrain',
             price: terrainPrice,
-            // Make sure advance_payment is correctly handled
-            advance_payment: responseData.advance_payment || formData.advance_payment || null,
-            // Ensure date and time are present
-            date: responseData.date || formData.date,
-            heure: responseData.heure || formData.heure || formData.heuredebut,
-            // Ensure client name is present
-            Name: responseData.Name || formData.Name || data.Name,
-            // Ensure ID fields are present
-            id_terrain: responseData.id_terrain || formData.id_terrain || data.id_terrain,
-            id_client: responseData.id_client || formData.id_client || data.id_client,
-            // Ensure reservation number is present
-            num_res: responseData.num_res || `RES-${Date.now()}`,
-            // Ensure status is present
-            etat: responseData.etat || 'reserver'
+            prix: terrainPrice,
+            paymentMethod: formData.payment_method,
+            paymentStatus: responseData.etat,
+            clientName: responseData.Name,
+            Name: responseData.Name,
+            advancePayment: advancePayment,
+            advance_payment: advancePayment,
+            etat: responseData.etat,
+            expiration_warning: expirationWarning
           };
           
-          // If there's an expiration warning, include it
-          if (response.expiration_warning) {
-            receiptDetails.expiration_warning = response.expiration_warning;
+          console.log('FINAL RECEIPT DATA:', JSON.stringify(receiptData, null, 2));
+          
+          // CRITICAL DEBUG: Log the exact receipt data being set
+          console.log('CRITICAL - RECEIPT DATA BEING SET:', {
+            num_res_direct: receiptData.num_res,
+            reservationNumber_direct: receiptData.reservationNumber,
+            raw_num_res: responseData.num_res
+          });
+          
+          // Store the reservation number in sessionStorage for later retrieval
+          if (directNumRes) {
+            try {
+              sessionStorage.setItem('last_reservation_number', directNumRes);
+            } catch (e) {
+              console.error('Error storing reservation number in sessionStorage:', e);
+            }
           }
           
-          console.log("Prepared receipt data:", receiptDetails);
+          // IMPORTANT: Create a completely new state update to avoid any stale data
+          const freshReceiptData = JSON.parse(JSON.stringify(receiptData));
+          setReceiptData(freshReceiptData);
           
-          setReceiptData(receiptDetails);
+          // Reset other UI states that might interfere
+          setShowPaymentForm(false);
+          setShowCashAdvance(false);
+          setIsNewUser(false);
+          setNewUserEmail('');
+          setShowEmailConfirmation(false);
+          setEmailConfirmationDetails({
+            email: '',
+            isReservation: false,
+            reservationNumber: ''
+          });
+          
+          // Finally show the receipt modal
           setShowReceiptModal(true);
-          return; // Exit early to show receipt instead of continuing with other logic
+          
+          // Don't set status yet - it will be set when receipt is closed
+          return;
         }
         
-        // IMPORTANT: Reset previous popup states to ensure they show again
+        // Reset all popup states
         setIsNewUser(false);
         setNewUserEmail('');
         setShowEmailConfirmation(false);
@@ -611,9 +685,11 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
         // Admin reservations or admin-made reservations are confirmed immediately
         const isConfirmed = isAdmin || paymentMethod === 'online';
         
-        if (!isAdmin && isLoggedIn && isConfirmed && !response.is_new_user) {
+        // For logged-in non-admin users, update the reservation count
+        if (isLoggedIn && !isAdmin && isConfirmed) {
           try {
-            // First, increment the local count
+            console.log("Updating reservation count for user...");
+            // First increment the local count
             const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
             const newCount = currentCount + 1;
             // Immediately update session storage
@@ -624,27 +700,34 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
               detail: { count: newCount }
             });
             document.dispatchEvent(event);
+            
+            console.log("Calling refreshReservationCount...");
+            // Call refreshReservationCount to sync with API
+            userReservationService.refreshReservationCount()
+              .then(refreshResponse => {
+                console.log("Refresh response:", refreshResponse);
+              })
+              .catch(error => {
+                console.error("Error updating reservation count:", error);
+              });
           } catch (error) {
             console.error("Error updating reservation count:", error);
           }
         }
         
-        // If a new user was created, show the new user popup instead of proceeding
-        if (response.is_new_user) {
-          // Hide all other popups
-          setShowPaymentForm(false);
-          setShowReviewForm(false);
-          setStatus(null);
-          // Status will be shown after user dismisses popups (via useEffect)
-        }
-        // For non-admin logged-in users, show review form immediately instead of status
-        else if (!isAdmin && isLoggedIn) {
-          setStatus(null); // Clear any previous status
-          setShowReviewForm(true); // Show review form immediately
+        // Show appropriate status based on user type and payment method
+        if (isAdmin) {
+          // Admin reservations are always confirmed, but don't set status yet if showing receipt
+          // This will be handled after receipt is closed
+          if (!showReceiptModal) {
+            setStatus('success');
+            setMsg('Reservation confirmed successfully!');
+          }
+          // Don't set any other UI states that could hide the receipt
         } else {
-          // For admins or non-logged-in users, show status animations
-          if (isAdmin || paymentMethod === 'online') {
-            // Admin reservations and online payments are immediately confirmed
+          // For non-admin users
+          if (paymentMethod === 'online') {
+            // Online payments are immediately confirmed
             setStatus('success');
             setMsg('Reservation confirmed successfully!');
           } else {
@@ -694,9 +777,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
   
   // Update the handlePaymentSubmit function to handle email_sent flag
   const handlePaymentSubmit = async (e) => {
-    if (e) {
-      e.preventDefault(); // Always prevent default to avoid page reload
-    }
+    e.preventDefault();
     
     // Validate payment form
     if (!validatePaymentForm()) {
@@ -808,26 +889,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
           // IMPORTANT: Hide payment form first and ensure it's fully gone
           setShowPaymentForm(false);
           
-          // ALWAYS increment the reservation count for CONFIRMED online payments
-          if (!isAdmin && isLoggedIn) {
-            try {
-              // First increment the local count
-              const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-              const newCount = currentCount + 1;
-              // Immediately update session storage
-              sessionStorage.setItem("today_reservations_count", newCount.toString());
-              
-              // Dispatch count update event
-              const event = new CustomEvent('reservationCountUpdated', { 
-                detail: { count: newCount }
-              });
-              document.dispatchEvent(event);
-            } catch (error) {
-              console.error("Error updating reservation count:", error);
-            }
-          }
-          
-          // Only show review form for non-admin logged-in users
+          // For logged-in non-admin users, show review form
           if (!isAdmin && isLoggedIn) {
             setTimeout(() => {
               setShowReviewForm(true); // Show review form after payment form is gone
@@ -1304,11 +1366,12 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
         user_email, 
         email_sent, 
         num_res, 
-        reservationConfirmed 
+        reservationConfirmed,
+        refreshAPI 
       } = event.detail || {};
       
       console.log('Reservation success event received with flags:', {
-        is_new_user, user_email, email_sent, num_res, reservationConfirmed
+        is_new_user, user_email, email_sent, num_res, reservationConfirmed, refreshAPI
       });
       
       // Check for new user creation
@@ -1356,22 +1419,36 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
           setStatus('success');
           setMsg('Reservation confirmed successfully!');
         }
-        
-        // Increment count for logged-in non-admin users
-        if (!isAdmin && isLoggedIn) {
-          try {
-            const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
-            const newCount = currentCount + 1;
-            sessionStorage.setItem("today_reservations_count", newCount.toString());
-            
-            // Dispatch count update event
-            const countEvent = new CustomEvent('reservationCountUpdated', { 
-              detail: { count: newCount }
+      }
+      
+      // ALWAYS call refreshReservationCount for logged-in non-admin users
+      // regardless of reservation status (confirmed, pending, etc.)
+      if (!isAdmin && isLoggedIn) {
+        try {
+          console.log("Updating reservation count for user...");
+          // First increment the local count
+          const currentCount = parseInt(sessionStorage.getItem("today_reservations_count") || "0");
+          const newCount = currentCount + 1;
+          // Immediately update session storage
+          sessionStorage.setItem("today_reservations_count", newCount.toString());
+          
+          // Dispatch count update event
+          const event = new CustomEvent('reservationCountUpdated', { 
+            detail: { count: newCount }
+          });
+          document.dispatchEvent(event);
+          
+          console.log("Calling refreshReservationCount...");
+          // Call refreshReservationCount to sync with API
+          userReservationService.refreshReservationCount()
+            .then(refreshResponse => {
+              console.log("Refresh response:", refreshResponse);
+            })
+            .catch(error => {
+              console.error("Error updating reservation count:", error);
             });
-            document.dispatchEvent(countEvent);
-          } catch (error) {
-            console.error("Error updating reservation count:", error);
-          }
+        } catch (error) {
+          console.error("Error updating reservation count:", error);
         }
       }
     };
@@ -1386,21 +1463,105 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
   // Add handler for advance amount input
   const handleAdvanceChange = (e) => {
     const value = e.target.value;
-    setCashAdvanceAmount(value);
     
     // Clear error when user types
     if (cashAdvanceError) {
       setCashAdvanceError('');
     }
+    
+    // Real-time validation
+    if (value && value.trim() !== '') {
+      const advance = parseFloat(value);
+      const price = parseFloat(terrainPrice || 100);
+      
+      if (isNaN(advance)) {
+        setCashAdvanceError("Please enter a valid number");
+        setCashAdvanceAmount(value);
+        return;
+      }
+      
+      if (advance < 0) {
+        setCashAdvanceError("Advance payment cannot be negative");
+        setCashAdvanceAmount(value);
+        return;
+      }
+      
+      if (advance > price) {
+        setCashAdvanceError("Advance payment cannot exceed the total price");
+        // Still update the value to show the user what they entered
+        setCashAdvanceAmount(value);
+        return;
+      }
+    }
+    
+    // If validation passes or value is empty, update the state
+    setCashAdvanceAmount(value);
   };
+
+  // Add event listener for receipt closed events
+  useEffect(() => {
+    const handleReceiptClosed = (event) => {
+      // When receipt is closed, reset the status and close the popup
+      console.log('Receipt closed event received');
+      setShowReceiptModal(false);
+      
+      // For admin users, set success status after receipt is closed
+      if (isAdmin) {
+        setStatus('success');
+        setMsg('Reservation confirmed successfully!');
+      }
+      
+      // Reset status after a short delay to ensure smooth transition
+      setTimeout(() => {
+        if (resetStatus) resetStatus();
+      }, 100);
+    };
+    
+    document.addEventListener('receiptClosed', handleReceiptClosed);
+    
+    return () => {
+      document.removeEventListener('receiptClosed', handleReceiptClosed);
+    };
+  }, [resetStatus, isAdmin]);
+
+  // Add event listener for admin receipt display
+  useEffect(() => {
+    const handleShowAdminReceipt = (event) => {
+      const { receiptData, isAdmin } = event.detail || {};
+      
+      if (isAdmin && receiptData) {
+        console.log('Showing receipt for admin from event:', receiptData);
+        
+        // Set receipt data and show modal
+        setReceiptData(receiptData);
+        setShowReceiptModal(true);
+      }
+    };
+    
+    document.addEventListener('showAdminReceipt', handleShowAdminReceipt);
+    
+    return () => {
+      document.removeEventListener('showAdminReceipt', handleShowAdminReceipt);
+    };
+  }, []);
+
+  // Add debugging effect for receipt modal state
+  useEffect(() => {
+    console.log('Receipt modal state changed:', { 
+      showReceiptModal, 
+      hasReceiptData: !!receiptData,
+      receiptDataKeys: receiptData ? Object.keys(receiptData) : []
+    });
+  }, [showReceiptModal, receiptData]);
 
   return (
     <AnimatePresence>
-      {/* Receipt Modal */}
+      {/* Receipt Modal - Give it higher priority by checking it first */}
       {showReceiptModal && receiptData && (
         <Receipt 
-          isVisible={showReceiptModal}
+          isVisible={true}
           onClose={() => {
+            console.log('Receipt close button clicked');
             setShowReceiptModal(false);
             if (resetStatus) resetStatus();
           }}
@@ -1408,7 +1569,7 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
         />
       )}
       
-      {/* Initial reservation confirmation form */}
+      {/* Initial reservation confirmation form - Only show if receipt is not showing */}
       {isVisible && status === null && !showReviewForm && !isNewUser && !showEmailConfirmation && !showReceiptModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50"
@@ -1672,13 +1833,16 @@ export default function PopupCard({ isVisible, onClose, data, resetStatus, onPay
                       type="number"
                       value={cashAdvanceAmount}
                       onChange={handleAdvanceChange}
-                      placeholder={`Enter amount (Max ${parseFloat(terrainPrice) - 1} MAD)`}
+                      placeholder={`Enter amount (Max ${parseFloat(terrainPrice)} MAD)`}
                       min="0"
-                      max={parseFloat(terrainPrice) - 1}
+                      max={parseFloat(terrainPrice)}
                       step="0.01"
                       className="w-full px-4 py-2 rounded-lg border border-gray-700 bg-gray-800 text-white
                                placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Amount must be between 0 and {formatPrice(terrainPrice)} MAD
+                    </p>
                   </div>
                   
                   {cashAdvanceAmount && (

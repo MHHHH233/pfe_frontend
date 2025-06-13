@@ -28,11 +28,9 @@ export function CoachesSection() {
         const transformedCoaches = response.data.map(coach => ({
           name: coach.nom,
           description: coach.description,
-          image_url: coach.image_url,
+          image_url: coach.pfp,
           social: {
-            whatsapp: coach.whatsapp || "#",
-            instagram: coach.instagram || "#",
-            facebook: coach.facebook || "#"
+            instagram: coach.instagram || "#"
           }
         }));
         setCoaches(transformedCoaches);

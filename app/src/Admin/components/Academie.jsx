@@ -320,7 +320,7 @@ const FootballAcademieContent = () => {
     { id: 'activities', label: 'Activities', icon: Book },
     { id: 'coaches', label: 'Coaches', icon: Users },
     { id: 'programmes', label: 'Programmes', icon: Calendar },
-    { id: 'members', label: 'Members', icon: User }
+    
   ];
 
   return (
@@ -609,8 +609,8 @@ const AcademieSection = ({ academies, setAcademies }) => {
   }
 
   const filteredAcademies = academies.filter(academie => 
-    academie.nom.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    academie.description.toLowerCase().includes(searchQuery.toLowerCase())
+    (academie.nom?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (academie.description?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   return (

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Printer, FileDown, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -44,12 +44,22 @@ const getPrice = (data) => {
 
 // Helper function to get status text based on etat value
 const getStatusText = (etat) => {
-  switch(etat) {
+  // Normalize the status to lowercase for case-insensitive comparison
+  const status = (etat || '').toLowerCase();
+  
+  console.log('Getting status text for:', status);
+  
+  switch(status) {
     case 'reserver':
+    case 'reserved':
+    case 'paid':
       return 'CONFIRMED';
     case 'en attente':
+      return 'PENDING';
+    case 'partially_paid':
       return 'PARTIALLY PAID';
     case 'annuler':
+    case 'cancelled':
       return 'CANCELLED';
     default:
       return 'PENDING';
@@ -59,20 +69,44 @@ const getStatusText = (etat) => {
 // Add better data inspection and logging
 export default function Receipt({ isVisible, onClose, data }) {
   const receiptRef = useRef(null);
+  // Add state to force re-render when data changes
+  const [receiptKey, setReceiptKey] = useState(Date.now());
   
-  // Debug data immediately
+  // Helper function to deeply inspect an object for a specific field
+  const findFieldInObject = (obj, fieldName) => {
+    if (!obj || typeof obj !== 'object') return null;
+    
+    // Check if the field exists directly in the object
+    if (obj[fieldName] !== undefined) return obj[fieldName];
+    
+    // Check nested objects
+    for (const key in obj) {
+      if (typeof obj[key] === 'object' && obj[key] !== null) {
+        const result = findFieldInObject(obj[key], fieldName);
+        if (result !== null) return result;
+      }
+    }
+    
+    return null;
+  };
+  
+  // Log the data object when the component renders (keep this for debugging)
+  console.log('Receipt component data:', {
+    num_res: findFieldInObject(data, 'num_res'),
+    sessionStorage: sessionStorage.getItem('last_reservation_number')
+  });
+  
+  // Force receipt to re-render when data changes
   React.useEffect(() => {
     if (data) {
+      setReceiptKey(Date.now());
+    }
+  }, [data]);
+  
+  // Debug data only in development environment
+  React.useEffect(() => {
+    if (data && process.env.NODE_ENV === 'development') {
       console.log('Receipt data received:', data);
-      console.log('Receipt data types:', {
-        num_res: typeof data.num_res,
-        date: typeof data.date,
-        heure: typeof data.heure,
-        Name: typeof data.Name,
-        id_terrain: typeof data.id_terrain,
-        prix: typeof data.prix,
-        advance_payment: typeof data.advance_payment
-      });
     }
   }, [data]);
   
@@ -97,6 +131,22 @@ export default function Receipt({ isVisible, onClose, data }) {
       
       window.print();
       document.body.innerHTML = originalContents;
+      
+      // Clear the stored reservation number from sessionStorage
+      try {
+        if (sessionStorage.getItem('last_reservation_number')) {
+          sessionStorage.removeItem('last_reservation_number');
+        }
+      } catch (e) {
+        console.error('Error clearing reservation number from sessionStorage:', e);
+      }
+      
+      // Dispatch event after printing
+      const event = new CustomEvent('receiptClosed', {
+        detail: { data }
+      });
+      document.dispatchEvent(event);
+      
       window.location.reload();
     }
   };
@@ -120,7 +170,22 @@ export default function Receipt({ isVisible, onClose, data }) {
         const imgHeight = canvas.height * imgWidth / canvas.width;
         
         pdf.addImage(imgData, 'PNG', 5, 5, imgWidth, imgHeight);
-        pdf.save(`receipt-${data.num_res || 'reservation'}.pdf`);
+        pdf.save(`receipt-${data.num_res || data.reservationNumber || 'reservation'}.pdf`);
+        
+        // Clear the stored reservation number from sessionStorage
+        try {
+          if (sessionStorage.getItem('last_reservation_number')) {
+            sessionStorage.removeItem('last_reservation_number');
+          }
+        } catch (e) {
+          console.error('Error clearing reservation number from sessionStorage:', e);
+        }
+        
+        // Dispatch event after saving PDF
+        const event = new CustomEvent('receiptClosed', {
+          detail: { data }
+        });
+        document.dispatchEvent(event);
       });
     }
   };
@@ -129,29 +194,54 @@ export default function Receipt({ isVisible, onClose, data }) {
   const ReceiptContent = React.forwardRef(({ data }, ref) => {
     if (!data) return null;
     
-    // Extract and sanitize all data
+    // Get the reservation number from multiple possible sources including sessionStorage and deep search
+    let reservationNumber = data.num_res || data.reservationNumber;
+    
+    // If not found directly, try deep search
+    if (!reservationNumber) {
+      const deepSearchResult = findFieldInObject(data, 'num_res');
+      if (deepSearchResult) {
+        reservationNumber = deepSearchResult;
+      }
+    }
+    
+    // If still not found, try sessionStorage
+    if (!reservationNumber) {
+      try {
+        const storedNumber = sessionStorage.getItem('last_reservation_number');
+        if (storedNumber) {
+          reservationNumber = storedNumber;
+        } else {
+          reservationNumber = "N/A";
+        }
+      } catch (e) {
+        console.error('Error retrieving reservation number from sessionStorage:', e);
+        reservationNumber = "N/A";
+      }
+    }
+    
+    // Extract and sanitize all data - use the exact reservation number from the API
     const sanitizedData = {
-      num_res: data.num_res || 'N/A',
+      num_res: reservationNumber,  // Use the resolved reservation number
       date: data.date || new Date().toISOString().split('T')[0],
-      heure: data.heure || '00:00:00',
-      Name: data.Name || 'Guest',
-      terrain_name: data.terrain_name || `Terrain ${data.id_terrain || '?'}`,
+      heure: data.heure || data.time || '00:00:00',
+      Name: data.Name || data.clientName || 'Guest',
+      terrain_name: data.terrainName || data.terrain_name || `Terrain ${data.id_terrain || '?'}`,
       id_terrain: data.id_terrain || '?',
       prix: getPrice(data),
-      advance_payment: data.advance_payment ? parseFloat(data.advance_payment) : 0,
-      etat: data.etat || 'reserver'
+      advance_payment: data.advance_payment || data.advancePayment || 0,
+      etat: data.etat || data.paymentStatus || 'reserver',
+      expiration_warning: data.expiration_warning || '',
+      payment_method: data.paymentMethod || 'cash'
     };
     
     // Calculate derived values
-    const hasAdvancePayment = sanitizedData.advance_payment > 0;
-    const remainingAmount = hasAdvancePayment ? 
+    const remainingAmount = sanitizedData.advance_payment > 0 ? 
       (parseFloat(sanitizedData.prix) - sanitizedData.advance_payment) : 0;
-    const hasExpirationWarning = !!data.expiration_warning;
+    const hasExpirationWarning = !!sanitizedData.expiration_warning;
     
     // Format time to display nicely
     const formattedTime = sanitizedData.heure.substring(0, 5); // Show only HH:MM
-    
-    console.log('Sanitized data for receipt:', sanitizedData);
     
     return (
       <div 
@@ -167,11 +257,17 @@ export default function Receipt({ isVisible, onClose, data }) {
           <div className="border-b border-gray-300 my-2"></div>
         </div>
         
+        {/* DIRECT DISPLAY OF RECEIPT NUMBER - IMPOSSIBLE TO MISS */}
+        
+        
         <div className="receipt-details space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="font-semibold">Receipt No:</span>
             <span>{sanitizedData.num_res}</span>
           </div>
+          
+          {/* Alternative receipt number display */}
+          
           
           <div className="flex justify-between">
             <span className="font-semibold">Date:</span>
@@ -193,6 +289,11 @@ export default function Receipt({ isVisible, onClose, data }) {
             <span>{sanitizedData.terrain_name}</span>
           </div>
           
+          <div className="flex justify-between">
+            <span className="font-semibold">Payment Method:</span>
+            <span className="capitalize">{sanitizedData.payment_method}</span>
+          </div>
+          
           <div className="border-b border-gray-300 my-2"></div>
           
           <div className="flex justify-between font-semibold">
@@ -200,7 +301,7 @@ export default function Receipt({ isVisible, onClose, data }) {
             <span>{formatPrice(sanitizedData.prix)} MAD</span>
           </div>
           
-          {hasAdvancePayment && (
+          {sanitizedData.advance_payment > 0 && (
             <>
               <div className="flex justify-between">
                 <span className="font-semibold">Advance Paid:</span>
@@ -219,7 +320,7 @@ export default function Receipt({ isVisible, onClose, data }) {
             </>
           )}
           
-          {!hasAdvancePayment && (
+          {!sanitizedData.advance_payment > 0 && (
             <div className={`${sanitizedData.etat === 'reserver' ? 'bg-green-100' : 'bg-yellow-100'} p-2 text-xs rounded-md mt-2 text-center`}>
               <p className="font-semibold">Status: {getStatusText(sanitizedData.etat)}</p>
               {sanitizedData.etat !== 'reserver' && (
@@ -231,7 +332,7 @@ export default function Receipt({ isVisible, onClose, data }) {
           {/* Display expiration warning if present */}
           {hasExpirationWarning && (
             <div className="bg-red-100 p-2 text-xs rounded-md mt-2 text-center border border-red-300">
-              <p className="font-semibold text-red-800">{data.expiration_warning}</p>
+              <p className="font-semibold text-red-800">{sanitizedData.expiration_warning}</p>
             </div>
           )}
           
@@ -247,10 +348,13 @@ export default function Receipt({ isVisible, onClose, data }) {
     );
   });
   
-  if (!isVisible || !data) return null;
+  if (!data) {
+    console.log('Receipt component received no data');
+    return null;
+  }
   
   // Show raw data for debugging
-  console.log('Raw receipt data:', JSON.stringify(data, null, 2));
+  console.log('Receipt component rendering with data:', JSON.stringify(data, null, 2));
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
@@ -264,7 +368,25 @@ export default function Receipt({ isVisible, onClose, data }) {
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-green-400">Reservation Receipt</h3>
           <button 
-            onClick={onClose}
+            onClick={() => {
+              // Clear the stored reservation number from sessionStorage when closing
+              try {
+                if (sessionStorage.getItem('last_reservation_number')) {
+                  sessionStorage.removeItem('last_reservation_number');
+                }
+              } catch (e) {
+                console.error('Error clearing reservation number from sessionStorage:', e);
+              }
+              
+              // Dispatch an event before closing to continue the reservation flow
+              const event = new CustomEvent('receiptClosed', {
+                detail: { data }
+              });
+              document.dispatchEvent(event);
+              
+              // Then close the receipt
+              onClose();
+            }}
             className="p-1 rounded-full hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
           >
             <X size={20} />
@@ -272,7 +394,8 @@ export default function Receipt({ isVisible, onClose, data }) {
         </div>
         
         <div className="mb-5 overflow-auto max-h-[60vh] flex justify-center">
-          <ReceiptContent ref={receiptRef} data={data} />
+          {/* Use the receiptKey state to force re-rendering with new data */}
+          <ReceiptContent key={`receipt-${receiptKey}`} ref={receiptRef} data={data} />
         </div>
         
         <div className="flex gap-3 justify-center mt-4">

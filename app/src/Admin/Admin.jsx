@@ -75,6 +75,7 @@ import NotificationCenter from './components/NotificationCenter';
 import UserMenu from './components/UserMenu';
 import AnalyticsPage from './components/Analytics';
 import ProfilePage from '../Client/Component/ProfilePage';
+import adminTerrainService from '../lib/services/admin/terrainServices';
 
 const FootballAdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -545,7 +546,7 @@ const Overview = () => {
           },
           { 
             label: "Revenue", 
-            value: `$${result.total_revenue ? parseFloat(result.total_revenue).toLocaleString() : '0'}`,
+            value: `${result.total_revenue ? parseFloat(result.total_revenue).toLocaleString() : '0'} MAD`,
             Icon: "DollarSign",
             color: "#eab308",
             description: "Total earnings"
@@ -734,8 +735,8 @@ const Overview = () => {
 
   // Format currency helper function
   const formatCurrency = (value) => {
-    if (!value) return '$0.00';
-    return `$${parseFloat(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (!value) return '0.00 MAD';
+    return `${parseFloat(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`;
   };
 
   return (
@@ -1067,6 +1068,8 @@ const Reservations = () => {
   // Add notification state
   const [showNotification, setShowNotification] = useState(false);
   const [notification, setNotification] = useState({ message: '', type: 'success' });
+  // Add state for terrains list
+  const [terrainsList, setTerrainsList] = useState([]);
   
   // Utility function to show notifications
   const showSuccessNotification = (message) => {
@@ -1080,6 +1083,18 @@ const Reservations = () => {
     setShowNotification(true);
     setTimeout(() => setShowNotification(false), 3000);
   };
+  
+  // Fetch terrains data
+  const fetchTerrains = useCallback(async () => {
+    try {
+      const response = await adminTerrainService.getAllTerrains();
+      if (response && response.data) {
+        setTerrainsList(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching terrains:', error);
+    }
+  }, []);
   
   // Updated fetch data function without polling
   const fetchData = useCallback(async (page = 1) => {
@@ -1164,7 +1179,10 @@ const Reservations = () => {
 
     document.addEventListener('reservationCellClicked', handleReservationClick);
 
-    // Fetch data when component mounts or when selectedTerrain changes
+    // Fetch terrains data
+    fetchTerrains();
+    
+    // Fetch reservations data
     fetchData();
 
     // Add event listener for click outside
@@ -1193,7 +1211,7 @@ const Reservations = () => {
       document.removeEventListener('closeReservationPopup', handleReservationCancel);
       document.removeEventListener('reservationSuccess', handleReservationSuccess);
     };
-  }, [fetchData]);
+  }, [fetchData, fetchTerrains]);
 
   // Handle click outside modal and menu
   const handleClickOutside = (e) => {
@@ -1490,11 +1508,11 @@ const Reservations = () => {
               className="w-full pl-10 pr-8 py-2.5 bg-gray-800 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-[#07f468] focus:border-transparent appearance-none"
             >
               <option value="all">Tous les Terrains</option>
-              <option value="1">Terrain 1</option>
-              <option value="2">Terrain 2</option>
-              <option value="3">Terrain 3</option>
-              <option value="4">Terrain 4</option>
-              <option value="5">Terrain 5</option>
+              {terrainsList.map(terrain => (
+                <option key={terrain.id_terrain} value={terrain.id_terrain}>
+                  {terrain.nom_terrain || `Terrain ${terrain.id_terrain}`}
+                </option>
+              ))}
             </select>
             <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

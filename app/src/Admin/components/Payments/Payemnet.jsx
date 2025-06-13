@@ -129,15 +129,22 @@ const PaymentManagement = () => {
 
   useEffect(() => {
     fetchPayments();
+  }, []);
+  
+  // Separate effect for filters to prevent unnecessary API calls
+  useEffect(() => {
+    // Apply filters locally instead of fetching from API again
+    setTableLoading(true);
+    const timer = setTimeout(() => {
+      setTableLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [searchTerm, statusFilter, typeFilter, dateFilter]);
 
   const fetchPayments = async () => {
     try {
       setLoading(true);
-      const response = await paymentService.getAllPayments({
-        search: searchTerm,
-        status: statusFilter
-      });
+      const response = await paymentService.getAllPayments({});
       
       // Transform the API response to match the component's expected data structure
       const transformedData = response.data.map(payment => {
@@ -147,16 +154,24 @@ const PaymentManagement = () => {
         const customerName = `${lastName} ${firstName}`.trim() || 'Unknown';
         
         // Determine payment type and description
-        let paymentType = 'Unknown';
+        let paymentType = 'Other';
         let description = 'Payment';
         
-        if (payment.reservation) {
+        if (payment.id_reservation) {
           paymentType = 'Reservation';
-          description = `Reservation #${payment.reservation.num_res} - ${payment.reservation.date} at ${payment.reservation.heure.substring(0, 5)}`;
-        } else if (payment.academie) {
+          if (payment.reservation) {
+            description = `Reservation #${payment.reservation.num_res} - ${payment.reservation.date} at ${payment.reservation.heure?.substring(0, 5) || ''}`;
+          } else {
+            description = `Reservation #${payment.id_reservation}`;
+          }
+        } else if (payment.id_academie) {
           paymentType = 'Academy';
           const planType = payment.payment_details?.subscription_plan || '';
-          description = `${payment.academie.nom} - ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan`;
+          if (payment.academie) {
+            description = `${payment.academie.nom} - ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan`;
+          } else {
+            description = `Academy #${payment.id_academie} - ${planType.charAt(0).toUpperCase() + planType.slice(1)} Plan`;
+          }
         }
         
         // Format amount (convert from cents to currency format)
@@ -185,16 +200,12 @@ const PaymentManagement = () => {
       console.error('Error fetching payments:', error);
       // Log detailed error information
       if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
         console.error('Error response data:', error.response.data);
         console.error('Error response status:', error.response.status);
         console.error('Error response headers:', error.response.headers);
       } else if (error.request) {
-        // The request was made but no response was received
         console.error('Error request:', error.request);
       } else {
-        // Something happened in setting up the request that triggered an Error
         console.error('Error message:', error.message);
       }
       
@@ -339,6 +350,13 @@ const PaymentManagement = () => {
   const completedPayments = payments.filter(p => p.status === 'completed').length;
   const pendingPayments = payments.filter(p => p.status === 'pending').length;
   const failedPayments = payments.filter(p => p.status === 'failed').length;
+  const failedAmount = payments.reduce((sum, payment) => {
+    if (payment.status === 'failed') {
+      const amount = typeof payment.amount === 'number' ? payment.amount : parseFloat(payment.amount) || 0;
+      return sum + amount;
+    }
+    return sum;
+  }, 0);
   
   // Calculate percentages for better visualization
   const totalCount = payments.length;
@@ -557,7 +575,7 @@ const PaymentManagement = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-400">Failed</p>
-              <p className="text-2xl font-bold text-red-400">MAD {failedPayments > 0 ? '0.00' : '0.00'}</p>
+              <p className="text-2xl font-bold text-red-400">MAD {failedAmount.toFixed(2)}</p>
               <div className="flex items-center mt-1">
                 <span className="text-xs text-gray-400">{failedPayments} payments</span>
                 <span className="text-xs text-red-400 ml-2">({failedPercentage}%)</span>

@@ -170,6 +170,8 @@ const ProfilePage = () => {
   const [pendingInvitations, setPendingInvitations] = useState([]);
   const [pendingJoinRequests, setPendingJoinRequests] = useState([]);
   const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const [invitationsPage, setInvitationsPage] = useState(1);
+  const [invitationsTotalPages, setInvitationsTotalPages] = useState(1);
 
   // Add state for team invitation form
   const [showInviteForm, setShowInviteForm] = useState(false);
@@ -981,10 +983,15 @@ const ProfilePage = () => {
       
       try {
         setInvitationsLoading(true);
-        const response = await playerTeamsService.getPendingInvitations();
+        const response = await playerTeamsService.getPendingInvitations({ page: invitationsPage });
         
         if (response && response.data) {
           setPendingInvitations(response.data);
+          
+          // Handle pagination if available in the response
+          if (response.meta) {
+            setInvitationsTotalPages(response.meta.last_page || 1);
+          }
         }
       } catch (error) {
         console.error('Error fetching pending invitations:', error);
@@ -1015,7 +1022,7 @@ const ProfilePage = () => {
     
     fetchPendingInvitations();
     fetchPendingJoinRequests();
-  }, [playerInfo, teamInfo]);
+  }, [playerInfo, teamInfo, invitationsPage]);
 
   // Fetch player requests when the player info is loaded
   useEffect(() => {
@@ -1091,10 +1098,10 @@ const ProfilePage = () => {
         setPendingInvitations(prev => prev.filter(inv => inv.id !== id));
         
         // Refresh team data
-        if (response.data && response.data.id_teams) {
+        if (response.data && response.data.team_id) {
           // Update session storage with team data
           sessionStorage.setItem('has_teams', 'true');
-          sessionStorage.setItem('id_teams', response.data.id_teams.toString());
+          sessionStorage.setItem('id_teams', response.data.team_id.toString());
           
           try {
             // Update teams array in session storage
@@ -1107,7 +1114,7 @@ const ProfilePage = () => {
             }
             
             // Add the new team if not already in the array
-            const teamExists = teamsArray.some(team => team.id_teams === response.data.id_teams);
+            const teamExists = teamsArray.some(team => team.id_teams === response.data.team_id || team.id === response.data.team_id);
             if (!teamExists) {
               teamsArray.push(response.data);
             }
@@ -1772,6 +1779,10 @@ const ProfilePage = () => {
     setActivitiesPage(page);
   };
 
+  const handleInvitationsPageChange = (page) => {
+    setInvitationsPage(page);
+  };
+
   // Add functions for academy memberships
   const handleCancelMembership = async (academieId) => {
     try {
@@ -1958,7 +1969,7 @@ const ProfilePage = () => {
         console.log("First invite attempt failed, trying alternative endpoint", firstError);
         try {
           // Second attempt - direct team member add
-          response = await apiClient.post(`/api/user/v1/teams/${teamId}/invite`, {
+          response = await apiClient.post(`/api/user/v1/player-teams/${teamId}/invite`, {
             player_id: playerId
           });
         } catch (secondError) {
@@ -4193,36 +4204,69 @@ const ProfilePage = () => {
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {pendingInvitations.map((invitation) => (
-                            <div key={invitation.id} className="p-3 rounded-lg bg-gray-800/50 border border-gray-700">
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <p className="text-white">
-                                    <span className="font-medium">{invitation.team?.name || `Team #${invitation.id_teams}`}</span>
-                                  </p>
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    Invited you to join their team
-                                  </p>
-                                </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleAcceptInvitation(invitation.id)}
-                                    className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-green-600 transition-colors"
-                                  >
-                                    <UserCheck className="w-3.5 h-3.5" />
-                                    Accept
-                                  </button>
-                                  <button
-                                    onClick={() => handleRefuseInvitation(invitation.id)}
-                                    className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-red-600 transition-colors"
-                                  >
-                                    <UserX className="w-3.5 h-3.5" />
-                                    Refuse
-                                  </button>
+                          {pendingInvitations.length > 0 ? (
+                            pendingInvitations.map((invitation) => (
+                              <div key={invitation.id} className="p-3 rounded-lg bg-gray-800/50 border border-gray-700">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <p className="text-white">
+                                      <span className="font-medium">{invitation.team?.name || `Team #${invitation.team_id}`}</span>
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Invited you to join their team
+                                    </p>
+                                    {invitation.team?.captain && (
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        Captain: {invitation.team.captain.nom} {invitation.team.captain.prenom}
+                                      </p>
+                                    )}
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Sent: {new Date(invitation.created_at).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleAcceptInvitation(invitation.id)}
+                                      className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-green-600 transition-colors"
+                                    >
+                                      <UserCheck className="w-3.5 h-3.5" />
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() => handleRefuseInvitation(invitation.id)}
+                                      className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-red-600 transition-colors"
+                                    >
+                                      <UserX className="w-3.5 h-3.5" />
+                                      Refuse
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))
+                          ) : (
+                            <p className="text-gray-400 text-center py-2">No pending invitations</p>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Pagination controls for invitations */}
+                      {invitationsTotalPages > 1 && (
+                        <div className="flex justify-center mt-4">
+                          <div className="flex space-x-1">
+                            {Array.from({ length: invitationsTotalPages }, (_, i) => i + 1).map((page) => (
+                              <button
+                                key={page}
+                                onClick={() => handleInvitationsPageChange(page)}
+                                className={`px-3 py-1 rounded ${
+                                  invitationsPage === page
+                                    ? 'bg-green-500 text-white'
+                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

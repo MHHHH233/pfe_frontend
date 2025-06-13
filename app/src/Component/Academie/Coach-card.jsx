@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { SocialIcons } from "./social-icons"
+import { Instagram } from "lucide-react"
 import { User } from "lucide-react"
 
 const cardVariants = {
@@ -19,11 +19,11 @@ export function CoachCard({ name, description, social, image_url }) {
       variants={cardVariants}
       whileHover={{ scale: 1.03 }}
       transition={{ type: "spring", stiffness: 300 }}
-      className="bg-[#333333] rounded-lg p-8 shadow-xl transition-all duration-300 ease-in-out transform hover:scale-105 hover:translate-y-[-5px] hover:bg-[#444444] hover:shadow-[0_8px_32px_rgba(7,244,104,0.1)]"
+      className="bg-gradient-to-br from-[#333333] to-[#222222] rounded-lg p-8 shadow-xl transition-all duration-300 ease-in-out transform hover:shadow-[0_8px_32px_rgba(7,244,104,0.15)] border border-gray-700"
     >
       <div className="flex flex-col items-center">
         <motion.div 
-          className="w-24 h-24 rounded-full mb-6 overflow-hidden relative bg-green-500 flex items-center justify-center"
+          className="w-32 h-32 rounded-full mb-6 overflow-hidden relative bg-green-500 flex items-center justify-center border-4 border-green-500 shadow-lg"
           whileHover={{ scale: 1.1, rotate: 5 }}
         >
           {image_url ? (        
@@ -33,12 +33,24 @@ export function CoachCard({ name, description, social, image_url }) {
               className="w-full h-full object-cover"
             />
           ) : (
-            <User className="w-12 h-12 text-white" />
+            <User className="w-16 h-16 text-white" />
           )}
         </motion.div>
-        <h3 className="text-2xl font-semibold mb-4 text-white">{name}</h3>
-        <p className="text-gray-300 text-center mb-6 leading-relaxed">{description}</p>
-        <SocialIcons social={social} />
+        <h3 className="text-2xl font-semibold mb-3 text-white">{name}</h3>
+        <p className="text-gray-300 text-center mb-6 leading-relaxed max-w-xs">{description}</p>
+        
+        {/* Instagram Social Icon */}
+        {social?.instagram && social.instagram !== "#" && (
+          <a 
+            href={`https://instagram.com/${social.instagram.replace('@', '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-gray-300 hover:text-green-400 transition-colors"
+          >
+            <Instagram className="w-5 h-5" />
+            <span>{social.instagram}</span>
+          </a>
+        )}
       </div>
     </motion.div>
   )

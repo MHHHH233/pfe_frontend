@@ -47,7 +47,7 @@ const reservationEndpoints = {
         `${BASE_URL}?page=${page}&per_page=${perPage}`,
     
     // Refresh reservation count
-    refreshReservationCount: '/api/refresh-reservation-count',
+    refreshReservationCount: `/api/refresh-reservation-count`,
 };
 
 export default reservationEndpoints; 
